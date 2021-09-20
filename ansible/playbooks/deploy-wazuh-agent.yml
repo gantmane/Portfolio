@@ -1,0 +1,213 @@
+---
+# Wazuh Agent Deployment Playbook
+# Author: Evgeniy Gantman
+# Compliance: PCI DSS 10.2 — Implement audit logs; NIST SP 800-92 log management
+#
+# Deploys and enrolls Wazuh 4.7 agents on all managed nodes.
+# Idempotent: safe to run on already-enrolled nodes (skips if enrolled).
+# Registration: automatic via Wazuh ossec-authd (no shared key files)
+#
+# Prerequisites:
+#   - Wazuh manager running on {{ wazuh_manager_host }}
+#   - Port 1514 (UDP/TCP) and 1515 (TCP) open from agents to manager
+#   - Target nodes: Ubuntu 20.04+ or RHEL 8+
+#
+# Usage:
+#   ansible-playbook deploy-wazuh-agent.yml \
+#     --inventory production-inventory.ini \
+#     --extra-vars "wazuh_manager_host=wazuh.internal.example.com"
+
+- name: Deploy and Enroll Wazuh Agent
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    wazuh_version: "4.7.3"
+    wazuh_manager_host: "{{ lookup('env', 'WAZUH_MANAGER_HOST') | default('wazuh.internal.example.com') }}"
+    wazuh_manager_port: "1514"
+    wazuh_manager_protocol: "tcp"
+    wazuh_registration_port: "1515"
+    # Agent group assignment determines which rules and decoder sets apply
+    wazuh_agent_group: "{{ 'pci-scope' if 'payment' in group_names else 'production' }}"
+    # Log levels: 0=emergency, 1=alert, 2=critical, 3=error, 4=warning, 5=notice (default)
+    wazuh_log_level: "5"
+
+  tasks:
+    # ════════════════════════════════════════════════════════════════
+    # Pre-flight checks
+    # ════════════════════════════════════════════════════════════════
+
+    - name: Check if Wazuh agent is already enrolled and running
+      command: systemctl is-active wazuh-agent
+      register: wazuh_running
+      changed_when: false
+      failed_when: false
+
+    - name: Check current Wazuh agent version (if installed)
+      command: /var/ossec/bin/wazuh-control info -v
+      register: wazuh_installed_version
+      changed_when: false
+      failed_when: false
+      when: wazuh_running.rc == 0
+
+    - name: Skip enrollment if agent is already enrolled at correct version
+      meta: end_host
+      when:
+        - wazuh_running.rc == 0
+        - wazuh_installed_version.stdout is defined
+        - wazuh_version in wazuh_installed_version.stdout
+
+    # ════════════════════════════════════════════════════════════════
+    # Repository setup
+    # ════════════════════════════════════════════════════════════════
+
+    - name: Add Wazuh GPG key (Debian/Ubuntu)
+      apt_key:
+        url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Wazuh repository (Debian/Ubuntu)
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+      when: ansible_os_family == "Debian"
+
+    - name: Add Wazuh repository (RHEL/CentOS)
+      yum_repository:
+        name: wazuh
+        description: Wazuh repository
+        baseurl: "https://packages.wazuh.com/4.x/yum/"
+        gpgcheck: yes
+        gpgkey: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+        enabled: yes
+      when: ansible_os_family == "RedHat"
+
+    # ════════════════════════════════════════════════════════════════
+    # Install
+    # ════════════════════════════════════════════════════════════════
+
+    - name: Install Wazuh agent (Debian/Ubuntu)
+      apt:
+        name: "wazuh-agent={{ wazuh_version }}-1"
+        state: present
+        update_cache: yes
+      environment:
+        # Pre-seed manager address for package install — avoids interactive prompt
+        WAZUH_MANAGER: "{{ wazuh_manager_host }}"
+        WAZUH_AGENT_GROUP: "{{ wazuh_agent_group }}"
+        WAZUH_AGENT_NAME: "{{ ansible_hostname }}"
+      when: ansible_os_family == "Debian"
+
+    - name: Install Wazuh agent (RHEL/CentOS)
+      yum:
+        name: "wazuh-agent-{{ wazuh_version }}-1"
+        state: present
+      environment:
+        WAZUH_MANAGER: "{{ wazuh_manager_host }}"
+        WAZUH_AGENT_GROUP: "{{ wazuh_agent_group }}"
+        WAZUH_AGENT_NAME: "{{ ansible_hostname }}"
+      when: ansible_os_family == "RedHat"
+
+    # ════════════════════════════════════════════════════════════════
+    # Configure ossec.conf
+    # ════════════════════════════════════════════════════════════════
+
+    - name: Configure Wazuh agent (ossec.conf)
+      blockinfile:
+        path: /var/ossec/etc/ossec.conf
+        marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+        insertafter: "<ossec_config>"
+        block: |
+          <client>
+            <server>
+              <address>{{ wazuh_manager_host }}</address>
+              <port>{{ wazuh_manager_port }}</port>
+              <protocol>{{ wazuh_manager_protocol }}</protocol>
+            </server>
+            <enrollment>
+              <enabled>yes</enabled>
+              <manager_address>{{ wazuh_manager_host }}</manager_address>
+              <port>{{ wazuh_registration_port }}</port>
+              <agent_name>{{ ansible_hostname }}</agent_name>
+              <groups>{{ wazuh_agent_group }}</groups>
+            </enrollment>
+            <notify_time>10</notify_time>
+            <time-reconnect>60</time-reconnect>
+            <auto_restart>yes</auto_restart>
+          </client>
+
+          <!-- Log collection: auth, syslog, dpkg/rpm, cron -->
+          <localfile>
+            <log_format>syslog</log_format>
+            <location>/var/log/auth.log</location>
+          </localfile>
+          <localfile>
+            <log_format>syslog</log_format>
+            <location>/var/log/syslog</location>
+          </localfile>
+          <localfile>
+            <log_format>command</log_format>
+            <command>df -P</command>
+            <frequency>360</frequency>
+          </localfile>
+
+          <!-- File Integrity Monitoring: CIS 1.4, PCI DSS 11.5 -->
+          <syscheck>
+            <frequency>3600</frequency>
+            <scan_on_start>yes</scan_on_start>
+            <directories check_all="yes" realtime="yes" report_changes="yes">
+              /etc,/usr/bin,/usr/sbin,/bin,/sbin
+            </directories>
+            <directories check_all="yes" realtime="yes">
+              /var/ossec/etc/rules,/var/ossec/etc/decoders
+            </directories>
+            <ignore>/etc/mtab</ignore>
+            <ignore>/etc/hosts.deny</ignore>
+            <ignore>/etc/mail/statistics</ignore>
+            <ignore>/etc/random-seed</ignore>
+            <ignore>/etc/adjtime</ignore>
+            <ignore>/etc/httpd/logs</ignore>
+            <ignore>/etc/utmpx</ignore>
+            <ignore>/etc/wtmpx</ignore>
+            <ignore>/etc/cups/certs</ignore>
+            <ignore>/etc/dumpdates</ignore>
+            <ignore>/etc/svc/volatile</ignore>
+          </syscheck>
+      notify: restart wazuh-agent
+
+    # ════════════════════════════════════════════════════════════════
+    # Enable and start
+    # ════════════════════════════════════════════════════════════════
+
+    - name: Enable and start Wazuh agent service
+      systemd:
+        name: wazuh-agent
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for agent to connect to manager (30 seconds)
+      wait_for:
+        host: "{{ wazuh_manager_host }}"
+        port: "{{ wazuh_manager_port }}"
+        delay: 5
+        timeout: 30
+
+    - name: Verify agent enrolled successfully
+      command: /var/ossec/bin/agent_control -l
+      register: agent_list
+      changed_when: false
+      failed_when: ansible_hostname not in agent_list.stdout
+
+    - name: Report enrollment status
+      debug:
+        msg: "Wazuh agent enrolled: {{ ansible_hostname }} → {{ wazuh_manager_host }} (group: {{ wazuh_agent_group }})"
+
+  handlers:
+    - name: restart wazuh-agent
+      systemd:
+        name: wazuh-agent
+        state: restarted

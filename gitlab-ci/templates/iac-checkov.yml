@@ -1,0 +1,93 @@
+# Checkov IaC Security Scanning Template
+# Supports: Terraform, Kubernetes manifests, Helm, Dockerfile, CloudFormation
+# Fails on HIGH/CRITICAL misconfigurations
+# Custom policies via CHECKOV_CUSTOM_POLICIES_DIR
+# GL converter: gitlab-ci/templates/checkov_to_gl.py (included in repo)
+
+.iac-checkov:
+  stage: test
+  image: bridgecrew/checkov:3.2.58
+  variables:
+    CHECKOV_OUTPUT_DIR: "checkov-results"
+    CHECKOV_CUSTOM_POLICIES_DIR: ".checkov/policies"
+    CHECKOV_FRAMEWORK: "terraform,terraform_plan,kubernetes,dockerfile,helm,secrets"
+    # Only soft-fail on LOW/MEDIUM; hard-fail on HIGH/CRITICAL
+    CHECKOV_SOFT_FAIL_ON: "LOW,MEDIUM"
+    SARIF_OUTPUT: "checkov.sarif"
+    GITLAB_REPORT: "gl-sast-checkov.json"
+    CHECKOV_SKIP_CHECKS: ""
+    CHECKOV_CONVERTER: "gitlab-ci/templates/checkov_to_gl.py"
+  before_script:
+    - |
+      echo "=== Checkov IaC Scanner ==="
+      checkov --version
+      mkdir -p "$CHECKOV_OUTPUT_DIR"
+
+      if [ -n "$CHECKOV_SKIP_CHECKS" ]; then
+        export SKIP_FLAG="--skip-check $CHECKOV_SKIP_CHECKS"
+      else
+        export SKIP_FLAG=""
+      fi
+
+      if [ -d "$CHECKOV_CUSTOM_POLICIES_DIR" ]; then
+        export CUSTOM_FLAG="--external-checks-dir $CHECKOV_CUSTOM_POLICIES_DIR"
+        echo "Custom policies: $CHECKOV_CUSTOM_POLICIES_DIR"
+      else
+        export CUSTOM_FLAG=""
+      fi
+  script:
+    - |
+      FRAMEWORK_ARGS=""
+      for fw in $(echo "$CHECKOV_FRAMEWORK" | tr ',' ' '); do
+        FRAMEWORK_ARGS="$FRAMEWORK_ARGS --framework $fw"
+      done
+
+      checkov \
+        --directory . \
+        $FRAMEWORK_ARGS \
+        $CUSTOM_FLAG \
+        $SKIP_FLAG \
+        --output cli \
+        --output sarif \
+        --output-file-path "$CHECKOV_OUTPUT_DIR" \
+        --soft-fail-on "$CHECKOV_SOFT_FAIL_ON" \
+        --compact \
+        --quiet
+
+      CHECKOV_EXIT=$?
+
+      cp "$CHECKOV_OUTPUT_DIR/results_sarif.sarif" "$SARIF_OUTPUT" 2>/dev/null || true
+
+      # Convert SARIF to GitLab SAST format
+      if [ -f "$CHECKOV_CONVERTER" ]; then
+        python3 "$CHECKOV_CONVERTER"
+      else
+        echo "WARNING: $CHECKOV_CONVERTER not found - GL report skipped."
+      fi
+
+      echo "=== Summary ==="
+      CRITICALS=$(grep -c '"level":"error"' "$SARIF_OUTPUT" 2>/dev/null || echo 0)
+      echo "HIGH/CRITICAL findings: $CRITICALS"
+      exit $CHECKOV_EXIT
+  artifacts:
+    name: "checkov-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$SARIF_OUTPUT"
+      - "$CHECKOV_OUTPUT_DIR/"
+      - "$GITLAB_REPORT"
+    reports:
+      sast: "$GITLAB_REPORT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/*.tf"
+        - "**/*.tfvars"
+        - "**/Chart.yaml"
+        - "**/values*.yaml"
+        - "**/k8s/**/*.yaml"
+        - "**/k8s/**/*.yml"
+        - "**/Dockerfile*"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: false

@@ -1,0 +1,88 @@
+# Semgrep SAST Template
+# Reusable: include in your pipeline with `include: { project: ..., file: templates/sast-semgrep.yml }`
+# Requires: SEMGREP_APP_TOKEN (optional, for dashboard upload)
+
+.sast-semgrep:
+  stage: test
+  image: semgrep/semgrep:1.72.0
+  variables:
+    SEMGREP_RULES: >-
+      p/security-audit
+      p/owasp-top-ten
+      p/secrets
+      p/supply-chain
+    SEMGREP_CUSTOM_RULES_DIR: ".semgrep/rules"
+    SEMGREP_SARIF_OUTPUT: "semgrep.sarif"
+    SEMGREP_JSON_OUTPUT: "semgrep.json"
+    SEMGREP_BASELINE_REF: $CI_MERGE_REQUEST_DIFF_BASE_SHA
+    # Block pipeline on HIGH or CRITICAL findings
+    SEMGREP_SEVERITY_THRESHOLD: "WARNING"
+  before_script:
+    - |
+      echo "=== Semgrep SAST Scanner ==="
+      semgrep --version
+      # Validate custom rules dir if present
+      if [ -d "$SEMGREP_CUSTOM_RULES_DIR" ]; then
+        echo "Loading custom rules from $SEMGREP_CUSTOM_RULES_DIR"
+        CUSTOM_FLAG="--config $SEMGREP_CUSTOM_RULES_DIR"
+      else
+        echo "No custom rules dir found at $SEMGREP_CUSTOM_RULES_DIR — using rulesets only"
+        CUSTOM_FLAG=""
+      fi
+  script:
+    - |
+      # Build ruleset args
+      RULE_ARGS=""
+      for rule in $SEMGREP_RULES; do
+        RULE_ARGS="$RULE_ARGS --config $rule"
+      done
+
+      # Run scan with SARIF and JSON output
+      semgrep scan \
+        $RULE_ARGS \
+        $CUSTOM_FLAG \
+        --sarif --output "$SEMGREP_SARIF_OUTPUT" \
+        --json --output-destination "$SEMGREP_JSON_OUTPUT" \
+        --error \
+        --severity ERROR \
+        --no-git-ignore \
+        --timeout 300 \
+        .
+
+      EXIT_CODE=$?
+
+      # Summary
+      echo "=== Scan Summary ==="
+      if command -v jq &>/dev/null; then
+        TOTAL=$(jq '.results | length' "$SEMGREP_JSON_OUTPUT")
+        HIGH=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' "$SEMGREP_JSON_OUTPUT")
+        WARN=$(jq '[.results[] | select(.extra.severity == "WARNING")] | length' "$SEMGREP_JSON_OUTPUT")
+        echo "Total findings : $TOTAL"
+        echo "HIGH/CRITICAL  : $HIGH"
+        echo "WARNING        : $WARN"
+      fi
+
+      # Upload to Semgrep Cloud if token present
+      if [ -n "$SEMGREP_APP_TOKEN" ]; then
+        semgrep ci --token "$SEMGREP_APP_TOKEN" || true
+      fi
+
+      # Fail on any ERROR-severity finding
+      if [ $EXIT_CODE -ne 0 ]; then
+        echo "BLOCKED: Semgrep found HIGH/CRITICAL severity findings."
+        exit 1
+      fi
+  artifacts:
+    name: "semgrep-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$SEMGREP_SARIF_OUTPUT"
+      - "$SEMGREP_JSON_OUTPUT"
+    reports:
+      sast: "$SEMGREP_JSON_OUTPUT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH =~ /^release\/.*/
+  allow_failure: false

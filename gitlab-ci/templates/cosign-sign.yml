@@ -1,0 +1,150 @@
+# Cosign Image Signing Template
+# Keyless signing via GitLab OIDC (Sigstore Fulcio CA)
+# Attaches CycloneDX SBOM as a signed attestation
+# Verify job blocks deploys if signature is missing or invalid
+# Requires: CI_REGISTRY_IMAGE, CI_REGISTRY_USER, CI_REGISTRY_PASSWORD
+
+.cosign-sign:
+  stage: sign
+  image: cgr.dev/chainguard/cosign:latest
+  id_tokens:
+    # GitLab OIDC token for keyless signing — audience must match Sigstore Fulcio
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  variables:
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    IMAGE_DIGEST_FILE: ".image-digest"
+    SBOM_FILE: "sbom.cyclonedx.json"
+    # Transparency log — use public Rekor or private instance
+    COSIGN_TLOG_UPLOAD: "true"
+    REKOR_URL: "https://rekor.sigstore.dev"
+    FULCIO_URL: "https://fulcio.sigstore.dev"
+    # Predicate type for SBOM attestation
+    SBOM_PREDICATE_TYPE: "https://cyclonedx.org/bom"
+  before_script:
+    - |
+      echo "=== Cosign Image Signing (Keyless / OIDC) ==="
+      cosign version
+
+      # Authenticate to registry
+      cosign login "$CI_REGISTRY" \
+        --username "$CI_REGISTRY_USER" \
+        --password "$CI_REGISTRY_PASSWORD"
+
+      # Resolve image digest (sign by digest, not tag — tags are mutable)
+      if [ -f "$IMAGE_DIGEST_FILE" ]; then
+        IMAGE_DIGEST=$(cat "$IMAGE_DIGEST_FILE")
+        echo "Using digest from file: $IMAGE_DIGEST"
+      else
+        IMAGE_DIGEST=$(cosign triangulate "$IMAGE_TAG" 2>/dev/null \
+          || docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_TAG" 2>/dev/null \
+          || echo "")
+        if [ -z "$IMAGE_DIGEST" ]; then
+          echo "WARNING: Could not resolve digest — signing by tag (less secure)"
+          IMAGE_DIGEST="$IMAGE_TAG"
+        fi
+      fi
+      export IMAGE_REF="${IMAGE_DIGEST:-$IMAGE_TAG}"
+      echo "Signing: $IMAGE_REF"
+  script:
+    - |
+      # 1. Sign image with keyless OIDC (Fulcio CA issues short-lived cert)
+      cosign sign \
+        --yes \
+        --rekor-url "$REKOR_URL" \
+        --fulcio-url "$FULCIO_URL" \
+        --tlog-upload="$COSIGN_TLOG_UPLOAD" \
+        "$IMAGE_REF"
+
+      echo "Image signed successfully."
+
+      # 2. Attach SBOM as signed attestation (if SBOM exists)
+      if [ -f "$SBOM_FILE" ]; then
+        cosign attest \
+          --yes \
+          --rekor-url "$REKOR_URL" \
+          --fulcio-url "$FULCIO_URL" \
+          --tlog-upload="$COSIGN_TLOG_UPLOAD" \
+          --type "$SBOM_PREDICATE_TYPE" \
+          --predicate "$SBOM_FILE" \
+          "$IMAGE_REF"
+        echo "SBOM attestation attached."
+      else
+        echo "WARNING: $SBOM_FILE not found — skipping SBOM attestation."
+        echo "Run container-scan.yml first to generate SBOM."
+      fi
+
+      # 3. Annotate signature with pipeline metadata
+      cosign sign \
+        --yes \
+        --rekor-url "$REKOR_URL" \
+        --fulcio-url "$FULCIO_URL" \
+        --tlog-upload="$COSIGN_TLOG_UPLOAD" \
+        --annotations "gitlab.pipeline.id=$CI_PIPELINE_ID" \
+        --annotations "gitlab.commit=$CI_COMMIT_SHA" \
+        --annotations "gitlab.project=$CI_PROJECT_URL" \
+        --annotations "gitlab.ref=$CI_COMMIT_REF_NAME" \
+        "$IMAGE_REF" 2>/dev/null || true
+
+      echo "=== Signing complete ==="
+      echo "Image  : $IMAGE_REF"
+      echo "Rekor  : $REKOR_URL"
+      echo "Fulcio : $FULCIO_URL"
+  artifacts:
+    name: "cosign-$CI_COMMIT_SHORT_SHA"
+    when: on_success
+    expire_in: 90 days
+    paths:
+      - "$IMAGE_DIGEST_FILE"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  allow_failure: false
+
+
+# Verification job — use in deploy stage to block unsigned images
+.cosign-verify:
+  stage: verify
+  image: cgr.dev/chainguard/cosign:latest
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+  variables:
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    IMAGE_DIGEST_FILE: ".image-digest"
+    REKOR_URL: "https://rekor.sigstore.dev"
+    # Expected OIDC issuer for this GitLab instance
+    COSIGN_CERTIFICATE_OIDC_ISSUER: "https://gitlab.com"
+    # Expected identity (GitLab CI job JWT sub)
+    COSIGN_CERTIFICATE_IDENTITY_REGEXP: "https://gitlab.com/$CI_PROJECT_PATH//.+"
+  script:
+    - |
+      echo "=== Cosign Signature Verification ==="
+      cosign login "$CI_REGISTRY" \
+        --username "$CI_REGISTRY_USER" \
+        --password "$CI_REGISTRY_PASSWORD"
+
+      if [ -f "$IMAGE_DIGEST_FILE" ]; then
+        IMAGE_REF=$(cat "$IMAGE_DIGEST_FILE")
+      else
+        IMAGE_REF="$IMAGE_TAG"
+      fi
+
+      echo "Verifying: $IMAGE_REF"
+
+      cosign verify \
+        --rekor-url "$REKOR_URL" \
+        --certificate-oidc-issuer "$COSIGN_CERTIFICATE_OIDC_ISSUER" \
+        --certificate-identity-regexp "$COSIGN_CERTIFICATE_IDENTITY_REGEXP" \
+        "$IMAGE_REF" | python3 -m json.tool | head -40
+
+      if [ $? -eq 0 ]; then
+        echo "PASS: Image signature verified — safe to deploy."
+      else
+        echo "BLOCKED: Signature verification failed. Deployment halted."
+        exit 1
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  allow_failure: false

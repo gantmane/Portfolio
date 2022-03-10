@@ -1,0 +1,140 @@
+# OWASP Dependency-Check + Snyk Dependency Scanning Template
+# Fails on CRITICAL CVEs in third-party dependencies
+# Requires: SNYK_TOKEN (for Snyk jobs); NVD_API_KEY (recommended for faster DB updates)
+# GL converter: gitlab-ci/templates/dc_to_gl.py (included in repo)
+
+# --- OWASP Dependency-Check ---
+.dependency-check-owasp:
+  stage: test
+  image: owasp/dependency-check:10.0.3
+  variables:
+    DC_PROJECT: "$CI_PROJECT_NAME"
+    DC_SCAN_PATH: "."
+    DC_REPORT_DIR: "dependency-check-report"
+    DC_FORMATS: "HTML,JSON,SARIF,JUNIT"
+    # Fail when CVSS >= threshold (7.0 = HIGH, 9.0 = CRITICAL only)
+    DC_FAIL_CVSS: "9.0"
+    NVD_API_KEY: ""
+    DC_SUPPRESSION_FILE: ".dependency-check/suppression.xml"
+    GITLAB_REPORT: "gl-dependency-scanning-report.json"
+    DC_CONVERTER: "gitlab-ci/templates/dc_to_gl.py"
+  cache:
+    key: owasp-nvd-db
+    paths:
+      - .cache/dependency-check/
+  before_script:
+    - |
+      echo "=== OWASP Dependency-Check ==="
+      /usr/share/dependency-check/bin/dependency-check.sh --version
+      mkdir -p "$DC_REPORT_DIR" .cache/dependency-check
+
+      if [ -n "$NVD_API_KEY" ]; then
+        export NVD_FLAG="--nvdApiKey $NVD_API_KEY"
+      else
+        export NVD_FLAG=""
+      fi
+
+      if [ -f "$DC_SUPPRESSION_FILE" ]; then
+        export SUPPRESSION_FLAG="--suppression $DC_SUPPRESSION_FILE"
+      else
+        export SUPPRESSION_FLAG=""
+      fi
+  script:
+    - |
+      FORMAT_ARGS=""
+      for fmt in $(echo "$DC_FORMATS" | tr ',' ' '); do
+        FORMAT_ARGS="$FORMAT_ARGS --format $fmt"
+      done
+
+      /usr/share/dependency-check/bin/dependency-check.sh \
+        --project "$DC_PROJECT" \
+        --scan "$DC_SCAN_PATH" \
+        --out "$DC_REPORT_DIR" \
+        $FORMAT_ARGS \
+        --failOnCVSS "$DC_FAIL_CVSS" \
+        --enableExperimental \
+        --data .cache/dependency-check \
+        $NVD_FLAG \
+        $SUPPRESSION_FLAG
+
+      DC_EXIT=$?
+
+      # Convert DC JSON to GitLab dependency scanning format
+      if [ -f "$DC_CONVERTER" ]; then
+        python3 "$DC_CONVERTER"
+      else
+        echo "WARNING: $DC_CONVERTER not found - GL report skipped."
+      fi
+
+      echo "Exit code: $DC_EXIT"
+      exit $DC_EXIT
+  artifacts:
+    name: "dependency-check-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$DC_REPORT_DIR/"
+      - "$GITLAB_REPORT"
+    reports:
+      dependency_scanning: "$GITLAB_REPORT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: false
+
+
+# --- Snyk Alternative ---
+.dependency-check-snyk:
+  stage: test
+  image: snyk/snyk:linux
+  variables:
+    # Required: set in CI/CD variables (masked)
+    SNYK_TOKEN: ""
+    SNYK_ORG: ""
+    SNYK_SEVERITY_THRESHOLD: "critical"
+    SNYK_JSON_OUTPUT: "snyk-report.json"
+    SNYK_SARIF_OUTPUT: "snyk.sarif"
+  before_script:
+    - |
+      echo "=== Snyk Dependency Scanner ==="
+      snyk --version
+      if [ -z "$SNYK_TOKEN" ]; then
+        echo "ERROR: SNYK_TOKEN is not set."
+        exit 1
+      fi
+      snyk auth "$SNYK_TOKEN"
+  script:
+    - |
+      ORG_FLAG=""
+      if [ -n "$SNYK_ORG" ]; then
+        ORG_FLAG="--org=$SNYK_ORG"
+      fi
+
+      SNYK_EXIT=0
+      snyk test \
+        --all-projects \
+        --severity-threshold="$SNYK_SEVERITY_THRESHOLD" \
+        --json-file-output="$SNYK_JSON_OUTPUT" \
+        $ORG_FLAG \
+        || SNYK_EXIT=$?
+
+      snyk test \
+        --all-projects \
+        --sarif-file-output="$SNYK_SARIF_OUTPUT" \
+        $ORG_FLAG \
+        --severity-threshold="$SNYK_SEVERITY_THRESHOLD" \
+        2>/dev/null || true
+
+      echo "Snyk exit: $SNYK_EXIT"
+      exit $SNYK_EXIT
+  artifacts:
+    name: "snyk-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$SNYK_JSON_OUTPUT"
+      - "$SNYK_SARIF_OUTPUT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: false

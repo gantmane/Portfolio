@@ -1,0 +1,122 @@
+# OWASP ZAP DAST Template
+# Supports: baseline scan (fast) and full active scan
+# API schema mode: point at OpenAPI/Swagger spec for accurate coverage
+# Target: STAGING environment - never run against production
+# Requires: DAST_TARGET_URL, optionally DAST_OPENAPI_SPEC_PATH or DAST_OPENAPI_SPEC_URL
+# GL converter: gitlab-ci/templates/zap_to_gl.py (included in repo)
+
+.dast-zap-baseline:
+  stage: dast
+  image: ghcr.io/zaproxy/zaproxy:stable
+  variables:
+    DAST_TARGET_URL: "https://staging.example.com"
+    DAST_OPENAPI_SPEC_PATH: ""
+    DAST_OPENAPI_SPEC_URL: ""
+    ZAP_HTML_REPORT: "zap-baseline-report.html"
+    ZAP_XML_REPORT: "zap-baseline-report.xml"
+    ZAP_JSON_REPORT: "zap-baseline-report.json"
+    GITLAB_DAST_REPORT: "gl-dast-report.json"
+    ZAP_RULES_FILE: ".zap/rules.tsv"
+    ZAP_ALERT_LEVEL: "WARN"
+    ZAP_BASELINE_TIMEOUT: "10"
+    # Path to GL converter script (relative to project root)
+    ZAP_CONVERTER: "gitlab-ci/templates/zap_to_gl.py"
+  before_script:
+    - |
+      echo "=== OWASP ZAP Baseline DAST Scanner ==="
+      echo "Target: $DAST_TARGET_URL"
+      mkdir -p /zap/wrk
+
+      if command -v curl >/dev/null; then
+        curl -sf --max-time 15 "$DAST_TARGET_URL" -o /dev/null \
+          && echo "Target reachable." \
+          || echo "WARNING: Target may not be reachable."
+      fi
+
+      if [ -n "$DAST_OPENAPI_SPEC_PATH" ] && [ -f "$DAST_OPENAPI_SPEC_PATH" ]; then
+        cp "$DAST_OPENAPI_SPEC_PATH" /zap/wrk/openapi.yaml
+        export API_FLAG="-config openapi.defnFile=/zap/wrk/openapi.yaml"
+      elif [ -n "$DAST_OPENAPI_SPEC_URL" ]; then
+        export API_FLAG="-config openapi.targetUrl=$DAST_OPENAPI_SPEC_URL"
+      else
+        export API_FLAG=""
+      fi
+
+      if [ -f "$ZAP_RULES_FILE" ]; then
+        export RULES_FLAG="-config rules.overrides=$ZAP_RULES_FILE"
+      else
+        export RULES_FLAG=""
+      fi
+  script:
+    - |
+      zap-baseline.py \
+        -t "$DAST_TARGET_URL" \
+        -m "$ZAP_BASELINE_TIMEOUT" \
+        -l "$ZAP_ALERT_LEVEL" \
+        -r "$ZAP_HTML_REPORT" \
+        -x "$ZAP_XML_REPORT" \
+        -J "$ZAP_JSON_REPORT" \
+        $API_FLAG \
+        $RULES_FLAG \
+        -I \
+        2>&1 | tee /tmp/zap-stdout.txt
+
+      ZAP_EXIT=${PIPESTATUS[0]}
+
+      # Convert ZAP JSON to GitLab DAST format
+      if [ -f "$ZAP_CONVERTER" ]; then
+        python3 "$ZAP_CONVERTER"
+      else
+        echo "WARNING: $ZAP_CONVERTER not found - GL report conversion skipped."
+      fi
+
+      echo "=== ZAP Baseline Complete (exit: $ZAP_EXIT) ==="
+      if [ "$ZAP_EXIT" -ge 2 ]; then
+        echo "BLOCKED: ZAP found FAIL-level vulnerabilities."
+        exit 1
+      fi
+  artifacts:
+    name: "zap-dast-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$ZAP_HTML_REPORT"
+      - "$ZAP_XML_REPORT"
+      - "$ZAP_JSON_REPORT"
+      - "$GITLAB_DAST_REPORT"
+    reports:
+      dast: "$GITLAB_DAST_REPORT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: staging
+    url: $DAST_TARGET_URL
+  allow_failure: false
+
+
+# Full active scan - runs only on scheduled pipelines or manual trigger
+.dast-zap-full:
+  extends: .dast-zap-baseline
+  variables:
+    ZAP_HTML_REPORT: "zap-full-report.html"
+    ZAP_XML_REPORT: "zap-full-report.xml"
+    ZAP_JSON_REPORT: "zap-full-report.json"
+    ZAP_ALERT_LEVEL: "WARN"
+  script:
+    - |
+      zap-full-scan.py \
+        -t "$DAST_TARGET_URL" \
+        -m 60 \
+        -l "$ZAP_ALERT_LEVEL" \
+        -r "$ZAP_HTML_REPORT" \
+        -x "$ZAP_XML_REPORT" \
+        -J "$ZAP_JSON_REPORT" \
+        $API_FLAG \
+        $RULES_FLAG \
+        2>&1
+      echo "Full active scan complete."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - when: manual
+  allow_failure: true

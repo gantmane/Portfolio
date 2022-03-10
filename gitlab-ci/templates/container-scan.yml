@@ -1,0 +1,107 @@
+# Trivy Container Scanning Template
+# Blocks on CRITICAL CVEs; generates CycloneDX SBOM
+# Requires: CI_REGISTRY_USER, CI_REGISTRY_PASSWORD, CI_REGISTRY_IMAGE
+
+.container-scan:
+  stage: test
+  image: aquasec/trivy:0.51.2
+  variables:
+    IMAGE_TAG: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    TRIVY_CACHE_DIR: ".trivycache"
+    TRIVY_TIMEOUT: "10m"
+    TRIVY_EXIT_CODE: "1"
+    TRIVY_SEVERITY: "CRITICAL,HIGH"
+    TRIVY_IGNORE_UNFIXED: "false"
+    # SBOM
+    SBOM_OUTPUT: "sbom.cyclonedx.json"
+    # Reports
+    SARIF_OUTPUT: "trivy-container.sarif"
+    TABLE_OUTPUT: "trivy-container.txt"
+    GITLAB_REPORT: "gl-container-scanning-report.json"
+  cache:
+    key: trivy-db-$CI_COMMIT_REF_SLUG
+    paths:
+      - .trivycache/
+  before_script:
+    - |
+      echo "=== Trivy Container Scanner ==="
+      trivy --version
+      # Authenticate to registry
+      trivy image --download-db-only --cache-dir "$TRIVY_CACHE_DIR"
+      echo "Vulnerability DB updated."
+  script:
+    - |
+      # Authenticate to GitLab registry
+      echo "$CI_REGISTRY_PASSWORD" | trivy registry login \
+        --username "$CI_REGISTRY_USER" \
+        --password-stdin \
+        "$CI_REGISTRY" 2>/dev/null || true
+
+      echo "--- Scanning: $IMAGE_TAG ---"
+
+      # 1. Generate SARIF report
+      trivy image \
+        --cache-dir "$TRIVY_CACHE_DIR" \
+        --timeout "$TRIVY_TIMEOUT" \
+        --severity "$TRIVY_SEVERITY" \
+        --ignore-unfixed="$TRIVY_IGNORE_UNFIXED" \
+        --format sarif \
+        --output "$SARIF_OUTPUT" \
+        "$IMAGE_TAG" || true
+
+      # 2. Generate GitLab native container scanning report
+      trivy image \
+        --cache-dir "$TRIVY_CACHE_DIR" \
+        --timeout "$TRIVY_TIMEOUT" \
+        --severity "$TRIVY_SEVERITY" \
+        --format template \
+        --template "@/contrib/gitlab.tpl" \
+        --output "$GITLAB_REPORT" \
+        "$IMAGE_TAG" || true
+
+      # 3. Human-readable table (for log)
+      trivy image \
+        --cache-dir "$TRIVY_CACHE_DIR" \
+        --timeout "$TRIVY_TIMEOUT" \
+        --severity "$TRIVY_SEVERITY" \
+        --format table \
+        --output "$TABLE_OUTPUT" \
+        "$IMAGE_TAG"
+
+      cat "$TABLE_OUTPUT"
+
+      # 4. Generate CycloneDX SBOM (all vulns, full scan)
+      trivy image \
+        --cache-dir "$TRIVY_CACHE_DIR" \
+        --timeout "$TRIVY_TIMEOUT" \
+        --format cyclonedx \
+        --output "$SBOM_OUTPUT" \
+        "$IMAGE_TAG"
+
+      echo "SBOM written to $SBOM_OUTPUT"
+
+      # 5. Hard fail on CRITICAL — re-run with exit-code
+      trivy image \
+        --cache-dir "$TRIVY_CACHE_DIR" \
+        --timeout "$TRIVY_TIMEOUT" \
+        --severity CRITICAL \
+        --exit-code "$TRIVY_EXIT_CODE" \
+        --ignore-unfixed="$TRIVY_IGNORE_UNFIXED" \
+        --quiet \
+        "$IMAGE_TAG"
+  artifacts:
+    name: "trivy-$CI_COMMIT_SHORT_SHA"
+    when: always
+    expire_in: 30 days
+    paths:
+      - "$SARIF_OUTPUT"
+      - "$TABLE_OUTPUT"
+      - "$SBOM_OUTPUT"
+      - "$GITLAB_REPORT"
+    reports:
+      container_scanning: "$GITLAB_REPORT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+  allow_failure: false

@@ -1,0 +1,341 @@
+---
+# GuardDuty Finding Suppression Rules
+# Author: Evgeniy Gantman
+# Purpose: Define suppression criteria for known false positives
+# Review Frequency: Quarterly (PCI DSS Requirement 1.2.7)
+# Last Review: 2024-12-15
+# Next Review: 2025-03-15
+
+# IMPORTANT: Suppression rules reduce noise but can hide real threats
+# All suppressed findings are still logged to S3 and SIEM for audit trail
+# Suppression rules must be approved by CISO
+
+suppression_rules:
+  - rule_id: "SUPPRESS-001"
+    name: "Approved Security Scanner Traffic"
+    description: "Suppress port scanning findings from approved security scanners"
+    status: "active"
+    finding_types:
+      - "Recon:EC2/PortProbeUnprotectedPort"
+      - "Recon:EC2/Portscan"
+
+    criteria:
+      source_ips:
+        - "198.51.100.200/32"  # Qualys Scanner
+        - "198.51.100.201/32"  # Nessus Scanner
+        - "192.0.2.150/32"     # Internal Security Tools
+
+    justification: "Regular security scans performed weekly. Scanners use static IPs."
+    compensating_controls:
+      - "Scanners authenticated via MFA"
+      - "Scan results reviewed by security team"
+      - "Scan schedules documented and approved"
+
+    approved_by: "CISO"
+    approval_date: "2024-11-01"
+    expiration_date: "2025-11-01"  # Annual renewal required
+
+  - rule_id: "SUPPRESS-002"
+    name: "Development Environment Testing"
+    description: "Lower threshold for development account findings"
+    status: "active"
+    finding_types:
+      - "UnauthorizedAccess:EC2/SSHBruteForce"
+      - "Recon:EC2/PortProbeUnprotectedPort"
+
+    criteria:
+      account_ids:
+        - "333344445555"  # Development account
+
+      tags:
+        Environment: "development"
+
+    justification: "Development instances frequently scanned and tested. No production data."
+    compensating_controls:
+      - "Development network isolated from production"
+      - "No customer data in development environment"
+      - "Monthly access reviews"
+
+    approved_by: "VP Engineering, CISO"
+    approval_date: "2024-10-15"
+    expiration_date: "2025-10-15"
+
+  - rule_id: "SUPPRESS-003"
+    name: "Scheduled Backup Jobs"
+    description: "Suppress findings for expected backup traffic patterns"
+    status: "active"
+    finding_types:
+      - "Behavior:EC2/NetworkPortUnusual"
+      - "Behavior:EC2/TrafficVolumeUnusual"
+
+    criteria:
+      instance_tags:
+        Role: "backup-server"
+
+      time_windows:
+        - day: "daily"
+          start_time: "02:00"
+          end_time: "06:00"
+          timezone: "UTC"
+
+    justification: "Nightly backups generate high network traffic. Scheduled and expected."
+    compensating_controls:
+      - "Backup traffic uses dedicated VPC"
+      - "Backup destinations whitelisted"
+      - "Backup logs monitored separately"
+
+    approved_by: "CISO"
+    approval_date: "2024-09-20"
+    expiration_date: "2025-09-20"
+
+  - rule_id: "SUPPRESS-004"
+    name: "Corporate VPN Traffic"
+    description: "Suppress SSH access from corporate VPN exit points"
+    status: "active"
+    finding_types:
+      - "UnauthorizedAccess:EC2/SSHBruteForce"
+
+    criteria:
+      source_ips:
+        - "203.0.113.10/32"  # VPN Exit 1
+        - "203.0.113.11/32"  # VPN Exit 2
+
+      destination_ports:
+        - 22
+
+    justification: "Legitimate SSH access from corporate VPN. MFA required."
+    compensating_controls:
+      - "VPN requires MFA"
+      - "VPN access logged in SSO system"
+      - "Session recording enabled"
+      - "Privileged access management (PAM) enforced"
+
+    approved_by: "CISO"
+    approval_date: "2024-11-10"
+    expiration_date: "2025-11-10"
+
+  - rule_id: "SUPPRESS-005"
+    name: "Known Third-Party Partner Traffic"
+    description: "Suppress findings from approved third-party integrations"
+    status: "active"
+    finding_types:
+      - "UnauthorizedAccess:EC2/TorClient"
+      - "UnauthorizedAccess:EC2/MaliciousIPCaller"
+
+    criteria:
+      source_ips:
+        - "192.0.2.150/32"  # Partner A API
+        - "192.0.2.151/32"  # Partner B Webhook
+
+      destination_instance_tags:
+        Application: "partner-integration"
+
+    justification: "Approved third-party integrations. Contractual requirement."
+    compensating_controls:
+      - "Partner IPs whitelisted in security groups"
+      - "API authentication required"
+      - "Traffic logged and monitored"
+      - "Quarterly security reviews with partners"
+
+    approved_by: "CISO, VP Engineering"
+    approval_date: "2024-08-15"
+    expiration_date: "2025-08-15"
+
+  - rule_id: "SUPPRESS-006"
+    name: "DNS Query Volume for Microservices"
+    description: "Suppress unusual DNS query findings for service mesh"
+    status: "active"
+    finding_types:
+      - "Behavior:EC2/NetworkPortUnusual"
+      - "Trojan:EC2/DNSDataExfiltration"
+
+    criteria:
+      instance_tags:
+        kubernetes.io/cluster: "examplepay-production"
+        app: "istio-proxy"
+
+      destination_ports:
+        - 53
+        - 8053
+
+    justification: "Istio service mesh generates high DNS query volume. Expected behavior."
+    compensating_controls:
+      - "DNS queries limited to cluster internal DNS"
+      - "Network policies restrict egress"
+      - "CoreDNS logs analyzed for anomalies"
+
+    approved_by: "CISO"
+    approval_date: "2024-10-01"
+    expiration_date: "2025-10-01"
+
+  - rule_id: "SUPPRESS-007"
+    name: "CloudTrail Disabled for Maintenance"
+    description: "Suppress CloudTrail disabled findings during approved maintenance"
+    status: "inactive"  # Only activated during maintenance windows
+    finding_types:
+      - "Stealth:IAMUser/CloudTrailLoggingDisabled"
+
+    criteria:
+      time_windows:
+        - day: "2025-01-15"
+          start_time: "00:00"
+          end_time: "04:00"
+          timezone: "UTC"
+
+      account_ids:
+        - "222233334444"  # Production account
+
+    justification: "Scheduled maintenance requires temporary CloudTrail disable."
+    compensating_controls:
+      - "Change ticket approved (CHG-12345)"
+      - "Security team notified"
+      - "All other logging remains active"
+      - "CloudTrail re-enabled immediately after maintenance"
+
+    approved_by: "CISO"
+    approval_date: "2025-01-10"
+    expiration_date: "2025-01-15"
+    notes: "TEMPORARY - Only active during maintenance window"
+
+# ===========================
+# Suppression Governance
+# ===========================
+
+governance:
+  review_frequency: "Quarterly"
+  review_participants:
+    - "CISO"
+    - "Security Team Lead"
+    - "VP Engineering"
+    - "Compliance Officer"
+
+  approval_process:
+    - "Submit suppression request via ServiceNow"
+    - "Security team reviews finding patterns"
+    - "Identify compensating controls"
+    - "CISO approval required"
+    - "Document in suppression rules file"
+    - "Quarterly review for renewal"
+
+  metrics:
+    - "Suppression rate (<10% of all findings)"
+    - "False positive rate (<5%)"
+    - "Time to suppress (target: <24 hours for approved patterns)"
+
+  audit_trail:
+    - "All suppressed findings logged to S3"
+    - "Suppression rules version controlled in Git"
+    - "Quarterly audit by compliance team"
+    - "Annual review by external auditor (PCI DSS)"
+
+# ===========================
+# Prohibited Suppressions
+# ===========================
+
+prohibited_suppressions:
+  - finding_type: "CryptoCurrency:*"
+    reason: "Cryptocurrency mining always requires investigation"
+
+  - finding_type: "Backdoor:*"
+    reason: "Backdoor activity always indicates compromise"
+
+  - finding_type: "Trojan:*"
+    reason: "Trojan activity requires immediate response"
+
+  - finding_type: "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration"
+    reason: "Credential theft must always be investigated"
+
+  - finding_type: "Impact:*"
+    reason: "Impact findings indicate active attack"
+
+  - criteria: "CDE account (444455556666)"
+    reason: "PCI DSS requirement: All findings in CDE must be reviewed"
+
+# ===========================
+# Suppression Implementation
+# ===========================
+
+implementation:
+  method: "GuardDuty Suppression Rules (AWS native)"
+  terraform_resource: "aws_guardduty_filter"
+
+  example_terraform: |
+    resource "aws_guardduty_filter" "security_scanner_traffic" {
+      detector_id = aws_guardduty_detector.main.id
+      name        = "SUPPRESS-001-SecurityScanner"
+      action      = "ARCHIVE"
+      rank        = 1
+
+      finding_criteria {
+        criterion {
+          field = "type"
+          equals = ["Recon:EC2/PortProbeUnprotectedPort"]
+        }
+
+        criterion {
+          field = "service.action.networkConnectionAction.remoteIpDetails.ipAddressV4"
+          equals = ["198.51.100.200", "198.51.100.201"]
+        }
+      }
+    }
+
+  validation:
+    - "Test suppression rule with sample finding"
+    - "Verify finding archived in GuardDuty console"
+    - "Confirm finding still logged to S3 and SIEM"
+    - "Document suppression in change log"
+
+# ===========================
+# Compliance Notes
+# ===========================
+
+compliance:
+  pci_dss:
+    requirement: "10.6.1"
+    description: "Review logs and security events for anomalies"
+    implementation: "Suppressed findings still logged and reviewed quarterly"
+
+    requirement: "11.4.2"
+    description: "Keep intrusion-detection mechanisms current"
+    implementation: "Suppression rules reviewed quarterly, expired rules removed"
+
+  soc2:
+    control: "CC7.2"
+    description: "System monitoring"
+    implementation: "Suppression rules documented, approved, and audited"
+
+# ===========================
+# Statistics (Updated Quarterly)
+# ===========================
+
+statistics:
+  last_review_date: "2024-12-15"
+  total_findings_last_quarter: 1247
+  suppressed_findings: 89
+  suppression_rate: "7.1%"
+  false_positive_rate: "3.2%"
+
+  top_suppressed_finding_types:
+    - type: "Recon:EC2/PortProbeUnprotectedPort"
+      count: 42
+      reason: "Approved security scanners"
+
+    - type: "Behavior:EC2/NetworkPortUnusual"
+      count: 28
+      reason: "Scheduled backup jobs"
+
+    - type: "UnauthorizedAccess:EC2/SSHBruteForce"
+      count: 19
+      reason: "Development environment testing"
+
+# ===========================
+# Contact Information
+# ===========================
+
+contacts:
+  suppression_requests: "security-suppressions@example.com"
+  security_team: "#security-team (Slack)"
+  on_call: "pagerduty/security-oncall"
+
+version: "2.0"
+last_updated: "2024-12-15"

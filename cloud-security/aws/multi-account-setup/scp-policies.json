@@ -1,0 +1,359 @@
+{
+  "SCPs": {
+    "description": "Service Control Policies for AWS Organizations security guardrails",
+    "author": "Evgeniy Gantman",
+    "pci_dss_requirements": ["1", "2", "7", "10", "12"],
+    "policies": [
+      {
+        "name": "DenyLeaveOrganization",
+        "description": "Prevent accounts from leaving the organization",
+        "severity": "critical",
+        "targets": ["Root"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyLeaveOrganization",
+              "Effect": "Deny",
+              "Action": [
+                "organizations:LeaveOrganization"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      },
+      {
+        "name": "RequireMFA",
+        "description": "Enforce MFA for console access (PCI DSS Req 8)",
+        "severity": "critical",
+        "targets": ["Production", "CDE", "Security"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyAllExceptListedIfNoMFA",
+              "Effect": "Deny",
+              "NotAction": [
+                "iam:CreateVirtualMFADevice",
+                "iam:EnableMFADevice",
+                "iam:GetUser",
+                "iam:ListMFADevices",
+                "iam:ListVirtualMFADevices",
+                "iam:ResyncMFADevice",
+                "sts:GetSessionToken"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "BoolIfExists": {
+                  "aws:MultiFactorAuthPresent": "false"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "EnforceEncryption",
+        "description": "Require encryption for S3, EBS, RDS (PCI DSS Req 3)",
+        "severity": "critical",
+        "targets": ["Production", "CDE"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyUnencryptedS3PutObject",
+              "Effect": "Deny",
+              "Action": "s3:PutObject",
+              "Resource": "*",
+              "Condition": {
+                "StringNotEquals": {
+                  "s3:x-amz-server-side-encryption": ["AES256", "aws:kms"]
+                }
+              }
+            },
+            {
+              "Sid": "DenyUnencryptedEBSVolumes",
+              "Effect": "Deny",
+              "Action": [
+                "ec2:RunInstances",
+                "ec2:CreateVolume"
+              ],
+              "Resource": "arn:aws:ec2:*:*:volume/*",
+              "Condition": {
+                "Bool": {
+                  "ec2:Encrypted": "false"
+                }
+              }
+            },
+            {
+              "Sid": "DenyUnencryptedRDS",
+              "Effect": "Deny",
+              "Action": [
+                "rds:CreateDBInstance",
+                "rds:CreateDBCluster"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "Bool": {
+                  "rds:StorageEncrypted": "false"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "RestrictRegions",
+        "description": "Limit operations to approved AWS regions",
+        "severity": "high",
+        "targets": ["All"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyUnapprovedRegions",
+              "Effect": "Deny",
+              "NotAction": [
+                "iam:*",
+                "organizations:*",
+                "route53:*",
+                "budgets:*",
+                "waf:*",
+                "cloudfront:*",
+                "support:*",
+                "sts:*",
+                "health:*"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:RequestedRegion": [
+                    "us-east-1",
+                    "us-west-2",
+                    "eu-west-1"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "DenyPublicS3",
+        "description": "Prevent public S3 bucket access (PCI DSS Req 1)",
+        "severity": "critical",
+        "targets": ["Production", "CDE"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyPublicS3Buckets",
+              "Effect": "Deny",
+              "Action": [
+                "s3:PutBucketPublicAccessBlock",
+                "s3:PutAccountPublicAccessBlock"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "Bool": {
+                  "s3:BlockPublicAcls": "false",
+                  "s3:BlockPublicPolicy": "false",
+                  "s3:IgnorePublicAcls": "false",
+                  "s3:RestrictPublicBuckets": "false"
+                }
+              }
+            },
+            {
+              "Sid": "DenyPublicACLs",
+              "Effect": "Deny",
+              "Action": [
+                "s3:PutObjectAcl",
+                "s3:PutBucketAcl"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": [
+                    "public-read",
+                    "public-read-write",
+                    "authenticated-read"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "ProtectSecurityServices",
+        "description": "Prevent disabling CloudTrail, Config, GuardDuty (PCI DSS Req 10, 11)",
+        "severity": "critical",
+        "targets": ["All"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyCloudTrailDisable",
+              "Effect": "Deny",
+              "Action": [
+                "cloudtrail:StopLogging",
+                "cloudtrail:DeleteTrail",
+                "cloudtrail:PutEventSelectors"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyConfigDisable",
+              "Effect": "Deny",
+              "Action": [
+                "config:DeleteConfigurationRecorder",
+                "config:DeleteDeliveryChannel",
+                "config:StopConfigurationRecorder"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyGuardDutyDisable",
+              "Effect": "Deny",
+              "Action": [
+                "guardduty:DeleteDetector",
+                "guardduty:DeleteMembers",
+                "guardduty:DisassociateFromMasterAccount",
+                "guardduty:DisassociateMembers",
+                "guardduty:StopMonitoringMembers"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenySecurityHubDisable",
+              "Effect": "Deny",
+              "Action": [
+                "securityhub:DeleteInvitations",
+                "securityhub:DisableSecurityHub",
+                "securityhub:DisassociateFromMasterAccount",
+                "securityhub:DeleteMembers",
+                "securityhub:DisassociateMembers"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      },
+      {
+        "name": "DenyRootUser",
+        "description": "Restrict root user actions (PCI DSS Req 7)",
+        "severity": "critical",
+        "targets": ["All"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyRootUserActions",
+              "Effect": "Deny",
+              "Action": "*",
+              "Resource": "*",
+              "Condition": {
+                "StringLike": {
+                  "aws:PrincipalArn": "arn:aws:iam::*:root"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "EnforceTagging",
+        "description": "Require specific tags on resources",
+        "severity": "medium",
+        "targets": ["Production", "CDE"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyResourcesWithoutRequiredTags",
+              "Effect": "Deny",
+              "Action": [
+                "ec2:RunInstances",
+                "ec2:CreateVolume",
+                "rds:CreateDBInstance",
+                "s3:CreateBucket"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringNotLike": {
+                  "aws:RequestTag/Environment": ["production", "staging", "development"],
+                  "aws:RequestTag/Owner": "*",
+                  "aws:RequestTag/Application": "*"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "PreventSecurityGroupChanges",
+        "description": "Restrict security group modifications in CDE (PCI DSS Req 1)",
+        "severity": "critical",
+        "targets": ["CDE"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenySGChangesExceptAutomation",
+              "Effect": "Deny",
+              "Action": [
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:AuthorizeSecurityGroupEgress",
+                "ec2:RevokeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupEgress",
+                "ec2:CreateSecurityGroup",
+                "ec2:DeleteSecurityGroup"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:PrincipalArn": [
+                    "arn:aws:iam::444455556666:role/SecurityAutomationRole",
+                    "arn:aws:iam::444455556666:role/NetworkAdminRole"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "LimitInstanceTypes",
+        "description": "Restrict to approved EC2 instance types",
+        "severity": "medium",
+        "targets": ["Production"],
+        "policy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyUnapprovedInstanceTypes",
+              "Effect": "Deny",
+              "Action": "ec2:RunInstances",
+              "Resource": "arn:aws:ec2:*:*:instance/*",
+              "Condition": {
+                "StringNotLike": {
+                  "ec2:InstanceType": [
+                    "t3.*",
+                    "t3a.*",
+                    "m5.*",
+                    "m5a.*",
+                    "c5.*",
+                    "c5a.*",
+                    "r5.*",
+                    "r5a.*"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

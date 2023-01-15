@@ -1,0 +1,156 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DeveloperReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "eks:Describe*",
+        "eks:List*",
+        "rds:Describe*",
+        "s3:List*",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "dynamodb:Describe*",
+        "dynamodb:List*",
+        "lambda:Get*",
+        "lambda:List*",
+        "cloudwatch:Describe*",
+        "cloudwatch:Get*",
+        "cloudwatch:List*",
+        "logs:Describe*",
+        "logs:Get*",
+        "logs:FilterLogEvents",
+        "sns:List*",
+        "sqs:List*",
+        "sqs:GetQueueAttributes",
+        "elasticache:Describe*",
+        "ecr:Describe*",
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DeveloperDeploymentNonProd",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:PublishVersion",
+        "ecs:UpdateService",
+        "ecs:RegisterTaskDefinition",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": [
+            "us-east-1",
+            "us-west-2",
+            "eu-west-1"
+          ]
+        },
+        "StringNotEquals": {
+          "aws:ResourceAccount": [
+            "222233334444",
+            "444455556666"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DeveloperKubernetesAccess",
+      "Effect": "Allow",
+      "Action": [
+        "eks:AccessKubernetesApi"
+      ],
+      "Resource": "arn:aws:eks:*:*:cluster/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Environment": [
+            "development",
+            "staging"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyProductionAccess",
+      "Effect": "Deny",
+      "Action": [
+        "*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": [
+            "222233334444",
+            "444455556666"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyCDEAccess",
+      "Effect": "Deny",
+      "Action": [
+        "*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": "444455556666"
+        }
+      }
+    },
+    {
+      "Sid": "DenySecurityServiceChanges",
+      "Effect": "Deny",
+      "Action": [
+        "cloudtrail:StopLogging",
+        "cloudtrail:DeleteTrail",
+        "config:DeleteConfigurationRecorder",
+        "config:DeleteDeliveryChannel",
+        "config:StopConfigurationRecorder",
+        "guardduty:DeleteDetector",
+        "guardduty:DisableOrganizationAdminAccount",
+        "securityhub:DisableSecurityHub",
+        "iam:DeleteAccountPasswordPolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RequireMFAForConsole",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:CreateVirtualMFADevice",
+        "iam:EnableMFADevice",
+        "iam:GetUser",
+        "iam:ListMFADevices",
+        "iam:ListVirtualMFADevices",
+        "iam:ResyncMFADevice",
+        "sts:GetSessionToken"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    }
+  ]
+}

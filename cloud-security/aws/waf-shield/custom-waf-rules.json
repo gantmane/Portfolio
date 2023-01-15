@@ -1,0 +1,478 @@
+[
+  {
+    "Name": "IPWhitelist",
+    "Priority": 1,
+    "Statement": {
+      "IPSetReferenceStatement": {
+        "Arn": "arn:aws:wafv2:us-east-1:111122223333:global/ipset/examplepay-trusted-ips/12345678"
+      }
+    },
+    "Action": {
+      "Allow": {}
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "IPWhitelist"
+    }
+  },
+  {
+    "Name": "IPBlacklist",
+    "Priority": 2,
+    "Statement": {
+      "IPSetReferenceStatement": {
+        "Arn": "arn:aws:wafv2:us-east-1:111122223333:global/ipset/examplepay-malicious-ips/87654321"
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 403,
+          "CustomResponseBodyKey": "blocked_ip"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "IPBlacklist"
+    }
+  },
+  {
+    "Name": "GeoBlocking",
+    "Priority": 3,
+    "Statement": {
+      "GeoMatchStatement": {
+        "CountryCodes": ["KP", "IR", "SY"]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 403,
+          "CustomResponseBodyKey": "geo_blocked"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "GeoBlocking"
+    }
+  },
+  {
+    "Name": "RateLimitPerIP",
+    "Priority": 10,
+    "Statement": {
+      "RateBasedStatement": {
+        "Limit": 2000,
+        "AggregateKeyType": "IP"
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 429,
+          "CustomResponseBodyKey": "rate_limited"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "RateLimitPerIP"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesCommonRuleSet",
+    "Priority": 20,
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesCommonRuleSet",
+        "ExcludedRules": [
+          {
+            "Name": "SizeRestrictions_BODY"
+          }
+        ]
+      }
+    },
+    "OverrideAction": {
+      "None": {}
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesCommonRuleSet"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesSQLiRuleSet",
+    "Priority": 30,
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesSQLiRuleSet"
+      }
+    },
+    "OverrideAction": {
+      "None": {}
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesSQLiRuleSet"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesKnownBadInputsRuleSet",
+    "Priority": 40,
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesKnownBadInputsRuleSet"
+      }
+    },
+    "OverrideAction": {
+      "None": {}
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesKnownBadInputsRuleSet"
+    }
+  },
+  {
+    "Name": "AWSManagedRulesAmazonIpReputationList",
+    "Priority": 50,
+    "Statement": {
+      "ManagedRuleGroupStatement": {
+        "VendorName": "AWS",
+        "Name": "AWSManagedRulesAmazonIpReputationList"
+      }
+    },
+    "OverrideAction": {
+      "None": {}
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "AWSManagedRulesAmazonIpReputationList"
+    }
+  },
+  {
+    "Name": "PaymentPageProtection",
+    "Priority": 100,
+    "Statement": {
+      "AndStatement": {
+        "Statements": [
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "UriPath": {}
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "/payment",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                }
+              ]
+            }
+          },
+          {
+            "OrStatement": {
+              "Statements": [
+                {
+                  "ByteMatchStatement": {
+                    "FieldToMatch": {
+                      "SingleHeader": {
+                        "Name": "user-agent"
+                      }
+                    },
+                    "PositionalConstraint": "CONTAINS",
+                    "SearchString": "bot",
+                    "TextTransformations": [
+                      {
+                        "Type": "LOWERCASE",
+                        "Priority": 0
+                      }
+                    ]
+                  }
+                },
+                {
+                  "NotStatement": {
+                    "Statement": {
+                      "ByteMatchStatement": {
+                        "FieldToMatch": {
+                          "SingleHeader": {
+                            "Name": "referer"
+                          }
+                        },
+                        "PositionalConstraint": "CONTAINS",
+                        "SearchString": "examplepay.com",
+                        "TextTransformations": [
+                          {
+                            "Type": "LOWERCASE",
+                            "Priority": 0
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 403,
+          "CustomResponseBodyKey": "payment_blocked"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "PaymentPageProtection"
+    }
+  },
+  {
+    "Name": "LoginRateLimit",
+    "Priority": 110,
+    "Statement": {
+      "AndStatement": {
+        "Statements": [
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "UriPath": {}
+              },
+              "PositionalConstraint": "EXACTLY",
+              "SearchString": "/api/v1/auth/login",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                }
+              ]
+            }
+          },
+          {
+            "RateBasedStatement": {
+              "Limit": 10,
+              "AggregateKeyType": "IP"
+            }
+          }
+        ]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 429,
+          "CustomResponseBodyKey": "login_rate_limit"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "LoginRateLimit"
+    }
+  },
+  {
+    "Name": "BlockSQLInjectionInQueryString",
+    "Priority": 120,
+    "Statement": {
+      "OrStatement": {
+        "Statements": [
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "QueryString": {}
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "union select",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                },
+                {
+                  "Type": "URL_DECODE",
+                  "Priority": 1
+                }
+              ]
+            }
+          },
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "QueryString": {}
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "' or '1'='1",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                },
+                {
+                  "Type": "URL_DECODE",
+                  "Priority": 1
+                }
+              ]
+            }
+          },
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "QueryString": {}
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "drop table",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                },
+                {
+                  "Type": "URL_DECODE",
+                  "Priority": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 403,
+          "CustomResponseBodyKey": "sql_injection_blocked"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "BlockSQLInjectionInQueryString"
+    }
+  },
+  {
+    "Name": "BlockXSSInHeaders",
+    "Priority": 130,
+    "Statement": {
+      "OrStatement": {
+        "Statements": [
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "SingleHeader": {
+                  "Name": "cookie"
+                }
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "<script>",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                },
+                {
+                  "Type": "HTML_ENTITY_DECODE",
+                  "Priority": 1
+                }
+              ]
+            }
+          },
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "SingleHeader": {
+                  "Name": "cookie"
+                }
+              },
+              "PositionalConstraint": "CONTAINS",
+              "SearchString": "javascript:",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                },
+                {
+                  "Type": "HTML_ENTITY_DECODE",
+                  "Priority": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 403,
+          "CustomResponseBodyKey": "xss_blocked"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "BlockXSSInHeaders"
+    }
+  },
+  {
+    "Name": "APIEndpointRateLimit",
+    "Priority": 140,
+    "Statement": {
+      "AndStatement": {
+        "Statements": [
+          {
+            "ByteMatchStatement": {
+              "FieldToMatch": {
+                "UriPath": {}
+              },
+              "PositionalConstraint": "STARTS_WITH",
+              "SearchString": "/api/",
+              "TextTransformations": [
+                {
+                  "Type": "LOWERCASE",
+                  "Priority": 0
+                }
+              ]
+            }
+          },
+          {
+            "RateBasedStatement": {
+              "Limit": 100,
+              "AggregateKeyType": "IP"
+            }
+          }
+        ]
+      }
+    },
+    "Action": {
+      "Block": {
+        "CustomResponse": {
+          "ResponseCode": 429,
+          "CustomResponseBodyKey": "api_rate_limit"
+        }
+      }
+    },
+    "VisibilityConfig": {
+      "SampledRequestsEnabled": true,
+      "CloudWatchMetricsEnabled": true,
+      "MetricName": "APIEndpointRateLimit"
+    }
+  }
+]

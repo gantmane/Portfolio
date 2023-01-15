@@ -1,0 +1,392 @@
+---
+# KMS Key Lifecycle Management Policy
+# Author: Evgeniy Gantman
+# Purpose: Define key lifecycle stages and management procedures
+# PCI DSS: Requirement 3.6 (Cryptographic Key Management)
+
+policy_name: "KMS Key Lifecycle Management"
+version: "1.2"
+effective_date: "2025-01-01"
+owner: "Security Team"
+review_frequency: "Annual"
+
+# ===========================
+# Key Lifecycle Stages
+# ===========================
+
+lifecycle_stages:
+  - stage: "key_generation"
+    description: "Initial key creation and provisioning"
+    duration: "Day 0"
+    procedures:
+      - "Identify business requirement and data classification"
+      - "Select appropriate key type (CMK vs HSM-backed)"
+      - "Define key policy with least-privilege access"
+      - "Enable automatic rotation (90-day interval)"
+      - "Configure CloudWatch alarms for key events"
+      - "Tag key with Purpose, Environment, PCIScope, DataClass"
+      - "Document key owner and approval in metadata"
+      - "Add key to inventory management system"
+
+    automation:
+      script: "terraform apply -target=aws_kms_key.{service}_{env}"
+      approval_required: true
+      approvers:
+        - "Security Team Lead"
+        - "Infrastructure Manager"
+
+    compliance_requirements:
+      - "PCI DSS 3.6.1: Generate strong keys"
+      - "PCI DSS 3.6.2: Secure key distribution"
+      - "PCI DSS 3.6.4: Key changes for keys that have reached end of cryptoperiod"
+
+  - stage: "activation"
+    description: "Key becomes active for cryptographic operations"
+    duration: "Day 0 - Day 1"
+    procedures:
+      - "Verify key policy correctness"
+      - "Test encryption/decryption operations"
+      - "Configure service integration (RDS, S3, etc.)"
+      - "Validate CloudTrail logging of key operations"
+      - "Confirm backup and DR replication if multi-region"
+      - "Update CMDB with key ARN and aliases"
+
+    validation_tests:
+      - test: "Encryption operation test"
+        command: "aws kms encrypt --key-id alias/{key-name} --plaintext test"
+      - test: "Decryption operation test"
+        command: "aws kms decrypt --ciphertext-blob {encrypted-test-data}"
+      - test: "CloudTrail logging verification"
+        command: "aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=Encrypt"
+
+    compliance_requirements:
+      - "PCI DSS 10.2.2: All actions taken by privileged users logged"
+
+  - stage: "active_use"
+    description: "Key in production use for encryption operations"
+    duration: "90 days (one cryptoperiod)"
+    procedures:
+      - "Monitor key usage metrics (encrypt/decrypt operations)"
+      - "Alert on unauthorized access attempts"
+      - "Track key age and rotation schedule"
+      - "Quarterly access review for key policy"
+      - "Monitor for key policy changes"
+      - "Verify automatic rotation is enabled and functioning"
+      - "Audit key usage patterns for anomalies"
+
+    monitoring:
+      metrics:
+        - name: "EncryptionOperations"
+          threshold: 10000
+          period: "5 minutes"
+          alarm: "Excessive encryption operations - potential data exfiltration"
+
+        - name: "UnauthorizedAccessAttempts"
+          threshold: 5
+          period: "5 minutes"
+          alarm: "Multiple failed access attempts detected"
+
+        - name: "KeyRotationAge"
+          threshold: 90
+          unit: "days"
+          alarm: "Key approaching rotation deadline"
+
+      log_retention: "10 years (PCI DSS requirement)"
+
+    compliance_requirements:
+      - "PCI DSS 3.6.4: Keys must be retired or replaced when reaching end of cryptoperiod (90 days)"
+      - "PCI DSS 10.3: Audit trail entries for all key operations"
+      - "PCI DSS 10.7: Retain audit trail for at least one year"
+
+  - stage: "rotation"
+    description: "Automatic key material rotation (AWS managed)"
+    duration: "Every 90 days"
+    procedures:
+      - "AWS KMS automatically rotates key material"
+      - "Old key material retained for decryption of existing data"
+      - "New encryptions use new key material"
+      - "Verify rotation event logged in CloudTrail"
+      - "Notify security team of successful rotation"
+      - "Update key inventory with new key material version"
+      - "No manual intervention required (automatic rotation)"
+
+    automation:
+      automatic: true
+      notification:
+        - channel: "SNS"
+          topic: "arn:aws:sns:us-east-1:222233334444:kms-rotation-events"
+        - channel: "SIEM"
+          endpoint: "https://wazuh.example.com/api/sns-webhook"
+
+      cloudwatch_event:
+        event_pattern:
+          source:
+            - "aws.kms"
+          detail-type:
+            - "AWS API Call via CloudTrail"
+          detail:
+            eventName:
+              - "RotateKey"
+              - "EnableKeyRotation"
+
+    compliance_requirements:
+      - "PCI DSS 3.6.4: Cryptographic keys must be changed at end of cryptoperiod"
+      - "PCI DSS 3.6.8: Split knowledge and dual control of key management"
+
+  - stage: "deprecation"
+    description: "Key scheduled for retirement (no new encryptions)"
+    duration: "30-90 days"
+    triggers:
+      - "Service decommissioning"
+      - "Key compromise suspected"
+      - "Compliance requirement change"
+      - "Migration to new key type (e.g., standard to HSM-backed)"
+
+    procedures:
+      - "Update key policy to prevent new encryption operations"
+      - "Maintain decryption capability for existing data"
+      - "Identify all encrypted data using this key"
+      - "Plan re-encryption with new key"
+      - "Document deprecation reason and timeline"
+      - "Notify stakeholders of key deprecation"
+      - "Update application configurations to use new key"
+
+    key_policy_update:
+      deny_new_encryptions:
+        Sid: "DenyNewEncryptions"
+        Effect: "Deny"
+        Principal: "*"
+        Action:
+          - "kms:Encrypt"
+          - "kms:GenerateDataKey"
+          - "kms:GenerateDataKeyWithoutPlaintext"
+        Resource: "*"
+
+    compliance_requirements:
+      - "PCI DSS 3.6.4: Retired or replaced keys are prevented from use for encryption"
+
+  - stage: "deletion_scheduled"
+    description: "Key scheduled for deletion (30-day waiting period)"
+    duration: "30 days (mandatory AWS waiting period)"
+    procedures:
+      - "Verify all data re-encrypted with new key"
+      - "Scan for any remaining encrypted data using this key"
+      - "Final access review - confirm no active usage"
+      - "Document deletion approval in change management"
+      - "Schedule key deletion (30-day window)"
+      - "Monitor for any decryption attempts during waiting period"
+      - "Prepare rollback plan in case deletion must be cancelled"
+
+    validation:
+      - check: "No active encryption operations in last 90 days"
+        query: "CloudTrail logs for Encrypt/GenerateDataKey events"
+
+      - check: "All data re-encrypted"
+        validation_script: "./scan-encrypted-data.sh --key-id {key-id}"
+
+      - check: "No application dependencies"
+        validation: "Review CMDB and application configurations"
+
+    approvals_required:
+      - "Security Team Lead"
+      - "Data Owner"
+      - "Compliance Officer"
+      - "Infrastructure Manager"
+
+    compliance_requirements:
+      - "PCI DSS 3.6.4: Prevent deleted/retired keys from use"
+      - "PCI DSS 12.10.4: Include cryptographic key management in incident response"
+
+  - stage: "deleted"
+    description: "Key permanently deleted (irreversible)"
+    duration: "Permanent"
+    procedures:
+      - "Key material destroyed by AWS"
+      - "Key ARN/ID remains in CloudTrail for audit purposes"
+      - "Update key inventory to mark as 'DELETED'"
+      - "Archive key metadata for compliance (10 years)"
+      - "Document deletion completion in change log"
+      - "Remove key from monitoring dashboards"
+
+    audit_trail:
+      retention: "10 years"
+      stored_in: "S3 Glacier Deep Archive"
+      encryption: "aws:kms with long-term retention key"
+
+    compliance_requirements:
+      - "PCI DSS 10.7: Retain audit trails for at least one year, three months readily available"
+
+# ===========================
+# Key Types and Cryptoperiods
+# ===========================
+
+key_types:
+  - type: "CMK_Standard"
+    description: "Standard customer managed key"
+    cryptoperiod: 90  # days
+    rotation: "automatic"
+    use_cases:
+      - "Non-PCI production data"
+      - "Development environments"
+      - "General-purpose encryption"
+
+  - type: "CMK_MultiRegion"
+    description: "Multi-region customer managed key"
+    cryptoperiod: 90
+    rotation: "automatic"
+    use_cases:
+      - "Cross-region replication"
+      - "Disaster recovery"
+      - "Multi-region applications"
+
+  - type: "CMK_HSM_Backed"
+    description: "CloudHSM custom key store"
+    cryptoperiod: 90
+    rotation: "manual"  # CloudHSM requires manual rotation
+    use_cases:
+      - "PCI DSS Level 1 cardholder data"
+      - "Regulated financial data"
+      - "High-security requirements"
+
+    additional_controls:
+      - "Dual control for key operations"
+      - "Hardware-backed key material"
+      - "FIPS 140-2 Level 3 validated"
+
+# ===========================
+# Emergency Procedures
+# ===========================
+
+emergency_procedures:
+  - scenario: "Key Compromise Suspected"
+    severity: "Critical"
+    response_time: "Immediate (< 1 hour)"
+    actions:
+      - "Disable key immediately (DisableKey API)"
+      - "Activate incident response team"
+      - "Audit key usage for unauthorized operations"
+      - "Identify scope of potential data exposure"
+      - "Generate new key for replacement"
+      - "Re-encrypt all data with new key"
+      - "Conduct forensic analysis of compromise"
+      - "Notify compliance and legal teams"
+      - "Document incident in IR system"
+
+    runbook: "/docs/runbooks/kms-key-compromise-response.md"
+
+  - scenario: "Accidental Key Deletion Scheduled"
+    severity: "High"
+    response_time: "< 4 hours"
+    actions:
+      - "Cancel key deletion (within 30-day window)"
+      - "Investigate cause of accidental deletion"
+      - "Review and strengthen key deletion approvals"
+      - "Update key policy to prevent future accidents"
+      - "Document near-miss in incident log"
+
+    aws_command: "aws kms cancel-key-deletion --key-id {key-id}"
+
+  - scenario: "Key Rotation Failure"
+    severity: "Medium"
+    response_time: "< 24 hours"
+    actions:
+      - "Investigate rotation failure cause"
+      - "Check key policy for rotation permissions"
+      - "Verify KMS service health"
+      - "Manually trigger rotation if automatic failed"
+      - "Update monitoring to detect future failures"
+      - "Extend cryptoperiod if needed (with approval)"
+
+# ===========================
+# Compliance Mapping
+# ===========================
+
+compliance_frameworks:
+  pci_dss_4_0:
+    requirements:
+      - id: "3.6.1"
+        description: "Generation of strong cryptographic keys"
+        implementation: "AWS KMS FIPS 140-2 validated HSMs"
+
+      - id: "3.6.2"
+        description: "Secure cryptographic key distribution"
+        implementation: "KMS key policies with least-privilege access"
+
+      - id: "3.6.4"
+        description: "Key retirement at end of cryptoperiod"
+        implementation: "90-day automatic rotation, deprecated keys deny new encryptions"
+
+      - id: "3.6.5"
+        description: "Prevent unauthorized key substitution"
+        implementation: "KMS key policies, CloudTrail logging, MFA for changes"
+
+      - id: "3.6.6"
+        description: "Split knowledge and dual control"
+        implementation: "CloudHSM dual control, multi-approver key deletion"
+
+      - id: "3.6.8"
+        description: "Prevent weakened keys"
+        implementation: "KMS enforces strong key generation, no custom key material for CDE"
+
+      - id: "10.2.2"
+        description: "Audit privileged user actions"
+        implementation: "CloudTrail logs all KMS operations, 10-year retention"
+
+  soc2:
+    controls:
+      - "CC6.1: Logical and physical access controls"
+      - "CC6.6: Encryption of data at rest and in transit"
+      - "CC7.2: System monitoring and anomaly detection"
+
+# ===========================
+# Key Inventory Management
+# ===========================
+
+inventory_tracking:
+  required_metadata:
+    - key_id
+    - key_arn
+    - alias_name
+    - key_type  # CMK_Standard, CMK_MultiRegion, CMK_HSM_Backed
+    - service_owner
+    - data_classification  # public, internal, confidential, cardholder-data
+    - environment  # production, staging, development
+    - pci_scope  # in-scope, out-of-scope
+    - creation_date
+    - rotation_enabled
+    - last_rotation_date
+    - next_rotation_date
+    - deletion_date  # if scheduled
+    - status  # active, deprecated, deletion_scheduled, deleted
+
+  reporting:
+    frequency: "Monthly"
+    recipients:
+      - "Security Team"
+      - "Compliance Team"
+      - "Infrastructure Team"
+
+    reports:
+      - "Keys approaching rotation deadline"
+      - "Keys with rotation disabled"
+      - "Deprecated keys still in use"
+      - "Keys without proper tagging"
+      - "CloudHSM key material age"
+
+# ===========================
+# Contacts
+# ===========================
+
+contacts:
+  security_team:
+    email: "security@example.com"
+    slack: "#security-team"
+    oncall: "pagerduty/security-oncall"
+
+  compliance_team:
+    email: "compliance@example.com"
+    slack: "#compliance"
+
+  infrastructure_team:
+    email: "infra@example.com"
+    slack: "#infrastructure"

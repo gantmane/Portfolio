@@ -1,0 +1,423 @@
+<!--
+  Wazuh Custom Detection Rules: Kubernetes Security
+  Author: Evgeniy Gantman
+  Version: 1.0.0
+  Last Updated: 2026-05-04
+
+  Purpose:
+    Detect Kubernetes-specific attacks and misconfigurations including:
+    - Privileged container creation and capability escalation
+    - Interactive shell exec into containers (lateral movement)
+    - Secret and ConfigMap exfiltration
+    - RBAC abuse and cluster-admin binding changes
+    - Anomalous API server access patterns
+    - Pod creation from unusual namespaces or service accounts
+
+  Compliance:
+    - CIS Kubernetes Benchmark v1.8 — Control mapping noted per rule
+    - NSA/CISA Kubernetes Hardening Guide 2022
+    - PCI DSS v4.0 Requirement 6 — Develop and Maintain Secure Systems
+    - NIST SP 800-190 — Application Container Security Guide
+
+  MITRE ATT&amp;CK Techniques Covered:
+    - T1610 — Deploy Container (malicious container deployment)
+    - T1611 — Escape to Host (privileged container breakout)
+    - T1609 — Container Administration Command (exec into container)
+    - T1552.007 — Container API (secret access via API)
+    - T1548.003 — Abuse Elevation Control Mechanism (sudo in container)
+    - T1136.001 — Create Account: Local Account (user in container)
+    - T1613 — Container and Resource Discovery
+
+  Rule ID Range: 100300–100399 (Kubernetes Security)
+
+  Deployment:
+    Place in /var/ossec/etc/rules/100300-kubernetes.xml
+    Log sources:
+    1. Kubernetes Audit Policy → Wazuh agent (recommended)
+       - Configure audit policy to log RequestResponse verbosity
+       - Fields: aws.kubernetes.* (when using EKS CloudTrail integration)
+       - Or direct JSON from K8s audit webhook to Wazuh
+    2. Falco → syslog → Wazuh (for runtime container events)
+    3. kube-apiserver audit log file monitored by Wazuh agent
+
+  K8s Audit Policy (enable in /etc/kubernetes/audit-policy.yaml):
+    - level: RequestResponse for: secrets, configmaps, pods/exec, rbac
+    - level: Metadata for all other resources
+-->
+
+<group name="kubernetes,container,k8s,custom">
+
+  <!-- =========================================================
+       Rule Group: Privileged Container Detection
+       Detection: Containers with dangerous capabilities or security contexts
+       MITRE: T1610 (Deploy Container), T1611 (Escape to Host)
+       ========================================================= -->
+
+  <!-- Privileged container created — full host access, immediate escape risk
+       privileged: true gives container root access equivalent to host root.
+       This is the primary container escape vector. -->
+  <rule id="100300" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject.spec.containers.securityContext.privileged">true</field>
+    <description>Privileged container deployment detected — full host access granted, immediate escape-to-host risk</description>
+    <mitre>
+      <id>T1610</id>
+      <id>T1611</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.2.1,pci_dss_6.3.1,nist_800_53_CM.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Container with hostPID — host process namespace access
+       Allows container to see and signal all host processes. -->
+  <rule id="100301" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject.spec.hostPID">true</field>
+    <description>Pod with hostPID=true created — container can access host process namespace, escape-to-host vector</description>
+    <mitre>
+      <id>T1611</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.2.2,nist_800_53_CM.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Container with hostNetwork — bypasses network policy
+       hostNetwork: true gives container access to host network stack,
+       allowing bypass of NetworkPolicy and access to cloud metadata API. -->
+  <rule id="100302" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject.spec.hostNetwork">true</field>
+    <description>Pod with hostNetwork=true created — network policies bypassed, cloud metadata API accessible from container</description>
+    <mitre>
+      <id>T1611</id>
+      <id>T1552.005</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.2.4,nist_800_53_CM.6</group>
+  </rule>
+
+  <!-- Dangerous Linux capability added — fine-grained privilege escalation
+       SYS_ADMIN, NET_ADMIN, SYS_PTRACE are the highest-risk capabilities. -->
+  <rule id="100303" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject" type="pcre2">
+      SYS_ADMIN|SYS_PTRACE|SYS_MODULE|DAC_OVERRIDE|
+      NET_ADMIN|SYS_RAWIO|SYS_BOOT|SETUID|SETGID|KILL
+    </field>
+    <description>Pod with dangerous Linux capability requested — review for privilege escalation risk (SYS_ADMIN, NET_ADMIN, etc.)</description>
+    <mitre>
+      <id>T1611</id>
+      <id>T1548</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.2.8,nist_800_53_CM.6</group>
+  </rule>
+
+  <!-- hostPath volume mount — direct host filesystem access
+       Mounting host paths allows reading/writing to host filesystem,
+       including sensitive files like /etc/passwd, /var/run/docker.sock. -->
+  <rule id="100304" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject" type="pcre2">
+      hostPath.*(?:path|type)|volumes.*hostPath
+    </field>
+    <description>Pod with hostPath volume mount — container has direct host filesystem access, possible escape vector</description>
+    <mitre>
+      <id>T1611</id>
+      <id>T1005</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.2.3,nist_800_53_CM.6</group>
+  </rule>
+
+  <!-- Docker socket mounted inside container — full Docker/container escape
+       Mounting /var/run/docker.sock gives the container full control over
+       the Docker daemon, allowing trivial container escape. -->
+  <rule id="100305" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|patch|update</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject" type="pcre2">
+      /var/run/docker\.sock|/run/docker\.sock
+    </field>
+    <description>Docker socket mounted in container — full Docker daemon access granted, immediate container escape risk</description>
+    <mitre>
+      <id>T1611</id>
+    </mitre>
+    <group>k8s,nist_800_53_CM.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: kubectl exec Detection
+       Detection: Interactive and command execution in running containers
+       MITRE: T1609 (Container Administration Command)
+       ========================================================= -->
+
+  <!-- Any kubectl exec into a pod — requires investigation
+       Legitimate use cases: debugging. Attacker use: lateral movement,
+       data exfiltration, backdoor installation. -->
+  <rule id="100310" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create</field>
+    <field name="kubernetes.objectRef.subresource">exec</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <description>kubectl exec into pod detected — interactive container execution, verify authorized maintenance activity</description>
+    <mitre>
+      <id>T1609</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2,pci_dss_10.2.1</group>
+  </rule>
+
+  <!-- kubectl exec with interactive shell — highly suspicious
+       Spawning /bin/sh or /bin/bash interactively in a production container
+       is almost never legitimate and warrants immediate investigation. -->
+  <rule id="100311" level="14">
+    <if_sid>100310</if_sid>
+    <field name="kubernetes.requestObject.command" type="pcre2">
+      /bin/(?:sh|bash|zsh|ash|ksh)|cmd\.exe|powershell
+    </field>
+    <description>Interactive shell exec into container — /bin/sh or similar spawned in pod, lateral movement pattern</description>
+    <mitre>
+      <id>T1609</id>
+      <id>T1059.004</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2,pci_dss_10.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- kubectl exec in production namespace — elevated alert
+       Exec into production pods is especially dangerous regardless of command. -->
+  <rule id="100312" level="14">
+    <if_sid>100310</if_sid>
+    <field name="kubernetes.objectRef.namespace">production|prod|pci-scope|payment|cde</field>
+    <description>kubectl exec in production/CDE namespace — container access in sensitive environment requires immediate review</description>
+    <mitre>
+      <id>T1609</id>
+    </mitre>
+    <group>k8s,pci_dss_10.2.1,nist_800_53_AU.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- kubectl port-forward — potential tunnel for data exfiltration
+       Port-forwarding creates an unauthorized tunnel from local machine
+       to a pod, bypassing network policies. -->
+  <rule id="100313" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create</field>
+    <field name="kubernetes.objectRef.subresource">portforward</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <description>kubectl port-forward initiated — network tunnel to pod, verify no unauthorized data access or exfiltration</description>
+    <mitre>
+      <id>T1572</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Secret and ConfigMap Access
+       Detection: Sensitive data access patterns in Kubernetes API
+       MITRE: T1552.007 (Container API), T1005 (Data from Local System)
+       ========================================================= -->
+
+  <!-- Secret listed at namespace scope — bulk secret discovery
+       Legitimate code reads specific secrets by name; bulk list is reconnaissance. -->
+  <rule id="100320" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">list</field>
+    <field name="kubernetes.objectRef.resource">secrets</field>
+    <description>Kubernetes Secrets bulk list operation — reconnaissance pattern, verify authorized access (should use specific gets)</description>
+    <mitre>
+      <id>T1552.007</id>
+      <id>T1580</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.1,nist_800_53_AC.3,pci_dss_7.2.1</group>
+  </rule>
+
+  <!-- Cross-namespace secret access — service account reading outside own namespace
+       Applications should only access secrets in their own namespace. -->
+  <rule id="100321" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">get|list|watch</field>
+    <field name="kubernetes.objectRef.resource">secrets</field>
+    <field name="kubernetes.user.username" type="pcre2">
+      system:serviceaccount:(?!kube-system:)
+    </field>
+    <field name="kubernetes.objectRef.namespace" negate="yes">
+      <field name="kubernetes.user.username">.</field>
+    </field>
+    <description>Service account accessing secrets outside its own namespace — possible privilege escalation or misconfigured RBAC</description>
+    <mitre>
+      <id>T1552.007</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.1,nist_800_53_AC.3</group>
+  </rule>
+
+  <!-- kube-system secrets accessed by non-system accounts
+       kube-system contains the most sensitive secrets in the cluster. -->
+  <rule id="100322" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">get|list|watch</field>
+    <field name="kubernetes.objectRef.resource">secrets</field>
+    <field name="kubernetes.objectRef.namespace">kube-system</field>
+    <field name="kubernetes.user.username" negate="yes" type="pcre2">
+      ^system:|^kubernetes-admin|^kubelet
+    </field>
+    <description>Non-system account accessing kube-system secrets — highest-privilege namespace accessed, investigate immediately</description>
+    <mitre>
+      <id>T1552.007</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.1,nist_800_53_AC.3</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Secret access via environment variable dump — exec + env command
+       Running `env` in a container exposes all environment variables
+       including any secrets injected as env vars. -->
+  <rule id="100323" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create</field>
+    <field name="kubernetes.objectRef.subresource">exec</field>
+    <field name="kubernetes.requestObject.command" type="pcre2">
+      \benv\b|\bprintenv\b|/proc/[0-9]+/environ|cat.*\.env
+    </field>
+    <description>Environment variable dump command in container exec — possible secret exfiltration via env vars</description>
+    <mitre>
+      <id>T1552.007</id>
+      <id>T1005</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: RBAC Abuse
+       Detection: Dangerous ClusterRole bindings and RBAC escalation
+       MITRE: T1548.003 (Abuse Elevation), T1136.001 (Create Account)
+       ========================================================= -->
+
+  <!-- cluster-admin binding created — full cluster control granted
+       ClusterRoleBinding to cluster-admin is the highest privilege escalation
+       possible in Kubernetes. -->
+  <rule id="100330" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|update|patch</field>
+    <field name="kubernetes.objectRef.resource">clusterrolebindings</field>
+    <field name="kubernetes.requestObject.roleRef.name">cluster-admin</field>
+    <description>cluster-admin ClusterRoleBinding created — full Kubernetes cluster control granted, critical security event</description>
+    <mitre>
+      <id>T1548.003</id>
+      <id>T1098</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.5,nist_800_53_AC.6,pci_dss_7.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- New RBAC binding to system:masters — equivalent to cluster-admin
+       system:masters group bypasses all RBAC checks. -->
+  <rule id="100331" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|update|patch</field>
+    <field name="kubernetes.objectRef.resource">clusterrolebindings|rolebindings</field>
+    <field name="kubernetes.requestObject" type="pcre2">system:masters</field>
+    <description>Binding to system:masters group created — bypasses all RBAC policies, equivalent to cluster-admin</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.5,nist_800_53_AC.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- ClusterRole with wildcard verbs/resources — overly permissive
+       Wildcard RBAC rules grant unintended broad access. -->
+  <rule id="100332" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create|update|patch</field>
+    <field name="kubernetes.objectRef.resource">clusterroles|roles</field>
+    <field name="kubernetes.requestObject.rules" type="pcre2">
+      "verbs":\s*\["\*"\]|"resources":\s*\["\*"\]
+    </field>
+    <description>ClusterRole/Role with wildcard permissions created — overly permissive RBAC violates least-privilege principle</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.3,nist_800_53_AC.6</group>
+  </rule>
+
+  <!-- ServiceAccount token mounted automatically — token theft risk
+       Default service account tokens should not be auto-mounted in production pods. -->
+  <rule id="100333" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">create</field>
+    <field name="kubernetes.objectRef.resource">pods</field>
+    <field name="kubernetes.requestObject.spec.automountServiceAccountToken">true</field>
+    <field name="kubernetes.objectRef.namespace">production|prod|pci-scope|payment</field>
+    <description>Pod with automountServiceAccountToken=true in production — service account token accessible from container</description>
+    <mitre>
+      <id>T1552.007</id>
+    </mitre>
+    <group>k8s,cis_k8s_5.1.6,nist_800_53_CM.6</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: API Server Anomalies
+       Detection: Unusual API server access patterns
+       MITRE: T1580 (Cloud Infrastructure Discovery), T1613 (Container Discovery)
+       ========================================================= -->
+
+  <!-- Anonymous API server access — unauthenticated request succeeded
+       system:anonymous should never successfully access any resource. -->
+  <rule id="100340" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.user.username">system:anonymous</field>
+    <field name="kubernetes.responseStatus.code" type="pcre2">^2[0-9]{2}$</field>
+    <description>Anonymous (unauthenticated) Kubernetes API access succeeded — API server misconfiguration or authorization bypass</description>
+    <mitre>
+      <id>T1580</id>
+    </mitre>
+    <group>k8s,cis_k8s_3.2.1,nist_800_53_AC.3</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Forbidden API requests from service accounts — RBAC boundary testing
+       High frequency of 403s from a service account indicates RBAC probing. -->
+  <rule id="100341" level="11" frequency="10" timeframe="60">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.responseStatus.code">403</field>
+    <field name="kubernetes.user.username" type="pcre2">^system:serviceaccount:</field>
+    <same_field>kubernetes.user.username</same_field>
+    <description>Service account generating repeated 403 Forbidden errors — possible RBAC boundary probing or misconfigured app</description>
+    <mitre>
+      <id>T1580</id>
+      <id>T1613</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2</group>
+  </rule>
+
+  <!-- kubectl get nodes/namespaces from outside cluster — external discovery -->
+  <rule id="100342" level="11">
+    <decoded_as>json</decoded_as>
+    <field name="kubernetes.verb">list</field>
+    <field name="kubernetes.objectRef.resource">nodes|namespaces|clusterroles</field>
+    <field name="kubernetes.source" negate="yes" type="pcre2">
+      ^(?:10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.|192\.168\.)
+    </field>
+    <description>Kubernetes cluster-wide resource discovery from external IP — infrastructure reconnaissance from non-cluster source</description>
+    <mitre>
+      <id>T1580</id>
+      <id>T1613</id>
+    </mitre>
+    <group>k8s,nist_800_53_AU.2</group>
+  </rule>
+
+</group>

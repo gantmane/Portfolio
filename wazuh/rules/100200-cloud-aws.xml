@@ -1,0 +1,357 @@
+<!--
+  Wazuh Custom Detection Rules: Cloud Security (AWS CloudTrail / Multi-Cloud)
+  Author: Evgeniy Gantman
+  Version: 1.0.0
+  Last Updated: 2026-05-04
+
+  Purpose:
+    Detect cloud infrastructure attacks and misconfigurations including:
+    - CloudTrail tampering and disabling (anti-forensics)
+    - Security Group modifications (network boundary changes)
+    - IAM privilege escalation and credential exfiltration
+    - S3 bucket policy changes and data exfiltration
+    - Root account usage and console anomalies
+
+  Compliance:
+    - AWS CIS Foundations Benchmark v2.0 — Control mapping noted per rule
+    - PCI DSS v4.0 Requirement 10 — Log and Monitor All Access
+    - NIST SP 800-53 AU-2 (Event Logging), AC-6 (Least Privilege)
+    - SOC 2 Type II CC7.2 — System Monitoring
+
+  MITRE ATT&amp;CK Techniques Covered:
+    - T1562.008 — Impair Defenses: Disable Cloud Logs
+    - T1136.003 — Create Account: Cloud Account
+    - T1098.001 — Account Manipulation: Additional Cloud Credentials
+    - T1530 — Data from Cloud Storage
+    - T1552.005 — Unsecured Credentials: Cloud Instance Metadata API
+    - T1537 — Transfer Data to Cloud Account
+    - T1580 — Cloud Infrastructure Discovery
+
+  Rule ID Range: 100200–100299 (Cloud Security)
+
+  Deployment:
+    Place in /var/ossec/etc/rules/100200-cloud-aws.xml
+    Configure CloudTrail → CloudWatch Logs → Wazuh agent for AWS log ingestion
+    GCP: Use Cloud Logging export → Pub/Sub → Wazuh
+    Azure: Use Diagnostic Settings → Event Hub → Wazuh
+
+  Wazuh AWS Module Config (ossec.conf):
+    <wodle name="aws-s3">
+      <disabled>no</disabled>
+      <bucket type="cloudtrail">
+        <name>your-cloudtrail-bucket</name>
+        <aws_profile>wazuh-reader</aws_profile>
+      </bucket>
+    </wodle>
+-->
+
+<group name="cloud,aws,cloudtrail,iam,custom">
+
+  <!-- =========================================================
+       Rule Group: CloudTrail Tampering
+       Detection: Disabling, deleting, or modifying CloudTrail logging
+       MITRE: T1562.008 (Disable Cloud Logs)
+       CIS AWS: 3.5 — Ensure CloudTrail log file validation is enabled
+       ========================================================= -->
+
+  <!-- CloudTrail trail stopped — logging disabled
+       Attackers disable CloudTrail to operate without audit trail.
+       Any trail stop during non-change-window is immediately suspicious. -->
+  <rule id="100200" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">StopLogging</field>
+    <field name="aws.eventSource">cloudtrail.amazonaws.com</field>
+    <description>CloudTrail logging STOPPED — audit trail disabled, likely anti-forensics or attacker covering tracks</description>
+    <mitre>
+      <id>T1562.008</id>
+      <id>T1070</id>
+    </mitre>
+    <group>cloud,pci_dss_10.5.2,gdpr_II_5.1.f,nist_800_53_AU.9,aws_cis_3.5</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- CloudTrail trail deleted — permanent audit record destruction -->
+  <rule id="100201" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">DeleteTrail</field>
+    <field name="aws.eventSource">cloudtrail.amazonaws.com</field>
+    <description>CloudTrail trail DELETED — permanent audit log destruction detected, critical security incident</description>
+    <mitre>
+      <id>T1562.008</id>
+      <id>T1485</id>
+    </mitre>
+    <group>cloud,pci_dss_10.5.2,pci_dss_10.3.3,nist_800_53_AU.9,aws_cis_3.5</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- CloudTrail configuration modified — log validation, S3 bucket changed
+       Attackers may redirect CloudTrail to a bucket they control,
+       or disable log file validation to allow tampered logs. -->
+  <rule id="100202" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">UpdateTrail</field>
+    <field name="aws.eventSource">cloudtrail.amazonaws.com</field>
+    <description>CloudTrail trail configuration modified — verify authorized change, check for log validation or destination changes</description>
+    <mitre>
+      <id>T1562.008</id>
+    </mitre>
+    <group>cloud,pci_dss_10.5.2,nist_800_53_AU.9,aws_cis_3.5</group>
+  </rule>
+
+  <!-- CloudWatch alarm suppressed or deleted — detection evasion
+       Disabling CloudWatch alarms allows attacks to proceed without alerting. -->
+  <rule id="100203" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">DeleteAlarms|DisableAlarmActions|SetAlarmState</field>
+    <field name="aws.eventSource">monitoring.amazonaws.com</field>
+    <description>CloudWatch alarm modified or deleted — detection capability impaired, possible attack preparation</description>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+    <group>cloud,nist_800_53_AU.9,aws_cis_3.14</group>
+  </rule>
+
+  <!-- S3 access logging disabled on bucket — removes per-request audit trail -->
+  <rule id="100204" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">PutBucketLogging</field>
+    <field name="aws.eventSource">s3.amazonaws.com</field>
+    <field name="aws.requestParameters.bucketLoggingStatus.loggingEnabled" negate="yes">.</field>
+    <description>S3 bucket access logging disabled — per-request audit capability removed from bucket</description>
+    <mitre>
+      <id>T1562.008</id>
+    </mitre>
+    <group>cloud,pci_dss_10.5.2,aws_cis_3.6</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Security Group Modifications
+       Detection: Network boundary changes in AWS security groups
+       MITRE: T1562.007 (Disable or Modify Cloud Firewall)
+       CIS AWS: 4.1, 4.2 — Monitor unauthorized API calls
+       ========================================================= -->
+
+  <!-- Security Group ingress rule added — potential attack surface expansion
+       High severity when: port 22 (SSH), 3389 (RDP), 0.0.0.0/0 (internet-facing) -->
+  <rule id="100210" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">AuthorizeSecurityGroupIngress</field>
+    <field name="aws.eventSource">ec2.amazonaws.com</field>
+    <description>Security Group ingress rule added — verify authorized network access change</description>
+    <mitre>
+      <id>T1562.007</id>
+    </mitre>
+    <group>cloud,aws_cis_4.1,nist_800_53_CM.2</group>
+  </rule>
+
+  <!-- Critical: SG rule opens SSH/RDP to internet (0.0.0.0/0)
+       Exposing management ports to internet is a critical misconfiguration. -->
+  <rule id="100211" level="15">
+    <if_sid>100210</if_sid>
+    <field name="aws.requestParameters.ipPermissions.items.ipRanges.items.cidrIp">0.0.0.0/0|::/0</field>
+    <field name="aws.requestParameters.ipPermissions.items.fromPort" type="pcre2">^(?:22|3389|5900|23)$</field>
+    <description>CRITICAL: Security Group opens SSH/RDP/VNC to internet (0.0.0.0/0) — immediate remediation required</description>
+    <mitre>
+      <id>T1562.007</id>
+      <id>T1190</id>
+    </mitre>
+    <group>cloud,aws_cis_4.1,pci_dss_1.3.1,nist_800_53_CM.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Any SG rule open to internet on any port — elevated risk
+       CIS AWS Benchmark 5.4: Ensure no security groups allow ingress 0.0.0.0/0 -->
+  <rule id="100212" level="12">
+    <if_sid>100210</if_sid>
+    <field name="aws.requestParameters.ipPermissions.items.ipRanges.items.cidrIp">0.0.0.0/0|::/0</field>
+    <description>Security Group rule opened to internet (0.0.0.0/0) — review for unintended exposure per CIS AWS 5.4</description>
+    <mitre>
+      <id>T1562.007</id>
+    </mitre>
+    <group>cloud,aws_cis_5.4,pci_dss_1.3.1,nist_800_53_CM.2</group>
+  </rule>
+
+  <!-- Security Group deleted — active protection removed
+       Deleting a SG removes all its rules; EC2 instances may lose network protection. -->
+  <rule id="100213" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">DeleteSecurityGroup</field>
+    <field name="aws.eventSource">ec2.amazonaws.com</field>
+    <description>Security Group deleted — network access controls removed, verify authorized change</description>
+    <mitre>
+      <id>T1562.007</id>
+    </mitre>
+    <group>cloud,aws_cis_4.1,nist_800_53_CM.2</group>
+  </rule>
+
+  <!-- Network ACL changed — VPC-level network filter modification -->
+  <rule id="100214" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">
+      CreateNetworkAclEntry|DeleteNetworkAclEntry|ReplaceNetworkAclEntry|
+      CreateNetworkAcl|DeleteNetworkAcl
+    </field>
+    <field name="aws.eventSource">ec2.amazonaws.com</field>
+    <description>Network ACL (NACL) modified — VPC network boundary change requires security review</description>
+    <mitre>
+      <id>T1562.007</id>
+    </mitre>
+    <group>cloud,aws_cis_3.11,nist_800_53_CM.2</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: IAM Changes
+       Detection: Privilege escalation, credential creation, policy changes
+       MITRE: T1136.003 (Create Cloud Account), T1098.001 (Additional Credentials)
+       ========================================================= -->
+
+  <!-- IAM policy attached to user/role — privilege grant
+       Any direct-to-user policy attachment violates least-privilege principle.
+       Policies should be attached via groups/roles only. -->
+  <rule id="100220" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">AttachUserPolicy|AttachRolePolicy|PutUserPolicy|PutRolePolicy</field>
+    <field name="aws.eventSource">iam.amazonaws.com</field>
+    <description>IAM policy attached — privilege grant detected, verify authorization and least-privilege compliance</description>
+    <mitre>
+      <id>T1098.001</id>
+      <id>T1078.004</id>
+    </mitre>
+    <group>cloud,aws_cis_1.2,pci_dss_7.2.1,nist_800_53_AC.6</group>
+  </rule>
+
+  <!-- AdministratorAccess policy attached — highest privilege grant
+       Attaching the managed AdministratorAccess policy is the highest-risk IAM change. -->
+  <rule id="100221" level="15">
+    <if_sid>100220</if_sid>
+    <field name="aws.requestParameters.policyArn">arn:aws:iam::aws:policy/AdministratorAccess</field>
+    <description>AdministratorAccess policy attached — full AWS account control granted, immediate investigation required</description>
+    <mitre>
+      <id>T1098.001</id>
+      <id>T1078.004</id>
+    </mitre>
+    <group>cloud,aws_cis_1.2,pci_dss_7.2.1,nist_800_53_AC.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- New IAM user created — potential backdoor account -->
+  <rule id="100222" level="11">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">CreateUser</field>
+    <field name="aws.eventSource">iam.amazonaws.com</field>
+    <description>New IAM user created — verify authorized provisioning, check for backdoor account creation</description>
+    <mitre>
+      <id>T1136.003</id>
+    </mitre>
+    <group>cloud,aws_cis_1.4,pci_dss_8.2.1,nist_800_53_AC.2</group>
+  </rule>
+
+  <!-- IAM access key created — programmatic credentials issued
+       Access keys provide long-term persistent credentials; high-risk if mishandled. -->
+  <rule id="100223" level="11">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">CreateAccessKey</field>
+    <field name="aws.eventSource">iam.amazonaws.com</field>
+    <description>IAM access key created — programmatic credentials issued, ensure stored securely per PCI DSS 8.3</description>
+    <mitre>
+      <id>T1098.001</id>
+    </mitre>
+    <group>cloud,aws_cis_1.14,pci_dss_8.3.6,nist_800_53_AC.2</group>
+  </rule>
+
+  <!-- Root account access key created — critical finding
+       Root account should never have access keys per CIS AWS 1.4 -->
+  <rule id="100224" level="15">
+    <if_sid>100223</if_sid>
+    <field name="aws.userIdentity.type">Root</field>
+    <description>Root account access key created — critical CIS AWS violation, root programmatic access forbidden</description>
+    <mitre>
+      <id>T1098.001</id>
+      <id>T1078.004</id>
+    </mitre>
+    <group>cloud,aws_cis_1.4,pci_dss_8.2.1,nist_800_53_AC.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Root console login — high-risk activity
+       CIS AWS 1.7: Eliminate use of root account for everyday tasks -->
+  <rule id="100225" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.userIdentity.type">Root</field>
+    <field name="aws.responseElements.ConsoleLogin">Success</field>
+    <description>Root account console login — critical, root must not be used for operational tasks per CIS AWS 1.7</description>
+    <mitre>
+      <id>T1078.004</id>
+    </mitre>
+    <group>cloud,aws_cis_1.7,pci_dss_8.2.1,nist_800_53_AC.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Password policy weakened — compliance control degraded
+       Weakening password policy allows weaker credentials system-wide. -->
+  <rule id="100226" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">UpdateAccountPasswordPolicy</field>
+    <field name="aws.eventSource">iam.amazonaws.com</field>
+    <description>IAM account password policy updated — verify minimum complexity requirements not degraded per CIS AWS 1.8</description>
+    <mitre>
+      <id>T1556</id>
+    </mitre>
+    <group>cloud,aws_cis_1.8,pci_dss_8.3.6,nist_800_53_IA.5</group>
+  </rule>
+
+  <!-- AssumeRole from unusual source — role chaining for privilege escalation
+       Attackers chain role assumptions to escalate privileges and obfuscate origin. -->
+  <rule id="100227" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">AssumeRole</field>
+    <field name="aws.eventSource">sts.amazonaws.com</field>
+    <field name="aws.userIdentity.type">IAMUser</field>
+    <field name="aws.requestParameters.roleArn" type="pcre2">:role/(?:Admin|Power|Full|Root|Break)</field>
+    <description>High-privilege role assumption by IAM user — potential privilege escalation via role chaining</description>
+    <mitre>
+      <id>T1548.005</id>
+    </mitre>
+    <group>cloud,pci_dss_7.2.1,nist_800_53_AC.6</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: S3 Data Exfiltration
+       Detection: Bucket policy changes and large-scale data access
+       MITRE: T1530 (Data from Cloud Storage), T1537 (Transfer to Cloud Account)
+       ========================================================= -->
+
+  <!-- S3 bucket made public — ACL or policy change exposing data
+       Any public exposure of S3 bucket requires immediate investigation. -->
+  <rule id="100230" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">PutBucketAcl|PutBucketPolicy</field>
+    <field name="aws.eventSource">s3.amazonaws.com</field>
+    <field name="aws.requestParameters" type="pcre2">AllUsers|AuthenticatedUsers|\\*|public</field>
+    <description>S3 bucket exposed to public — data exfiltration risk, immediate remediation required</description>
+    <mitre>
+      <id>T1530</id>
+    </mitre>
+    <group>cloud,aws_cis_2.1.5,pci_dss_1.3.1,nist_800_53_AC.3</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- S3 Block Public Access disabled — removes account-level protection
+       Disabling S3 Block Public Access allows individual buckets to go public. -->
+  <rule id="100231" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="aws.eventName">PutAccountPublicAccessBlock|DeletePublicAccessBlock</field>
+    <field name="aws.eventSource">s3.amazonaws.com</field>
+    <description>S3 Block Public Access configuration modified — account-level data exposure protection reduced</description>
+    <mitre>
+      <id>T1530</id>
+    </mitre>
+    <group>cloud,aws_cis_2.1.5,pci_dss_1.3.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+</group>

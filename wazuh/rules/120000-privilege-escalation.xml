@@ -1,0 +1,272 @@
+<!--
+  Wazuh Custom Detection Rules: Privilege Escalation
+  Author: Evgeniy Gantman
+  Version: 1.0.0
+
+  Purpose:
+    Detect privilege escalation on Linux/Windows systems including:
+    - sudo abuse and policy bypass
+    - SUID/SGID binary execution from unusual paths
+    - Kernel exploit indicators (capability manipulation)
+    - /etc/passwd and /etc/shadow modification
+    - Cron-based persistence with elevated privileges
+
+  Compliance:
+    - PCI DSS v4.0 Requirement 8.2.6 — Manage inactive accounts
+    - PCI DSS v4.0 Requirement 10.2.1 — Log actions taken by privileged users
+    - CIS Control 5 — Account Management
+    - NIST SP 800-53 AC-6 — Least Privilege
+
+  MITRE ATT&amp;CK Techniques Covered:
+    - T1548.003 — Abuse Elevation Control Mechanism: Sudo and Sudo Caching
+    - T1548.001 — Abuse Elevation Control Mechanism: Setuid and Setgid
+    - T1543.002 — Create or Modify System Process: Systemd Service
+    - T1053.003 — Scheduled Task/Job: Cron
+    - T1136.001 — Create Account: Local Account
+    - T1078.003 — Valid Accounts: Local Accounts
+
+  Rule ID Range: 120000–120099 (Privilege Escalation)
+
+  Deployment:
+    Place in /var/ossec/etc/rules/privilege-escalation-rules.xml
+    Restart: systemctl restart wazuh-manager
+
+  Log Sources:
+    - /var/log/auth.log (Debian/Ubuntu) or /var/log/secure (RHEL)
+    - Linux Audit Framework: auditctl rules for execve, open, write
+    - /var/log/syslog for cron and systemd events
+-->
+
+<group name="privilege-escalation,linux,custom">
+
+  <!-- =========================================================
+       Rule Group: Sudo Abuse
+       Detection: Suspicious sudo usage patterns
+       MITRE: T1548.003 (Sudo and Sudo Caching)
+       ========================================================= -->
+
+  <!-- Sudo command executed — baseline event for correlation -->
+  <rule id="120000" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">sudo_command|sudo_exec</field>
+    <description>Sudo command executed — baseline event (parent rule)</description>
+    <group>sudo,</group>
+  </rule>
+
+  <!-- sudo su - or sudo bash/sh — full root shell acquisition
+       Getting a root shell via sudo is the highest-risk sudo use.
+       Legitimate admins use specific commands, not interactive root shells. -->
+  <rule id="120001" level="14">
+    <if_sid>120000</if_sid>
+    <field name="command" type="pcre2">
+      (?:^|\s)(?:su\s*-|/bin/bash|/bin/sh|/bin/zsh)(?:\s|$)
+    </field>
+    <description>Sudo used to acquire interactive root shell — high-risk privilege escalation, verify authorized activity</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>sudo,pci_dss_10.2.1,nist_800_53_AC.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- sudo by non-sudoer — denied sudo attempt from unauthorized user
+       Users not in sudoers attempting sudo indicates privilege escalation attempt. -->
+  <rule id="120002" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">sudo_failure|sudo_denied</field>
+    <field name="message" type="pcre2">
+      (?i)not in sudoers|is not allowed to run sudo|
+      authentication failure.*sudo|command not allowed
+    </field>
+    <description>Unauthorized sudo attempt by non-sudoer — user attempting elevation without authorization</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>sudo,pci_dss_8.2.1,nist_800_53_AC.6</group>
+  </rule>
+
+  <!-- sudoers file modification — /etc/sudoers or /etc/sudoers.d changed
+       Modifying sudoers grants persistent privilege escalation capability. -->
+  <rule id="120003" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="file_path" type="pcre2">
+      /etc/sudoers$|/etc/sudoers\.d/
+    </field>
+    <field name="event_type">file_write|file_modify|file_create</field>
+    <description>sudoers file modified — privilege escalation persistence mechanism, critical finding</description>
+    <mitre>
+      <id>T1548.003</id>
+      <id>T1222.002</id>
+    </mitre>
+    <group>sudo,pci_dss_10.2.1,pci_dss_10.3,nist_800_53_CM.3</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Repeated sudo failures from same user — brute force for sudo password -->
+  <rule id="120004" level="11" frequency="5" timeframe="120">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">sudo_failure|sudo_denied</field>
+    <same_field>username</same_field>
+    <description>Repeated sudo failures by same user — possible sudo password brute force or confused user</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+    <group>sudo,pci_dss_8.2.1</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: SUID/SGID Binary Abuse
+       Detection: Execution of SUID/SGID binaries from non-standard paths
+       MITRE: T1548.001 (Setuid and Setgid)
+       ========================================================= -->
+
+  <!-- SUID binary executed from /tmp, /dev/shm, or user home directories
+       Attackers compile SUID binaries or copy them to writable directories.
+       Legitimate SUID binaries live in /usr/bin, /usr/sbin, /bin, /sbin. -->
+  <rule id="120010" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">suid_exec|setuid_exec|process_start</field>
+    <field name="file_path" type="pcre2">
+      ^(?:/tmp/|/dev/shm/|/run/shm/|/var/tmp/|
+         /home/[^/]+/|/root/tmp/)
+    </field>
+    <field name="file_suid">true|1</field>
+    <description>SUID binary executed from non-standard writable path — likely planted privilege escalation tool</description>
+    <mitre>
+      <id>T1548.001</id>
+    </mitre>
+    <group>suid,pci_dss_10.2.1,nist_800_53_CM.7</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- SUID bit set on new file — privilege escalation persistence
+       chmod u+s on any file creates a persistent escalation vector. -->
+  <rule id="120011" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">chmod_suid|file_permission_change</field>
+    <field name="new_permissions" type="pcre2">
+      (?:[2-3][0-7]{3}|[6-7][0-7]{3})  <!-- setuid bits 4xxx or setgid bits 2xxx -->
+    </field>
+    <description>SUID/SGID bit set on file — verify authorized operation, potential privilege escalation vector created</description>
+    <mitre>
+      <id>T1548.001</id>
+    </mitre>
+    <group>suid,pci_dss_10.2.1,nist_800_53_CM.3</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Sensitive File Modification
+       Detection: Direct modification of identity and credential files
+       MITRE: T1136.001 (Create Account: Local Account)
+       ========================================================= -->
+
+  <!-- /etc/passwd modification — user account created or modified directly
+       Legitimate user management uses useradd/usermod, not direct file edits.
+       Direct edits to /etc/passwd may bypass audit trails. -->
+  <rule id="120020" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="file_path">/etc/passwd</field>
+    <field name="event_type">file_write|file_modify</field>
+    <description>/etc/passwd modified directly — possible unauthorized local account creation or modification</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>account_management,pci_dss_8.2.1,nist_800_53_AC.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- /etc/shadow modification — password hash written directly
+       Shadow file modification outside of passwd/chpasswd commands
+       may indicate hash injection to set a known password. -->
+  <rule id="120021" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="file_path">/etc/shadow</field>
+    <field name="event_type">file_write|file_modify</field>
+    <description>/etc/shadow modified directly — password hash manipulation, possible backdoor account creation</description>
+    <mitre>
+      <id>T1136.001</id>
+      <id>T1556.003</id>
+    </mitre>
+    <group>account_management,pci_dss_8.2.1,pci_dss_10.2.1,nist_800_53_AC.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- New root-equivalent account: UID 0 in /etc/passwd
+       Adding a second UID 0 account is a classic backdoor technique. -->
+  <rule id="120022" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">user_add|account_create</field>
+    <field name="user_uid" type="pcre2">^0$</field>
+    <description>New account created with UID 0 — root-equivalent backdoor account creation detected</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>account_management,pci_dss_8.2.1,nist_800_53_AC.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Capability Manipulation
+       Detection: Linux capabilities added to processes/files
+       MITRE: T1548.001 (Setuid and Setgid — capabilities variant)
+       ========================================================= -->
+
+  <!-- CAP_SYS_ADMIN or CAP_NET_ADMIN set via setcap — kernel bypass
+       These capabilities allow nearly the same access as root without setuid. -->
+  <rule id="120030" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">setcap_exec|capability_set</field>
+    <field name="command" type="pcre2">
+      (?:cap_sys_admin|cap_net_admin|cap_sys_ptrace|
+         cap_sys_module|cap_dac_override|cap_setuid|cap_setgid)
+    </field>
+    <description>High-privilege Linux capability set on binary — potential privilege escalation path created</description>
+    <mitre>
+      <id>T1548.001</id>
+    </mitre>
+    <group>capabilities,pci_dss_10.2.1,nist_800_53_CM.7</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Persistence via Cron
+       Detection: Privileged cron job creation for persistent access
+       MITRE: T1053.003 (Scheduled Task/Job: Cron)
+       ========================================================= -->
+
+  <!-- New cron job added for root — persistence mechanism
+       Attackers add cron jobs as root to maintain persistent elevated access. -->
+  <rule id="120040" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="file_path" type="pcre2">
+      ^(?:/etc/cron\.d/|/var/spool/cron/crontabs/root|
+         /etc/cron\.daily/|/etc/cron\.hourly/)
+    </field>
+    <field name="event_type">file_create|file_write</field>
+    <description>Cron job created or modified in privileged cron directory — verify authorized scheduled task</description>
+    <mitre>
+      <id>T1053.003</id>
+    </mitre>
+    <group>cron,persistence,pci_dss_10.2.1,nist_800_53_CM.3</group>
+  </rule>
+
+  <!-- Root cron job executing shell command from /tmp — classic persistence
+       Cron entries that run scripts from /tmp are almost always malicious. -->
+  <rule id="120041" level="15">
+    <if_sid>120040</if_sid>
+    <field name="content" type="pcre2">
+      (?:/tmp/|/dev/shm/|wget|curl|bash\s+-[ic])
+    </field>
+    <description>Privileged cron job references /tmp or downloads content — malicious persistence mechanism</description>
+    <mitre>
+      <id>T1053.003</id>
+      <id>T1059.004</id>
+    </mitre>
+    <group>cron,persistence,pci_dss_10.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+</group>

@@ -1,0 +1,345 @@
+<!--
+  Wazuh Custom Detection Rules: Authentication Security
+  Author: Evgeniy Gantman
+  Version: 1.0.0
+  Last Updated: 2026-05-04
+
+  Purpose:
+    Detect authentication-based attacks including brute force, credential stuffing,
+    impossible travel anomalies, MFA bypass, and session hijacking patterns.
+    Tuned for enterprise environments with SSO, LDAP, and cloud identity providers.
+
+  Compliance:
+    - PCI DSS v4.0 Requirement 8 — Identify Users and Authenticate Access
+    - NIST SP 800-63B — Digital Identity Guidelines (Authentication)
+    - CIS Control 5 — Account Management
+    - ISO/IEC 27001 A.9.4 — System and Application Access Control
+
+  MITRE ATT&amp;CK Techniques Covered:
+    - T1110.001 — Password Guessing (brute force)
+    - T1110.003 — Password Spraying (low-and-slow across accounts)
+    - T1110.004 — Credential Stuffing (breach corpus replay)
+    - T1078 — Valid Accounts (compromised credentials used normally)
+    - T1539 — Steal Web Session Cookie
+    - T1621 — Multi-Factor Authentication Request Generation (MFA fatigue)
+    - T1563 — Remote Service Session Hijacking
+
+  Rule ID Range: 100100–100199 (Authentication Security)
+
+  Deployment:
+    Place in /var/ossec/etc/rules/100100-authentication.xml
+    Requires: Wazuh 4.3+ for PCRE2 support
+    GeoIP enrichment: Enable /var/ossec/etc/ossec.conf <geoip> block for impossible travel
+
+  Performance Notes:
+    - Rules 100110/100111 use same_srcip — ensure log sources send consistent IP fields
+    - Rule 100130 (impossible travel) requires GeoIP enrichment module
+    - Adjust frequency thresholds via local_rules.xml for high-traffic environments
+-->
+
+<group name="authentication,access-control,custom">
+
+  <!-- =========================================================
+       Rule Group: Brute Force Detection
+       Detection: High-frequency login failures from single source
+       MITRE: T1110.001 (Password Guessing)
+       ========================================================= -->
+
+  <!-- Base rule: Single authentication failure — not alerted, used as parent -->
+  <rule id="100100" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_failure|login_failed|authentication_error</field>
+    <description>Authentication failure — single event baseline (parent rule)</description>
+    <group>authentication_failure,</group>
+  </rule>
+
+  <!-- Brute force threshold: 10 failures from same IP in 60 seconds
+       PCI DSS 8.3.4 requires account lockout after max 10 attempts.
+       This rule fires BEFORE lockout to allow SOC proactive response. -->
+  <rule id="100101" level="10" frequency="10" timeframe="60">
+    <if_sid>100100</if_sid>
+    <same_field>source_ip</same_field>
+    <description>Brute force attack detected — 10+ auth failures from single IP within 60 seconds</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,gdpr_II_5.1.f,nist_800_53_SI.4,hipaa_164.312.a</group>
+  </rule>
+
+  <!-- Sustained brute force: 50 failures in 5 minutes — elevated severity
+       Indicates automated tooling (Hydra, Medusa, custom scripts) -->
+  <rule id="100102" level="14" frequency="50" timeframe="300">
+    <if_sid>100100</if_sid>
+    <same_field>source_ip</same_field>
+    <description>Sustained brute force attack — 50+ auth failures in 5 minutes, automated attack tooling suspected</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,gdpr_II_5.1.f</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Admin account targeted brute force — elevated alert regardless of count
+       Any brute force against privileged/admin accounts is high-severity -->
+  <rule id="100103" level="14" frequency="5" timeframe="120">
+    <if_sid>100100</if_sid>
+    <field name="username" type="pcre2">
+      (?i)^(?:admin|administrator|root|superuser|sysadmin|operator|service.?account|svc[_\-])
+    </field>
+    <same_field>username</same_field>
+    <description>Brute force against privileged account — admin/service account targeted, elevated risk</description>
+    <mitre>
+      <id>T1110.001</id>
+      <id>T1078.003</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,pci_dss_8.2.6</group>
+    <options>alert_by_email</options>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Password Spraying
+       Detection: Single password tried across many accounts (low-and-slow)
+       MITRE: T1110.003 (Password Spraying)
+       ========================================================= -->
+
+  <!-- Password spraying: failures across many different usernames from same IP
+       Attackers use single common password (e.g., "Spring2024!") against
+       user list to avoid per-account lockout thresholds. -->
+  <rule id="100110" level="13" frequency="15" timeframe="300">
+    <if_sid>100100</if_sid>
+    <same_field>source_ip</same_field>
+    <different_field>username</different_field>
+    <description>Password spray attack — auth failures targeting multiple accounts from single source IP</description>
+    <mitre>
+      <id>T1110.003</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,gdpr_II_5.1.f,nist_800_53_SI.4</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Distributed password spray: same username, many source IPs — botnet
+       Variant where attackers distribute across botnet to evade per-IP throttling -->
+  <rule id="100111" level="12" frequency="20" timeframe="600">
+    <if_sid>100100</if_sid>
+    <different_field>source_ip</different_field>
+    <same_field>username</same_field>
+    <description>Distributed password spray — single account targeted from multiple IPs (botnet pattern)</description>
+    <mitre>
+      <id>T1110.003</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,gdpr_II_5.1.f</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Credential Stuffing
+       Detection: Known-breached credential pairs used at scale
+       MITRE: T1110.004 (Credential Stuffing)
+       ========================================================= -->
+
+  <!-- Credential stuffing signature: many different usernames, success rate <5%
+       Classic stuffing pattern: high attempt volume, low success rate,
+       multiple accounts tried per session from same automated source.
+       Note: Combine with threat intel feed for breach corpus correlation. -->
+  <rule id="100120" level="13" frequency="100" timeframe="600">
+    <if_sid>100100</if_sid>
+    <same_field>source_ip</same_field>
+    <different_field>username</different_field>
+    <description>Credential stuffing attack pattern — high-volume multi-account login attempts from single source</description>
+    <mitre>
+      <id>T1110.004</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.3.4,gdpr_II_5.1.f</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Stuffing success: login succeeded after multiple prior failures
+       This is the highest-severity auth event — compromised credential in use.
+       Fire when: user logs in successfully but had 5+ prior failures in last hour -->
+  <rule id="100121" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|login_success</field>
+    <field name="prior_failure_count" type="pcre2">^([5-9]|[1-9][0-9]+)$</field>
+    <description>Successful login after multiple failures — possible compromised credential, investigate immediately</description>
+    <mitre>
+      <id>T1110.004</id>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,pci_dss_8.3.4,pci_dss_10.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Account enumeration via timing/response differences
+       Applications that return different errors for valid vs invalid users
+       allow attackers to enumerate valid accounts for targeting. -->
+  <rule id="100122" level="10" frequency="50" timeframe="120">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_failure|user_not_found|account_not_exist</field>
+    <same_field>source_ip</same_field>
+    <different_field>username</different_field>
+    <description>Account enumeration attempt — rapid multi-username auth failures suggesting user discovery scan</description>
+    <mitre>
+      <id>T1078</id>
+      <id>T1087.001</id>
+    </mitre>
+    <group>authentication_failure,pci_dss_8.2.1</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Impossible Travel
+       Detection: Login from geographically impossible locations
+       MITRE: T1078 (Valid Accounts — credential compromise indicator)
+       Prerequisite: GeoIP enrichment enabled in ossec.conf
+       ========================================================= -->
+
+  <!-- Impossible travel: successful login from country not in user's normal set
+       Alert when user authenticates from country they've never logged in from,
+       especially combined with short time between geographically distant logins.
+       Implementation: Uses geoip_country field populated by Wazuh GeoIP module. -->
+  <rule id="100130" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|login_success</field>
+    <field name="geoip_anomaly">impossible_travel|new_country|velocity_violation</field>
+    <description>Impossible travel detected — successful auth from geographic location inconsistent with recent activity</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,anomaly,pci_dss_8.2.1,gdpr_II_5.1.f,nist_800_53_AC.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Login from high-risk country — not in approved geography list
+       Adjust country list to match your organization's user base.
+       This is a MEDIUM alert by default; escalate if combined with other indicators. -->
+  <rule id="100131" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|login_success</field>
+    <field name="geoip_country_code" type="pcre2">
+      ^(?:KP|IR|RU|BY|SY|CU|VE|MM)$
+    </field>
+    <description>Authentication from high-risk country — verify user identity and investigate access legitimacy</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,anomaly,pci_dss_8.2.1</group>
+  </rule>
+
+  <!-- First-time country login for known user — risk-based step-up trigger
+       Not necessarily malicious but warrants investigation or automatic MFA step-up. -->
+  <rule id="100132" level="8">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|login_success</field>
+    <field name="first_login_from_country">true</field>
+    <description>First login from new country for existing user — possible account compromise, consider step-up auth</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,anomaly,pci_dss_8.2.1</group>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: MFA Bypass and Fatigue
+       Detection: MFA abuse patterns
+       MITRE: T1621 (MFA Request Generation), T1556.006 (MFA Modification)
+       ========================================================= -->
+
+  <!-- MFA fatigue attack: many push notifications sent to single user
+       Attacker sends continuous push MFA requests hoping user accidentally approves.
+       15+ pushes in 10 minutes is unambiguous fatigue attack. -->
+  <rule id="100140" level="13" frequency="15" timeframe="600">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">mfa_push_sent|mfa_challenge_sent|totp_challenge</field>
+    <same_field>username</same_field>
+    <description>MFA fatigue attack — 15+ MFA push notifications sent to single user, likely credential compromise attempt</description>
+    <mitre>
+      <id>T1621</id>
+    </mitre>
+    <group>mfa,authentication,pci_dss_8.4.2,nist_800_53_IA.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- MFA bypass: successful auth without MFA where MFA is required
+       This indicates MFA configuration issue or deliberate bypass mechanism. -->
+  <rule id="100141" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|login_success</field>
+    <field name="mfa_completed">false|0|no</field>
+    <field name="mfa_required">true|1|yes</field>
+    <description>MFA bypass — authentication succeeded without completing required MFA — critical security control failure</description>
+    <mitre>
+      <id>T1556.006</id>
+      <id>T1078</id>
+    </mitre>
+    <group>mfa,authentication,pci_dss_8.4.2,pci_dss_10.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- MFA device enrollment from new location — possible MFA hijacking
+       Attackers who compromise credentials may add their own MFA device
+       to maintain persistent access after password reset. -->
+  <rule id="100142" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">mfa_device_added|authenticator_enrolled|token_registered</field>
+    <field name="enrollment_ip_new">true</field>
+    <description>MFA device enrolled from new location — verify authorization, possible account takeover in progress</description>
+    <mitre>
+      <id>T1556.006</id>
+    </mitre>
+    <group>mfa,authentication,pci_dss_8.4.2</group>
+    <options>alert_by_email</options>
+  </rule>
+
+
+  <!-- =========================================================
+       Rule Group: Session Security
+       Detection: Session hijacking and anomalous session behavior
+       MITRE: T1539 (Steal Web Session Cookie), T1563 (Session Hijacking)
+       ========================================================= -->
+
+  <!-- Session token used from different IP than established session
+       Indicates session cookie theft and replay from attacker's machine. -->
+  <rule id="100150" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">session_ip_change|session_anomaly</field>
+    <field name="ip_changed">true</field>
+    <description>Session token IP change detected — possible session hijacking via stolen cookie</description>
+    <mitre>
+      <id>T1539</id>
+      <id>T1563</id>
+    </mitre>
+    <group>session,authentication,pci_dss_8.2.1,gdpr_II_5.1.f</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Concurrent session from two IPs — same session token, different locations
+       Definitive indicator of session token theft and active exploitation. -->
+  <rule id="100151" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">concurrent_session_detected|duplicate_session</field>
+    <description>Concurrent session from multiple locations — session token actively used by two parties simultaneously</description>
+    <mitre>
+      <id>T1539</id>
+      <id>T1563</id>
+    </mitre>
+    <group>session,authentication,pci_dss_8.2.1</group>
+    <options>alert_by_email</options>
+  </rule>
+
+  <!-- Privileged session after hours — admin access outside business hours
+       Admin sessions at 2am are high-risk and warrant investigation. -->
+  <rule id="100152" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="event_type">auth_success|session_start</field>
+    <field name="user_role" type="pcre2">(?i)admin|operator|superuser|root|sysadmin</field>
+    <time>22:00:00-06:00:00</time>
+    <description>Privileged account active outside business hours — verify authorized maintenance activity</description>
+    <mitre>
+      <id>T1078.003</id>
+    </mitre>
+    <group>session,authentication,pci_dss_8.2.1,pci_dss_7.2.1</group>
+  </rule>
+
+</group>

@@ -1,0 +1,222 @@
+---
+# Kyverno Policy: Restrict Linux Capabilities
+# Author: Evgeniy Gantman
+# Purpose: Drop all Linux capabilities and allow only a minimal approved subset
+#
+# Compliance:
+#   - PCI DSS 2.2.1 — Configure system components with single primary function (least privilege)
+#   - CIS Kubernetes Benchmark 5.2.8 — Minimize containers with added capabilities
+#   - CIS Kubernetes Benchmark 5.2.9 — Minimize containers with NET_RAW capability
+#   - NIST SP 800-190 4.3.2 — Follow least-privilege principle for capabilities
+#
+# Security Rationale:
+#   Linux capabilities break the all-or-nothing root privilege model. Containers
+#   that run with capabilities like NET_ADMIN, SYS_PTRACE, or NET_RAW can:
+#     - Intercept network traffic (NET_RAW, NET_ADMIN)
+#     - Debug other processes / read memory (SYS_PTRACE)
+#     - Load kernel modules (SYS_MODULE) — enables kernel-level exploits
+#     - Override file permissions (DAC_OVERRIDE, CHOWN)
+#   The secure baseline: drop ALL capabilities, then add back only what the
+#   specific workload legitimately requires (e.g., NET_BIND_SERVICE for port 443).
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-capabilities
+  annotations:
+    policies.kyverno.io/title: Restrict Linux Capabilities
+    policies.kyverno.io/category: Pod Security Standards / Baseline
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      All containers must drop ALL Linux capabilities. Only a narrow allowlist
+      of capabilities (NET_BIND_SERVICE) may be re-added per container.
+      Prevents privilege escalation through capability abuse.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: least-privilege-capabilities
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Require capabilities.drop: ["ALL"] on all containers
+    # The drop ALL instruction removes all 40+ Linux capabilities at once
+    # -------------------------------------------------------------------------
+    - name: require-drop-all
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Container {{ element.name }} must set capabilities.drop: ["ALL"].
+          Explicitly dropping all capabilities is required before selectively
+          re-adding approved capabilities. Reference: CIS Benchmark 5.2.8.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                all:
+                  # Deny if "ALL" is not in the drop list
+                  - key: ALL
+                    operator: AnyNotIn
+                    value: "{{ element.securityContext.capabilities.drop[] }}"
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Block dangerous capabilities from being added
+    # These capabilities must NEVER be added even after dropping ALL
+    # -------------------------------------------------------------------------
+    - name: block-dangerous-capabilities
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Container {{ element.name }} attempts to add a prohibited capability:
+          {{ element.securityContext.capabilities.add[] }}.
+          Dangerous capabilities (SYS_ADMIN, NET_ADMIN, SYS_PTRACE, etc.)
+          are blocked cluster-wide. Reference: PCI DSS 2.2.1, CIS 5.2.8.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.securityContext.capabilities.add | length(@) }}"
+                  operator: GreaterThan
+                  value: "0"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.capabilities.add[] }}"
+                    operator: AnyIn
+                    value:
+                      # Kernel-level access — enables full host compromise
+                      - SYS_ADMIN
+                      - SYS_MODULE
+                      - SYS_RAWIO
+                      - SYS_PTRACE
+                      - SYS_BOOT
+                      # Network sniffing and raw socket access
+                      - NET_ADMIN
+                      - NET_RAW
+                      # Filesystem and permission bypass
+                      - DAC_READ_SEARCH
+                      - SETFCAP
+                      # Process manipulation
+                      - KILL
+                      - SYS_NICE
+                      # Container escape vectors
+                      - MKNOD
+                      - AUDIT_WRITE
+                      - AUDIT_CONTROL
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Enforce approved capabilities allowlist in production
+    # Only NET_BIND_SERVICE is approved for binding to ports < 1024
+    # All other capability additions require a policy exception
+    # -------------------------------------------------------------------------
+    - name: enforce-capability-allowlist
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} adds capability
+          {{ element.securityContext.capabilities.add[] }} which is not in the
+          approved allowlist. In production namespaces only NET_BIND_SERVICE
+          is permitted. Submit a policy exception request for other capabilities.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.securityContext.capabilities.add | length(@) }}"
+                  operator: GreaterThan
+                  value: "0"
+            deny:
+              conditions:
+                any:
+                  # Deny any capability not in the approved list
+                  - key: "{{ element.securityContext.capabilities.add[] }}"
+                    operator: AnyNotIn
+                    value:
+                      # NET_BIND_SERVICE: allows binding to ports below 1024
+                      # Required for containers that bind to port 443 directly
+                      - NET_BIND_SERVICE
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Block privileged mode — supersedes all capability restrictions
+    # privileged: true grants ALL capabilities and bypasses all restrictions
+    # -------------------------------------------------------------------------
+    - name: block-privileged-mode
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+              selector:
+                matchLabels:
+                  # Only specific system daemonsets get privileged exemption
+                  app.kubernetes.io/component: privileged-system-agent
+      validate:
+        message: >-
+          Container {{ element.name }} sets privileged: true.
+          Privileged mode grants ALL Linux capabilities and bypasses all
+          security restrictions. Prohibited except in kube-system system agents.
+          Reference: CIS Kubernetes Benchmark 5.2.1.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.privileged }}"
+                    operator: Equals
+                    value: true
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Require seccompProfile at pod level (defense in depth)
+    # Seccomp filters syscalls — complements capability restrictions
+    # -------------------------------------------------------------------------
+    - name: require-seccomp-profile
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Pod must define a seccompProfile. Use RuntimeDefault to apply the
+          container runtime's built-in syscall filter, which blocks ~40 dangerous
+          syscalls. Custom profiles can be used for stricter workloads.
+          Reference: CIS Kubernetes Benchmark 5.7.2.
+        pattern:
+          spec:
+            securityContext:
+              seccompProfile:
+                type: "RuntimeDefault | Localhost"

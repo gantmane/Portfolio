@@ -1,0 +1,296 @@
+---
+# Kyverno Policy: Require Liveness and Readiness Probes
+# Author: Evgeniy Gantman
+# Purpose: Ensure Kubernetes can detect and recover from unhealthy containers
+#
+# Compliance:
+#   - CIS Kubernetes Benchmark 5.4.1 — Prefer using secrets as files over env vars
+#   - PCI DSS 6.4.3 — Maintain application availability for payment processing
+#   - SRE Best Practices — All production services must have health endpoints
+#
+# Security Rationale:
+#   Without probes, Kubernetes cannot detect when a container enters a degraded
+#   state (deadlock, memory leak, connection pool exhaustion). This leads to
+#   traffic being routed to broken pods and extended outages.
+#
+#   For security purposes:
+#   - livenessProbe: detects and restarts compromised/deadlocked containers
+#   - readinessProbe: prevents traffic to containers that are still initializing
+#     or have lost backend connectivity (database, cache)
+#   - startupProbe: prevents premature liveness checks from killing slow-start
+#     containers, avoiding restart loops that could mask security incidents
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes
+  annotations:
+    policies.kyverno.io/title: Require Liveness and Readiness Probes
+    policies.kyverno.io/category: Reliability / Pod Health
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod, Container
+    policies.kyverno.io/description: >-
+      All production containers must define livenessProbe and readinessProbe.
+      This ensures Kubernetes can detect unhealthy containers and remove them
+      from service routing. Prevents extended outages from silent failures.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/control: availability
+    reliability.io/tier: production
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Require livenessProbe on all production containers
+    # -------------------------------------------------------------------------
+    - name: require-liveness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+                - staging
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cert-manager
+                - monitoring
+          # Jobs and CronJobs complete naturally; no liveness needed
+          - resources:
+              selector:
+                matchLabels:
+                  workload-type: "batch"
+      validate:
+        message: >-
+          Container {{ element.name }} in {{ request.object.metadata.namespace }} is missing
+          a livenessProbe. Define an HTTP, TCP, or exec probe so Kubernetes can
+          detect and restart deadlocked or crashed containers.
+          Example:
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              failureThreshold: 3
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.livenessProbe }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Require readinessProbe on all production containers
+    # -------------------------------------------------------------------------
+    - name: require-readiness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+                - staging
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cert-manager
+                - monitoring
+          - resources:
+              selector:
+                matchLabels:
+                  workload-type: "batch"
+      validate:
+        message: >-
+          Container {{ element.name }} in {{ request.object.metadata.namespace }} is missing
+          a readinessProbe. Without it, the container receives traffic before it is
+          ready, causing 502/503 errors during pod startup and rolling deployments.
+          Example:
+            readinessProbe:
+              httpGet:
+                path: /ready
+                port: 8080
+              initialDelaySeconds: 10
+              periodSeconds: 5
+              failureThreshold: 3
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.readinessProbe }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Warn if startupProbe is missing for containers with long init
+    # Audit mode — not blocking, but generates PolicyReport violations
+    # -------------------------------------------------------------------------
+    - name: audit-startup-probe-long-init
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} has a liveness initialDelaySeconds >= 60
+          but no startupProbe. Consider adding a startupProbe to handle slow-start
+          containers without risk of premature liveness restarts.
+          Example:
+            startupProbe:
+              httpGet:
+                path: /healthz
+                port: 8080
+              failureThreshold: 30
+              periodSeconds: 10
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.livenessProbe.initialDelaySeconds || 0 }}"
+                  operator: GreaterThanOrEquals
+                  value: 60
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.startupProbe }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Enforce minimum probe thresholds to prevent flapping
+    # Prevents overly aggressive probes from causing unnecessary pod restarts
+    # -------------------------------------------------------------------------
+    - name: enforce-minimum-probe-thresholds
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} liveness probe has failureThreshold < 3.
+          Low thresholds cause premature restarts under transient load spikes.
+          Set failureThreshold >= 3 and periodSeconds >= 10.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.livenessProbe }}"
+                  operator: NotEquals
+                  value: null
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.livenessProbe.failureThreshold || 3 }}"
+                    operator: LessThan
+                    value: 3
+
+---
+# Audit-mode policy for all non-production namespaces
+# Generates violations in PolicyReports without blocking deployments
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: audit-require-probes
+  annotations:
+    policies.kyverno.io/title: Audit - Require Probes (Non-Production)
+    policies.kyverno.io/category: Reliability / Pod Health
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod, Container
+    policies.kyverno.io/description: >-
+      Audit-mode probe requirement for non-production namespaces.
+      Generates PolicyReport entries without blocking. Used to track
+      probe coverage across all environments.
+    kyverno.io/kyverno-version: 1.10.0
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: audit-liveness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - production
+                - pci-scope
+                - payment
+                - staging
+          - resources:
+              selector:
+                matchLabels:
+                  workload-type: "batch"
+      validate:
+        message: "[AUDIT] Container {{ element.name }} is missing a livenessProbe — add before promoting to production"
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.livenessProbe }}"
+                    operator: Equals
+                    value: null
+    - name: audit-readiness-probe
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - production
+                - pci-scope
+                - payment
+                - staging
+          - resources:
+              selector:
+                matchLabels:
+                  workload-type: "batch"
+      validate:
+        message: "[AUDIT] Container {{ element.name }} is missing a readinessProbe — add before promoting to production"
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.readinessProbe }}"
+                    operator: Equals
+                    value: null

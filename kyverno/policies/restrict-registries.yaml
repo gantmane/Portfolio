@@ -1,0 +1,292 @@
+---
+# Kyverno Policy: Restrict Container Image Registries
+# Author: Evgeniy Gantman
+# Purpose: Allow only approved registries; block public Docker Hub in production
+#
+# Compliance:
+#   - PCI DSS 6.3.2 — Maintain inventory of bespoke software; verify authenticity
+#   - PCI DSS 6.3.3 — All software components are protected from known vulnerabilities
+#   - CIS Kubernetes Benchmark 5.5.1 — Configure image provenance
+#   - NIST SP 800-190 — Container image provenance and supply chain
+#
+# Security Rationale:
+#   Allowing any registry enables supply chain attacks (typosquatting, image
+#   hijacking, injected malware). Docker Hub images are often unmaintained,
+#   contain known vulnerabilities, and lack provenance attestation.
+#   Restricting to approved registries ensures all images are:
+#   1. Scanned for vulnerabilities before promotion
+#   2. Signed with the org's Cosign key
+#   3. Covered by the org's SLA for patching
+#
+# Approved Registries (customize for your org):
+#   - registry.internal.example.com — internal Nexus/Harbor instance
+#   - *.dkr.ecr.*.amazonaws.com — AWS ECR (private)
+#   - registry.k8s.io — official Kubernetes components
+#   - gcr.io/google-containers — official Google containers
+#   - ghcr.io/gantmane — org GitHub Container Registry
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Container Image Registries
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Only approved container registries are permitted. docker.io and other
+      public registries are blocked in production namespaces. Prevents supply
+      chain attacks via typosquatting and unvetted public images.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: supply-chain-integrity
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Allow only approved registries in production namespaces
+    # -------------------------------------------------------------------------
+    - name: allowed-registries-production
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Image {{ element.image }} is from a non-approved registry.
+          Production workloads must use images from:
+            - registry.internal.example.com
+            - *.dkr.ecr.*.amazonaws.com
+            - registry.k8s.io
+            - gcr.io/google-containers
+            - ghcr.io/gantmane
+          To add a registry, submit a Platform Engineering request with a
+          security justification. Reference: PCI DSS 6.3.2.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                all:
+                  # Deny if the image does NOT start with any approved prefix
+                  - key: "{{ element.image }}"
+                    operator: AnyNotIn
+                    value:
+                      - "registry.internal.example.com/*"
+                      - "*.dkr.ecr.*.amazonaws.com/*"
+                      - "registry.k8s.io/*"
+                      - "gcr.io/google-containers/*"
+                      - "gcr.io/google_containers/*"
+                      - "ghcr.io/gantmane/*"
+                      - "k8s.gcr.io/*"
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Same allowlist for init containers in production
+    # -------------------------------------------------------------------------
+    - name: allowed-registries-init-containers-production
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      preconditions:
+        any:
+          - key: "{{ request.object.spec.initContainers[] | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      validate:
+        message: >-
+          Init container image {{ element.image }} is from a non-approved registry.
+          Apply the same registry restrictions as main containers.
+        foreach:
+          - list: "request.object.spec.initContainers[]"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.image }}"
+                    operator: AnyNotIn
+                    value:
+                      - "registry.internal.example.com/*"
+                      - "*.dkr.ecr.*.amazonaws.com/*"
+                      - "registry.k8s.io/*"
+                      - "gcr.io/google-containers/*"
+                      - "gcr.io/google_containers/*"
+                      - "ghcr.io/gantmane/*"
+                      - "k8s.gcr.io/*"
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Explicitly block docker.io cluster-wide (belt-and-suspenders)
+    # Docker Hub images are public, often stale, and lack provenance guarantees.
+    # Also blocks short image names (e.g. "nginx") which resolve to docker.io.
+    # -------------------------------------------------------------------------
+    - name: block-docker-hub
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+                - staging
+      validate:
+        message: >-
+          Docker Hub images are not allowed in {{ request.object.metadata.namespace }}.
+          Container {{ element.name }} references image {{ element.image }}.
+          docker.io images lack mandatory vulnerability scanning and Cosign signing.
+          Push a vetted copy to registry.internal.example.com or AWS ECR.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  # Explicit docker.io prefix
+                  - key: "{{ element.image }}"
+                    operator: AnyIn
+                    value:
+                      - "docker.io/*"
+                  # Short image names (e.g. "nginx:1.24") resolve to docker.io
+                  # They contain no "/" or contain exactly one "/" (library/nginx)
+                  - key: "{{ element.image | split(@, '/') | length(@) }}"
+                    operator: LessThanOrEquals
+                    value: 1
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Block known malicious / deprecated registries
+    # -------------------------------------------------------------------------
+    - name: block-deprecated-registries
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Image {{ element.image }} uses a deprecated or insecure registry.
+          quay.io (Red Hat), mcr.microsoft.com (Microsoft), and docker.io public
+          images must be proxied through registry.internal.example.com after scanning.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  # Deprecated upstream registries — require internal proxy
+                  - key: "{{ element.image }}"
+                    operator: AnyIn
+                    value:
+                      - "quay.io/*"
+                      - "mcr.microsoft.com/*"
+                      - "docker.io/*"
+                      - "index.docker.io/*"
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Require digest pinning for all production images
+    # Tags are mutable; digests are immutable and guarantee bit-for-bit identity
+    # -------------------------------------------------------------------------
+    - name: require-image-digest-production
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} uses a mutable image tag: {{ element.image }}.
+          Production images must be pinned by digest (@sha256:...) to guarantee
+          immutability and prevent tag mutation attacks.
+          Use: registry.internal.example.com/myapp@sha256:<digest>
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  # Image must contain @sha256: to be digest-pinned
+                  - key: "{{ contains(element.image, '@sha256:') }}"
+                    operator: Equals
+                    value: false
+
+    # -------------------------------------------------------------------------
+    # Rule 6: Audit — Warn on mutable tags in staging (Audit mode)
+    # -------------------------------------------------------------------------
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: audit-image-tags-staging
+  annotations:
+    policies.kyverno.io/title: Audit - Mutable Image Tags in Staging
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Audit-mode policy that warns when staging images use mutable tags (:latest,
+      :main, :dev) instead of pinned digests. Generates PolicyReport violations.
+    kyverno.io/kyverno-version: 1.10.0
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: audit-mutable-tags
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - staging
+                - dev
+      validate:
+        message: >-
+          [AUDIT] Container {{ element.name }} uses mutable tag in image {{ element.image }}.
+          Mutable tags (:latest, :main, :dev) can change without notice.
+          Pin to a digest before promoting to production.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.image }}"
+                    operator: AnyIn
+                    value:
+                      - "*:latest"
+                      - "*:main"
+                      - "*:master"
+                      - "*:dev"
+                      - "*:develop"
+                      - "*:trunk"

@@ -1,0 +1,163 @@
+---
+# Kyverno Policy: Require Image Signature Verification
+# Author: Evgeniy Gantman
+# Purpose: Enforce Cosign signature verification for all container images
+#
+# Compliance:
+#   - PCI DSS 6.3.2 — Maintain an inventory of bespoke and custom software; verify authenticity
+#   - CIS Kubernetes Benchmark 5.2.1 — Prefer minimal and signed images
+#   - NIST SP 800-190 — Container image security
+#
+# How it works:
+#   Kyverno intercepts Pod creation via admission webhook and verifies that every
+#   container image has a valid Cosign signature from the approved key pair.
+#   Images without valid signatures are rejected at admission time, preventing
+#   untrusted or tampered images from ever running in the cluster.
+#
+# Prerequisites:
+#   1. Cosign key pair generated: cosign generate-key-pair k8s://kyverno/cosign-keys
+#   2. COSIGN_PUBLIC_KEY secret created in kyverno namespace
+#   3. Images signed at build time: cosign sign --key k8s://kyverno/cosign-keys <image>
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-signature
+  annotations:
+    policies.kyverno.io/title: Require Image Signature
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      All container images must be signed with Cosign using the organization's
+      signing key. Images without a valid cryptographic signature are rejected
+      at admission time. Enforces supply chain integrity per PCI DSS 6.3.2.
+    policies.kyverno.io/minversion: "1.9.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss
+    security.io/control: supply-chain-integrity
+spec:
+  # Fail closed: deny all requests that cannot be verified
+  # Use 'audit' during initial rollout to collect violations without blocking
+  validationFailureAction: Enforce
+
+  # Verify images at Pod creation and update
+  background: false
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Verify signatures on all production namespace containers
+    # -------------------------------------------------------------------------
+    - name: verify-image-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      exclude:
+        any:
+          # Allow unsigned images in debug/init containers from system namespaces
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cert-manager
+      verifyImages:
+        # Verify all containers and init containers
+        - imageReferences:
+            - "*"
+          # Cosign keyless verification using sigstore transparency log
+          # For air-gapped environments, use key-based verification below
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    # Rekor transparency log URL (use self-hosted for air-gapped)
+                    rekor:
+                      url: https://rekor.sigstore.dev
+                    # OIDC issuer — matches the CI/CD provider that signed the image
+                    # For GitHub Actions: https://token.actions.githubusercontent.com
+                    issuer: "https://token.actions.githubusercontent.com"
+                    # Subject must match the workflow path that built the image
+                    subject: "https://github.com/org/repo/.github/workflows/build.yml@refs/heads/main"
+                    ctlog:
+                      url: https://ctfe.sigstore.dev/test
+          # Require attestation of vulnerability scan results
+          attestations:
+            - predicateType: https://cosign.sigstore.dev/attestation/vuln/v1
+              # Deny images with critical CVEs unfixed
+              conditions:
+                - all:
+                    - key: "{{ scanner.result.summary.CRITICAL }}"
+                      operator: Equals
+                      value: "0"
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Key-based verification for internal/private registry images
+    # Key stored in Kubernetes secret: kyverno/cosign-signing-keys
+    # -------------------------------------------------------------------------
+    - name: verify-internal-image-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      verifyImages:
+        - imageReferences:
+            # Internal registry — must be signed with org key
+            - "registry.internal.example.com/*"
+            - "*.dkr.ecr.*.amazonaws.com/*"
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    # Public key for signature verification
+                    # Secret must exist: kubectl create secret generic cosign-keys \
+                    #   --from-file=cosign.pub=cosign.pub -n kyverno
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      # Replace with actual Cosign public key
+                      # Generated with: cosign generate-key-pair
+                      -----END PUBLIC KEY-----
+                    # Signature algorithm — must match how images were signed
+                    signatureAlgorithm: sha256
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Block images from untrusted registries entirely
+    # -------------------------------------------------------------------------
+    - name: block-untrusted-registry
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+      validate:
+        message: >-
+          Images must come from approved registries:
+          registry.internal.example.com, *.dkr.ecr.*.amazonaws.com,
+          or gcr.io/google-containers. Image {{ element.image }} is not allowed.
+        foreach:
+          - list: "request.object.spec.containers"
+            deny:
+              conditions:
+                all:
+                  # Deny if image does not start with any approved registry
+                  - key: "{{ element.image }}"
+                    operator: AnyNotIn
+                    value:
+                      - "registry.internal.example.com/*"
+                      - "*.dkr.ecr.*.amazonaws.com/*"
+                      - "gcr.io/google-containers/*"
+                      - "registry.k8s.io/*"

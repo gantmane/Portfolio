@@ -1,0 +1,178 @@
+---
+# Kyverno Policy: Restrict hostPath Volume Mounts
+# Author: Evgeniy Gantman
+# Purpose: Block containers from mounting sensitive host filesystem paths
+#
+# Compliance:
+#   - PCI DSS 2.2.1 — System components configured with a single primary function
+#   - CIS Kubernetes Benchmark 5.2.6 — Minimize the admission of containers with allowedHostPaths
+#   - NIST SP 800-190 4.4.1 — Restrict container privileges
+#
+# Security Rationale:
+#   hostPath volumes mount directories from the node's filesystem directly into
+#   containers. Attackers who compromise a container can use hostPath mounts to:
+#     - Read node credentials and secrets (/etc, /root)
+#     - Escape container isolation (/proc, /sys)
+#     - Modify node configuration (/etc/kubernetes, /var/lib/kubelet)
+#     - Access the container runtime socket (/var/run/docker.sock, /run/containerd)
+#   This policy blocks all hostPath mounts except a narrow allowlist for
+#   legitimate system workloads (monitoring agents, log collectors).
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-host-path
+  annotations:
+    policies.kyverno.io/title: Restrict hostPath Volumes
+    policies.kyverno.io/category: Pod Security / Volume Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod, Volume
+    policies.kyverno.io/description: >-
+      Blocks containers from mounting sensitive host paths. Only a narrow
+      set of paths required by system monitoring components is permitted.
+      Prevents container escape via host filesystem access.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: host-isolation
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Block all hostPath mounts in production namespaces
+    # -------------------------------------------------------------------------
+    - name: block-sensitive-host-paths
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+                - staging
+      exclude:
+        any:
+          # System monitoring components need specific host paths
+          - resources:
+              selector:
+                matchLabels:
+                  # Only Falco, node-exporter, and log shippers are exempted
+                  app.kubernetes.io/component: monitoring-agent
+          - resources:
+              namespaces:
+                - kube-system
+                - monitoring
+      validate:
+        message: >-
+          hostPath volumes are prohibited in production namespaces.
+          Requested path {{ element.hostPath.path | default('unknown') }} is blocked.
+          Use PersistentVolumeClaims instead of hostPath mounts.
+          Reference: CIS Kubernetes Benchmark 5.2.6, PCI DSS 2.2.1.
+        deny:
+          conditions:
+            any:
+              # Deny if any volume is a hostPath
+              - key: "{{ request.object.spec.volumes[].hostPath | length(@) }}"
+                operator: GreaterThan
+                value: "0"
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Block critical host paths cluster-wide (even in kube-system)
+    # These paths must NEVER be mounted regardless of namespace
+    # -------------------------------------------------------------------------
+    - name: block-critical-host-paths-always
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: >-
+          Mounting {{ element.hostPath.path }} is strictly prohibited cluster-wide.
+          This path provides access to critical host resources and cannot be mounted
+          by any workload. Reference: CIS Kubernetes Benchmark 5.2.6.
+        foreach:
+          - list: "request.object.spec.volumes[]"
+            preconditions:
+              all:
+                - key: "{{ element.hostPath }}"
+                  operator: NotEquals
+                  value: null
+            deny:
+              conditions:
+                any:
+                  # Container runtime sockets — used for container escapes
+                  - key: "{{ element.hostPath.path }}"
+                    operator: AnyIn
+                    value:
+                      - "/var/run/docker.sock"
+                      - "/run/containerd/containerd.sock"
+                      - "/run/crio/crio.sock"
+                      - "/var/run/cri-dockerd.sock"
+                  # Kubernetes configuration and credentials
+                  - key: "{{ element.hostPath.path }}"
+                    operator: AnyIn
+                    value:
+                      - "/etc/kubernetes"
+                      - "/var/lib/kubelet"
+                      - "/var/lib/kubelet/pki"
+                      - "/etc/kubernetes/pki"
+                  # Privilege escalation vectors
+                  - key: "{{ element.hostPath.path }}"
+                    operator: AnyIn
+                    value:
+                      - "/"
+                      - "/etc"
+                      - "/root"
+                      - "/home"
+                      - "/proc"
+                      - "/sys"
+                      - "/dev"
+                  # SSH and system credentials
+                  - key: "{{ element.hostPath.path }}"
+                    operator: AnyIn
+                    value:
+                      - "/root/.ssh"
+                      - "/etc/ssh"
+                      - "/etc/shadow"
+                      - "/etc/passwd"
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Require hostPath volumes to be read-only where permitted
+    # Applies to monitoring agents in the monitoring namespace
+    # -------------------------------------------------------------------------
+    - name: require-host-path-readonly
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - monitoring
+                - kube-system
+      validate:
+        message: >-
+          hostPath volumes must be mounted as readOnly: true.
+          Container {{ element.name }} mounts {{ element.volumeMounts[].mountPath }}
+          without read-only restriction. Add readOnly: true to the volumeMount.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            foreach:
+              - list: "element.volumeMounts[]"
+                preconditions:
+                  all:
+                    # Only check mounts that reference a hostPath volume
+                    - key: "{{ element.name }}"
+                      operator: AnyIn
+                      value: "{{ request.object.spec.volumes[?hostPath].name[] }}"
+                deny:
+                  conditions:
+                    any:
+                      - key: "{{ element.readOnly }}"
+                        operator: NotEquals
+                        value: true

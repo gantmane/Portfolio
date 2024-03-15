@@ -1,0 +1,237 @@
+---
+# Kyverno Policy: Require CPU and Memory Resource Limits
+# Author: Evgeniy Gantman
+# Purpose: Prevent resource exhaustion and noisy-neighbor denial-of-service
+#
+# Compliance:
+#   - PCI DSS 6.4 — Protect public-facing web applications / service availability
+#   - CIS Kubernetes Benchmark 5.2.11 — Ensure CPU limits are set
+#   - CIS Kubernetes Benchmark 5.2.12 — Ensure memory limits are set
+#   - NIST SP 800-190 — Container resource isolation
+#
+# Security Rationale:
+#   Containers without resource limits can consume all node CPU/memory,
+#   causing denial of service for co-located workloads. In a PCI CDE,
+#   this can disrupt payment processing. Requests ensure proper scheduling;
+#   limits enforce hard caps enforced by the Linux kernel cgroups.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require CPU and Memory Resource Limits
+    policies.kyverno.io/category: Resource Management
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod, Container
+    policies.kyverno.io/description: >-
+      All containers must specify CPU and memory limits and requests.
+      Prevents resource exhaustion attacks and ensures predictable scheduling.
+      Enforces Guaranteed or Burstable QoS class for all production workloads.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: resource-isolation
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Require memory limits on all containers
+    # -------------------------------------------------------------------------
+    - name: require-memory-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Container {{ element.name }} is missing resources.limits.memory.
+          All containers must specify a memory limit to prevent OOM conditions
+          that can disrupt co-located workloads. Recommended max for most apps: 512Mi-2Gi.
+          Reference: CIS Kubernetes 5.2.12.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Require CPU limits on all containers
+    # -------------------------------------------------------------------------
+    - name: require-cpu-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Container {{ element.name }} is missing resources.limits.cpu.
+          CPU limits prevent runaway containers from starving other workloads.
+          Recommended cap for most microservices: 500m-2000m.
+          Reference: CIS Kubernetes 5.2.11.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.cpu }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Require memory requests on all containers
+    # Requests affect scheduling; missing requests = unschedulable under pressure
+    # -------------------------------------------------------------------------
+    - name: require-memory-requests
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Container {{ element.name }} is missing resources.requests.memory.
+          Memory requests are required for the Kubernetes scheduler to place
+          pods on nodes with sufficient capacity.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.requests.memory }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Require CPU requests on all containers
+    # -------------------------------------------------------------------------
+    - name: require-cpu-requests
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Container {{ element.name }} is missing resources.requests.cpu.
+          CPU requests are required for proper Kubernetes scheduling decisions.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.requests.cpu }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Enforce maximum memory limit for production workloads
+    # Prevents a single container from consuming all available node memory
+    # -------------------------------------------------------------------------
+    - name: enforce-max-memory-limit
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} memory limit exceeds the maximum of 4Gi
+          for production namespace pods. Larger workloads require platform team
+          approval and node affinity configuration.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.resources.limits.memory }}"
+                  operator: NotEquals
+                  value: null
+            deny:
+              conditions:
+                any:
+                  # Block memory limits > 4Gi (4294967296 bytes) for standard workloads
+                  - key: "{{ element.resources.limits.memory }}"
+                    operator: GreaterThan
+                    value: "4Gi"
+
+    # -------------------------------------------------------------------------
+    # Rule 6: Block memory limits that are less than requests
+    # Misconfiguration that prevents pod from starting
+    # -------------------------------------------------------------------------
+    - name: require-limits-geq-requests
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.containers[].resources.limits.memory }}"
+            operator: NotEquals
+            value: null
+          - key: "{{ request.object.spec.containers[].resources.requests.memory }}"
+            operator: NotEquals
+            value: null
+      validate:
+        message: >-
+          Container {{ element.name }}: memory limit must be >= memory request.
+          Current: limit={{ element.resources.limits.memory }}, request={{ element.resources.requests.memory }}.
+          A limit lower than the request causes the pod to be immediately OOM-killed.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.resources.limits.memory }}"
+                  operator: NotEquals
+                  value: null
+                - key: "{{ element.resources.requests.memory }}"
+                  operator: NotEquals
+                  value: null
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.resources.limits.memory }}"
+                    operator: LessThan
+                    value: "{{ element.resources.requests.memory }}"

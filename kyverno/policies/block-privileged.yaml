@@ -1,0 +1,216 @@
+---
+# Kyverno Policy: Block Privileged Containers and Host Namespace Sharing
+# Author: Evgeniy Gantman
+# Purpose: Prevent containers from running with elevated host-level access
+#
+# Compliance:
+#   - PCI DSS 6.2.4 — Prevent attacks on payment systems via privilege escalation
+#   - CIS Kubernetes Benchmark 5.2.1 — Do not admit privileged containers
+#   - CIS Kubernetes Benchmark 5.2.4 — Do not admit containers that wish to share host IPC namespace
+#   - CIS Kubernetes Benchmark 5.2.5 — Do not admit containers with hostNetwork access
+#   - NIST SP 800-190 4.4.1 — Restrict container privileges
+#
+# Security Rationale:
+#   privileged: true grants a container nearly all Linux kernel capabilities,
+#   effectively giving it full root access to the host. This is the most
+#   dangerous container misconfiguration. hostNetwork, hostPID, and hostIPC
+#   break container isolation and allow cross-namespace attacks.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: block-privileged
+  annotations:
+    policies.kyverno.io/title: Block Privileged Containers and Host Namespace Sharing
+    policies.kyverno.io/category: Pod Security Standards / Baseline
+    policies.kyverno.io/severity: critical
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Blocks privileged containers (privileged: true) and host namespace sharing
+      (hostNetwork, hostPID, hostIPC). These settings break container isolation
+      and are the most common vectors for container escape attacks.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: privilege-restriction
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Block privileged: true in all containers
+    # -------------------------------------------------------------------------
+    - name: block-privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          Privileged containers are not allowed. Container {{ element.name }}
+          has securityContext.privileged: true. Remove this setting.
+          Privileged mode grants the container near-full host root access.
+          Reference: CIS Kubernetes 5.2.1, PCI DSS 6.2.4.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.privileged || false }}"
+                    operator: Equals
+                    value: true
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Block privileged: true in init containers
+    # -------------------------------------------------------------------------
+    - name: block-privileged-init-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      preconditions:
+        any:
+          - key: "{{ request.object.spec.initContainers[] | length(@) }}"
+            operator: GreaterThanOrEquals
+            value: 1
+      validate:
+        message: >-
+          Privileged init containers are not allowed. Init container {{ element.name }}
+          has securityContext.privileged: true. Remove this setting.
+        foreach:
+          - list: "request.object.spec.initContainers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.privileged || false }}"
+                    operator: Equals
+                    value: true
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Block hostNetwork: true
+    # Shares the host's network namespace — allows sniffing all cluster traffic
+    # -------------------------------------------------------------------------
+    - name: block-host-network
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+              # kube-proxy and CNI components need hostNetwork; they live in kube-system
+      validate:
+        message: >-
+          hostNetwork: true is not permitted. This setting shares the host network
+          namespace and allows the container to bind to any host port and sniff
+          all cluster network traffic. Reference: CIS Kubernetes 5.2.5.
+        pattern:
+          spec:
+            # Must be absent or false
+            =(hostNetwork): false
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Block hostPID: true
+    # Shares host PID namespace — allows container to see/signal all host processes
+    # -------------------------------------------------------------------------
+    - name: block-host-pid
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          hostPID: true is not permitted. Sharing the host PID namespace allows
+          the container to see all processes on the node, signal them, or attach
+          ptrace to them. Reference: CIS Kubernetes 5.2.2.
+        pattern:
+          spec:
+            =(hostPID): false
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Block hostIPC: true
+    # Shares host IPC namespace — allows shared memory attacks across processes
+    # -------------------------------------------------------------------------
+    - name: block-host-ipc
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      validate:
+        message: >-
+          hostIPC: true is not permitted. Sharing the host IPC namespace allows
+          containers to access shared memory segments used by host processes,
+          enabling data exfiltration and inter-process attacks.
+          Reference: CIS Kubernetes 5.2.3.
+        pattern:
+          spec:
+            =(hostIPC): false
+
+    # -------------------------------------------------------------------------
+    # Rule 6: Block hostPort usage
+    # Binding to host ports bypasses network policies and Kubernetes service routing
+    # -------------------------------------------------------------------------
+    - name: block-host-ports
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+                - staging
+      validate:
+        message: >-
+          hostPort is not permitted in {{ request.object.metadata.namespace }}.
+          Container {{ element.name }} uses hostPort {{ element.ports[].hostPort }}.
+          Use a Kubernetes Service instead of host port binding.
+          Reference: CIS Kubernetes 5.2.9.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              any:
+                - key: "{{ element.ports[] | length(@) }}"
+                  operator: GreaterThan
+                  value: 0
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.ports[].hostPort | max(@) }}"
+                    operator: GreaterThan
+                    value: 0

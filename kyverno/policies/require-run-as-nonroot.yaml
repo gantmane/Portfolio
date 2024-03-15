@@ -1,0 +1,195 @@
+---
+# Kyverno Policy: Require Non-Root Container Execution
+# Author: Evgeniy Gantman
+# Purpose: Enforce that all containers run as non-root users with explicit UID
+#
+# Compliance:
+#   - PCI DSS 7.2 — Least privilege access control
+#   - CIS Kubernetes Benchmark 5.2.6 — Minimize containers running as root
+#   - NIST SP 800-190 4.3.1 — Do not run containers as root
+#   - CIS Docker Benchmark 4.1 — Do not run containers with root user
+#
+# Security Rationale:
+#   Running containers as root (UID 0) means that if a container is compromised,
+#   the attacker has root privileges within the container. Combined with
+#   kernel vulnerabilities or misconfigured capabilities, this can enable full
+#   host compromise. Enforcing non-root UID and runAsNonRoot: true at both the
+#   pod and container level prevents privilege escalation chains.
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-run-as-nonroot
+  annotations:
+    policies.kyverno.io/title: Require Non-Root Container Execution
+    policies.kyverno.io/category: Pod Security Standards / Restricted
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      All containers must run as non-root users. Enforces runAsNonRoot: true
+      and requires explicit non-zero UID at both pod and container level.
+      Also blocks containers from running as specific privileged UIDs.
+    policies.kyverno.io/minversion: "1.6.0"
+  labels:
+    app.kubernetes.io/managed-by: kyverno
+    security.io/compliance: pci-dss,cis-benchmark
+    security.io/control: least-privilege
+spec:
+  validationFailureAction: Enforce
+  background: true
+
+  rules:
+    # -------------------------------------------------------------------------
+    # Rule 1: Require runAsNonRoot at pod or container level
+    # Pod-level setting applies to all containers unless overridden per-container
+    # -------------------------------------------------------------------------
+    - name: require-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+                - cert-manager
+      validate:
+        message: >-
+          Containers must not run as root. Set securityContext.runAsNonRoot: true
+          and securityContext.runAsUser to a non-zero UID (>= 1000 recommended).
+          Reference: PCI DSS 7.2, CIS Kubernetes Benchmark 5.2.6.
+        pattern:
+          spec:
+            # Pattern uses Kyverno's conditional logic:
+            # Pod-level OR each container must set runAsNonRoot
+            =(securityContext):
+              =(runAsNonRoot): true
+            containers:
+              - =(securityContext):
+                  =(runAsNonRoot): true
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Require explicit non-zero UID
+    # Prevents images with USER set to numeric root (0) from bypassing runAsNonRoot
+    # -------------------------------------------------------------------------
+    - name: require-explicit-uid
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} does not specify an explicit non-zero UID.
+          Set securityContext.runAsUser to a value >= 1000.
+          Using implicit root (UID 0) is prohibited in production namespaces.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  # Deny if runAsUser is explicitly set to 0 (root)
+                  - key: "{{ element.securityContext.runAsUser | to_string(@) }}"
+                    operator: Equals
+                    value: "0"
+                  # Deny if no UID set at container level AND no pod-level UID
+                  - key: "{{ element.securityContext.runAsUser }}"
+                    operator: Equals
+                    value: null
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Block reserved system UIDs (1-999 are system accounts on Linux)
+    # Application containers must use UIDs >= 1000
+    # -------------------------------------------------------------------------
+    - name: block-system-uid
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+                - payment
+      validate:
+        message: >-
+          Container {{ element.name }} uses a system UID ({{ element.securityContext.runAsUser }}).
+          System UIDs 1-999 are reserved. Application containers must use UID >= 1000.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.securityContext.runAsUser }}"
+                  operator: NotEquals
+                  value: null
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.runAsUser }}"
+                    operator: LessThan
+                    value: "1000"
+
+    # -------------------------------------------------------------------------
+    # Rule 4: Require allowPrivilegeEscalation: false
+    # Prevents setuid binaries from elevating privileges after process start
+    # -------------------------------------------------------------------------
+    - name: disallow-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+      validate:
+        message: >-
+          Container {{ element.name }} must set allowPrivilegeEscalation: false.
+          This prevents setuid/setgid binaries from gaining elevated privileges.
+          Reference: CIS Kubernetes Benchmark 5.2.5.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.allowPrivilegeEscalation }}"
+                    operator: NotEquals
+                    value: false
+
+    # -------------------------------------------------------------------------
+    # Rule 5: Mutate — auto-inject default non-root securityContext
+    # Applies safe defaults to containers missing securityContext entirely.
+    # Note: Mutation runs before validation; this handles omitted fields.
+    # -------------------------------------------------------------------------
+    - name: mutate-add-nonroot-defaults
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - production
+                - pci-scope
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers[]"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - (name): "{{ element.name }}"
+                    securityContext:
+                      # Only set these defaults if not already defined
+                      +(runAsNonRoot): true
+                      +(allowPrivilegeEscalation): false
+                      +(readOnlyRootFilesystem): true
+                      seccompProfile:
+                        +(type): RuntimeDefault

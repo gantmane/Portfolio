@@ -1,0 +1,331 @@
+---
+# Falco Rules: Network Threat Detection
+# Author: Evgeniy Gantman
+# Purpose: Detect anomalous network connections, C2 callbacks, data exfiltration,
+#          and protocol abuse in Kubernetes environments
+#
+# Compliance:
+#   - PCI DSS 1.3 — Restrict outbound traffic from CDE to approved destinations
+#   - PCI DSS 1.3.2 — Restrict inbound and outbound traffic to that which is necessary
+#   - CIS Kubernetes Benchmark 5.3 — Network policies
+#
+# MITRE ATT&CK Coverage:
+#   - TA0011 Command and Control — T1071 Application Layer Protocol
+#   - TA0010 Exfiltration — T1048 Exfiltration Over Alternative Protocol
+#   - TA0007 Discovery — T1046 Network Service Scanning
+#   - TA0008 Lateral Movement — T1021 Remote Services
+#
+# Note: These rules complement Network Policies (which block at kernel level).
+# Falco operates at the syscall level and detects connections that bypass
+# or occur before NetworkPolicy enforcement.
+
+# ============================================================================
+# MACROS
+# ============================================================================
+
+- macro: container
+  condition: (container.id != host)
+
+- macro: outbound
+  condition: (syscall.type = connect and evt.dir = < and fd.typechar = 4)
+
+- macro: inbound
+  condition: (syscall.type = accept and evt.dir = <)
+
+- macro: udp_outbound
+  condition: (syscall.type = sendto and evt.dir = < and fd.typechar = 4)
+
+# Approved internal services — pods may communicate within cluster CIDR
+- macro: internal_cluster_network
+  condition: >
+    (fd.sip startswith "10." or
+     fd.sip startswith "172.16." or
+     fd.sip startswith "192.168." or
+     fd.sip = "127.0.0.1")
+
+- macro: dns_traffic
+  condition: (fd.sport = 53 or fd.dport = 53)
+
+- macro: monitoring_traffic
+  condition: >
+    (fd.sport in (9090, 9091, 9093, 9100, 3000, 4317, 4318) or
+     fd.dport in (9090, 9091, 9093, 9100, 3000, 4317, 4318))
+
+# Namespaces where we actively restrict and monitor outbound
+- macro: monitored_namespace
+  condition: >
+    (k8s.ns.name in (production, payment, pci-scope, staging))
+
+# ============================================================================
+# LISTS
+# ============================================================================
+
+# Known C2 infrastructure domains and IPs (populate from threat intel feeds)
+- list: known_c2_ips
+  items: []  # Update from threat intel: Recorded Future, VirusTotal, etc.
+
+# IPs that should never receive connections from within the cluster
+- list: blocklisted_ips
+  items:
+    - "0.0.0.0"     # Wildcard bind — unusual for client connections
+
+# Ports that should never be used for outbound connections from containers
+- list: blocked_outbound_ports
+  items:
+    - 4444   # Metasploit default
+    - 4445   # Metasploit alt
+    - 8080   # Could indicate proxy bypass (legitimate uses should use 443)
+    - 31337  # Elite/leet port associated with hacking tools
+    - 1337   # Leet speak — associated with hacking tools
+
+# ============================================================================
+# RULES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Connection to Known C2 Infrastructure
+# MITRE: T1071 Application Layer Protocol / TA0011 Command and Control
+# ----------------------------------------------------------------------------
+- rule: Connection to Known C2 IP
+  desc: >
+    An outbound connection was established to an IP address known to be
+    associated with command-and-control infrastructure. Populated from
+    threat intelligence feeds. Immediate indicator of compromise.
+  condition: >
+    outbound and
+    fd.sip in (known_c2_ips) and
+    container
+  output: >
+    CRITICAL: Connection to known C2 infrastructure
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport proto=%fd.l4proto
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - c2
+    - network
+    - ioc
+    - mitre_t1071
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Connection on Suspicious Ports (C2/Backdoor Indicators)
+# MITRE: T1571 Non-Standard Port / TA0011 Command and Control
+# ----------------------------------------------------------------------------
+- rule: Outbound Connection on Suspicious Port
+  desc: >
+    An outbound connection used a port associated with penetration testing
+    frameworks, backdoors, or malware C2 infrastructure.
+    Metasploit listeners use 4444/4445 by default; 31337 is historically
+    associated with hacking tools.
+  condition: >
+    outbound and container and
+    fd.sport in (blocked_outbound_ports) and
+    not fd.sip = "127.0.0.1"
+  output: >
+    HIGH: Outbound connection on suspicious port
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - c2
+    - suspicious_port
+    - mitre_t1571
+
+# ----------------------------------------------------------------------------
+# HIGH: Unexpected Outbound to Public Internet
+# PCI DSS 1.3 — Only approved outbound connections from CDE
+# MITRE: T1048 Exfiltration Over Alternative Protocol
+# ----------------------------------------------------------------------------
+- rule: Unexpected Public Internet Outbound
+  desc: >
+    A container in a monitored namespace established an outbound connection
+    to a public IP address. Production containers should only communicate
+    with approved external services via the egress allowlist.
+    Unapproved connections may indicate data exfiltration or C2 beaconing.
+  condition: >
+    outbound and
+    monitored_namespace and
+    not internal_cluster_network and
+    not dns_traffic and
+    not monitoring_traffic and
+    not fd.sip in (known_c2_ips)  # Caught by stricter rule above
+  output: >
+    HIGH: Unexpected outbound connection to public internet
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport proto=%fd.l4proto
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - pci_dss_1_3
+    - network
+    - exfiltration
+    - mitre_t1048
+
+# ----------------------------------------------------------------------------
+# HIGH: Large Data Transfer via Non-Standard Port
+# Unusual protocol/port combination for high-volume egress
+# MITRE: T1048.003 Exfiltration Over Unencrypted Non-C2 Protocol
+# ----------------------------------------------------------------------------
+- rule: High Volume UDP Egress
+  desc: >
+    A container is sending large volumes of UDP traffic to an external IP.
+    DNS-over-UDP exfiltration (data encoded in DNS queries) and ICMP tunneling
+    are common exfiltration techniques. High-volume UDP to external IPs is
+    suspicious from production workloads.
+  condition: >
+    udp_outbound and
+    monitored_namespace and
+    not internal_cluster_network and
+    not dns_traffic and
+    fd.sport != 123  # NTP
+  output: >
+    HIGH: High-volume UDP egress to external IP
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - exfiltration
+    - dns_tunnel
+    - udp
+    - mitre_t1048_003
+
+# ----------------------------------------------------------------------------
+# HIGH: Network Port Scan Detected
+# MITRE: T1046 Network Service Scanning / TA0007 Discovery
+# ----------------------------------------------------------------------------
+- rule: Network Port Scan from Container
+  desc: >
+    A container is making rapid sequential connection attempts across multiple
+    ports, consistent with network reconnaissance/port scanning.
+    Lateral movement preparation often begins with service discovery.
+  condition: >
+    outbound and container and
+    proc.name in (nmap, masscan, zmap, unicornscan, rustscan,
+                  netcat, nc, ncat, socat) and
+    not k8s.ns.name = "security-testing"
+  output: >
+    HIGH: Network scanning tool executed in container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - recon
+    - lateral_movement
+    - mitre_t1046
+
+# ----------------------------------------------------------------------------
+# HIGH: SSH Outbound from Production Container
+# MITRE: T1021.004 Remote Services: SSH / TA0008 Lateral Movement
+# ----------------------------------------------------------------------------
+- rule: SSH Outbound from Container
+  desc: >
+    A production container established an outbound SSH connection (port 22).
+    Production microservices do not perform SSH. This indicates an attacker
+    using the container as a pivot point for lateral movement to other hosts.
+  condition: >
+    outbound and
+    monitored_namespace and
+    fd.sport = 22 and
+    proc.name != "ssh-healthcheck"  # Allow monitoring probes
+  output: >
+    HIGH: SSH outbound connection from production container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     destination=%fd.sip:%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - lateral_movement
+    - ssh
+    - mitre_t1021_004
+
+# ----------------------------------------------------------------------------
+# MEDIUM: Container Listening on Unexpected Port
+# Could indicate backdoor listener or C2 bind shell
+# MITRE: T1571 Non-Standard Port / TA0011 Command and Control
+# ----------------------------------------------------------------------------
+- rule: Unexpected Port Listening in Container
+  desc: >
+    A container started listening on a port not defined in its service spec.
+    Bind shells and backdoors open listening ports after exploitation.
+    Production containers should only listen on ports declared in their
+    Kubernetes Service definition.
+  condition: >
+    inbound and container and
+    fd.sport not in (80, 443, 8080, 8443, 9090, 9091, 3000, 4317, 4318,
+                     5432, 6379, 5672, 15672, 2181, 9092) and
+    monitored_namespace
+  output: >
+    MEDIUM: Container listening on unexpected port
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     listening_port=%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: WARNING
+  tags:
+    - network
+    - backdoor
+    - mitre_t1571
+
+# ----------------------------------------------------------------------------
+# MEDIUM: DNS Exfiltration Indicator (High-Entropy Query Patterns)
+# MITRE: T1071.004 DNS / TA0011 Command and Control
+# ----------------------------------------------------------------------------
+- rule: Suspicious DNS Query Pattern
+  desc: >
+    A container is making DNS queries with unusually long subdomains, which
+    is a common indicator of DNS tunneling used for C2 or data exfiltration.
+    Legitimate services use short, predictable DNS names.
+  condition: >
+    udp_outbound and container and
+    fd.sport = 53 and
+    (proc.cmdline contains ".onion" or
+     proc.cmdline contains "x.x.x.x.x.x.x.x." or
+     fd.sip.name contains "*.txt." or
+     fd.sip.name contains "*.hex.")
+  output: >
+    MEDIUM: Suspicious DNS pattern — possible DNS tunnel
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     query=%fd.sip.name destination=%fd.sip
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: WARNING
+  tags:
+    - dns_tunnel
+    - exfiltration
+    - c2
+    - mitre_t1071_004
+
+# ----------------------------------------------------------------------------
+# INFO: PCI Scope Container Network Audit
+# PCI DSS 10.2 — Log all access to cardholder data
+# Every connection from PCI-scope containers is logged for compliance audit
+# ----------------------------------------------------------------------------
+- rule: PCI Scope Network Connection Audit
+  desc: >
+    Informational: All network connections from PCI-scoped containers are
+    logged for PCI DSS 10.2 compliance audit. This rule generates the
+    audit trail required for card brand compliance assessments.
+  condition: >
+    (outbound or inbound) and
+    (k8s.ns.name in (payment, pci-scope) or
+     container.image.repository contains "payment")
+  output: >
+    INFO: PCI scope container network connection
+    (user=%user.name process=%proc.name direction=%evt.type
+     connection=%fd.name local=%fd.cip:%fd.cport remote=%fd.sip:%fd.sport
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: INFO
+  tags:
+    - pci_dss_10_2
+    - audit
+    - network

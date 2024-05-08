@@ -1,0 +1,429 @@
+---
+# Falco Rules: Container Security and Escape Detection
+# Author: Evgeniy Gantman
+# Purpose: Detect container escape attempts, privilege escalation, and
+#          host compromise indicators in Kubernetes environments
+#
+# Compliance:
+#   - CIS Kubernetes Benchmark 4.2 — Worker Node configuration security
+#   - PCI DSS 2.2 — System components configured to prevent known vulnerabilities
+#   - NIST SP 800-190 — Application container security
+#
+# MITRE ATT&CK Coverage:
+#   - TA0004 Privilege Escalation — T1611 Escape to Host
+#   - TA0005 Defense Evasion — T1562 Impair Defenses
+#   - TA0002 Execution — T1059 Command and Scripting Interpreter
+#   - TA0003 Persistence — T1543 Create or Modify System Process
+
+# ============================================================================
+# MACROS
+# ============================================================================
+
+- macro: container
+  condition: (container.id != host)
+
+- macro: host
+  condition: (container.id = host)
+
+- macro: spawned_process
+  condition: (evt.type = execve and evt.dir = <)
+
+- macro: shell_procs
+  condition: (proc.name in (bash, sh, zsh, ksh, csh, dash, fish, rbash))
+
+- macro: system_procs
+  condition: >
+    (proc.name in (systemd, init, kubelet, dockerd, containerd,
+                   containerd-shim, dockerd-current))
+
+- macro: bin_dir
+  condition: (fd.directory in (/bin, /sbin, /usr/bin, /usr/sbin, /usr/local/bin))
+
+- macro: container_runtime_socket
+  condition: >
+    (fd.name = "/var/run/docker.sock" or
+     fd.name = "/run/containerd/containerd.sock" or
+     fd.name = "/run/crio/crio.sock" or
+     fd.name = "/var/run/cri-dockerd.sock")
+
+- macro: sensitive_proc_paths
+  condition: >
+    (fd.name startswith /proc/1/ or
+     fd.name = /proc/sysrq-trigger or
+     fd.name startswith /proc/kcore)
+
+- macro: known_profiling_tools
+  condition: (proc.name in (perf, strace, gdb, ltrace))
+
+# container_started: fires when a new container process is spawned
+# (Falco built-in: container.type != host AND evt.type = container AND evt.dir = >)
+- macro: container_started
+  condition: (evt.type = container and evt.dir = >)
+
+# ============================================================================
+# CONTAINER ESCAPE RULES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Container Runtime Socket Access
+# Direct access to the container runtime enables creating privileged containers,
+# mounting host directories, and full host compromise
+# MITRE: T1611 Escape to Host
+# ----------------------------------------------------------------------------
+- rule: Container Runtime Socket Access
+  desc: >
+    A container process accessed the container runtime socket.
+    Access to dockerd or containerd socket from within a container provides
+    complete control over the container runtime — equivalent to root on the host.
+  condition: >
+    evt.type = open and
+    container and
+    container_runtime_socket
+  output: >
+    CRITICAL: Container runtime socket accessed from container
+    (user=%user.name user_uid=%user.uid
+     process=%proc.name parent=%proc.pname command=%proc.cmdline
+     socket=%fd.name
+     container_id=%container.id container_name=%container.name
+     image=%container.image.repository:%container.image.tag
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - container_escape
+    - privilege_escalation
+    - mitre_t1611
+    - cis_5_2_1
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Kernel Module Load from Container
+# Loading a kernel module from a container provides ring-0 access to the host
+# MITRE: T1215 Kernel Modules and Extensions (TA0003 Persistence)
+# ----------------------------------------------------------------------------
+- rule: Kernel Module Loaded from Container
+  desc: >
+    insmod or modprobe executed from within a container. Loading kernel modules
+    from a container requires CAP_SYS_MODULE and provides unrestricted kernel
+    access. This is a definitive container escape indicator.
+  condition: >
+    spawned_process and container and
+    proc.name in (insmod, modprobe, rmmod, depmod)
+  output: >
+    CRITICAL: Kernel module operation from container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     parent=%proc.pname
+     container_id=%container.id container_name=%container.name
+     image=%container.image.repository:%container.image.tag
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - container_escape
+    - kernel
+    - persistence
+    - mitre_t1215
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Mount Syscall from Container (Namespace Escape)
+# The mount syscall used from containers can remount host filesystems
+# MITRE: T1611 Escape to Host
+# ----------------------------------------------------------------------------
+- rule: Mount Syscall from Container
+  desc: >
+    The mount syscall was executed from within a container. Containers with
+    CAP_SYS_ADMIN can use mount to access host filesystems, escape cgroups,
+    or manipulate namespace boundaries.
+  condition: >
+    evt.type in (mount, umount, umount2) and
+    container and
+    not proc.name in (mount, umount)
+  output: >
+    CRITICAL: Mount syscall executed from container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     parent=%proc.pname
+     container_id=%container.id container_name=%container.name
+     image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - container_escape
+    - syscall
+    - mitre_t1611
+
+# ----------------------------------------------------------------------------
+# CRITICAL: nsenter Execution (Namespace Entry)
+# nsenter allows entering host namespaces from within a container
+# MITRE: T1611 Escape to Host
+# ----------------------------------------------------------------------------
+- rule: nsenter Executed in Container
+  desc: >
+    nsenter allows a process to join one or more Linux namespaces of another
+    process. From a container, this can be used to enter the host PID, network,
+    or mount namespace — effectively escaping container isolation.
+  condition: >
+    spawned_process and container and
+    proc.name = "nsenter"
+  output: >
+    CRITICAL: nsenter executed in container — namespace escape attempt
+    (user=%user.name command=%proc.cmdline parent=%proc.pname
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - container_escape
+    - namespace
+    - mitre_t1611
+
+# ============================================================================
+# PRIVILEGE ESCALATION RULES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# CRITICAL: Privileged Container Started
+# MITRE: T1611 Escape to Host / TA0004 Privilege Escalation
+# ----------------------------------------------------------------------------
+- rule: Privileged Container Started
+  desc: >
+    A privileged container was started. Privileged containers share the host's
+    kernel capabilities, devices, and are equivalent to running as root on the
+    host. All security boundaries are effectively disabled.
+  condition: >
+    container_started and container and
+    container.privileged = true and
+    not proc.name in (falco, node-exporter, nvidia-container-runtime)
+  output: >
+    CRITICAL: Privileged container started
+    (user=%user.name
+     container_id=%container.id container_name=%container.name
+     image=%container.image.repository:%container.image.tag
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - container
+    - privilege_escalation
+    - mitre_t1611
+    - cis_5_2_1
+
+# ----------------------------------------------------------------------------
+# HIGH: Setuid/Setgid Bit Set on Executable
+# Enables later privilege escalation without re-exploiting the container
+# MITRE: T1548.001 Setuid and Setgid
+# ----------------------------------------------------------------------------
+- rule: Setuid Bit Set in Container
+  desc: >
+    A file's setuid or setgid bit was set inside a container. This can be used
+    to create a local privilege escalation backdoor — the file runs as its owner
+    (often root) regardless of which user executes it.
+  condition: >
+    evt.type in (chmod, fchmod, fchmodat) and container and
+    (evt.arg.mode contains "S_ISUID" or evt.arg.mode contains "S_ISGID") and
+    not proc.name in (dpkg, rpm, rpm2cpio)
+  output: >
+    HIGH: Setuid/Setgid bit set on file in container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     file=%fd.name mode=%evt.arg.mode
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name)
+  priority: ERROR
+  tags:
+    - privilege_escalation
+    - persistence
+    - mitre_t1548_001
+
+# ----------------------------------------------------------------------------
+# HIGH: /proc Filesystem Access from Container
+# /proc/1/ accesses indicate attempts to read host process info
+# MITRE: T1057 Process Discovery / TA0007 Discovery
+# ----------------------------------------------------------------------------
+- rule: Proc Filesystem Access from Container
+  desc: >
+    A container process accessed /proc/1/ or other sensitive procfs paths.
+    /proc/1 exposes host init process details. /proc/kcore exposes raw host
+    memory. These accesses indicate privilege escalation or reconnaissance.
+  condition: >
+    evt.type = open and container and
+    sensitive_proc_paths
+  output: >
+    HIGH: Sensitive /proc path accessed from container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     file=%fd.name
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - container_escape
+    - recon
+    - mitre_t1057
+
+# ============================================================================
+# EXECUTION AND PERSISTENCE RULES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# HIGH: Reverse Shell Detection
+# MITRE: T1059.004 Unix Shell / TA0011 Command and Control
+# ----------------------------------------------------------------------------
+- rule: Reverse Shell in Container
+  desc: >
+    A reverse shell pattern was detected in a container. Reverse shells
+    provide attackers with an interactive shell session, enabling further
+    exploitation and lateral movement.
+  condition: >
+    spawned_process and container and
+    ((proc.cmdline contains "bash -i" and proc.cmdline contains "/dev/tcp") or
+     (proc.cmdline contains "nc " and proc.cmdline contains " -e ") or
+     (proc.cmdline contains "ncat" and proc.cmdline contains "--exec") or
+     (proc.cmdline contains "python" and proc.cmdline contains "import socket") or
+     (proc.cmdline contains "perl -e" and proc.cmdline contains "use Socket") or
+     (proc.cmdline contains "ruby -rsocket" and proc.cmdline contains "exec"))
+  output: >
+    CRITICAL: Reverse shell pattern detected in container
+    (user=%user.name command=%proc.cmdline parent=%proc.pname
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - execution
+    - c2
+    - shell
+    - mitre_t1059_004
+
+# ----------------------------------------------------------------------------
+# HIGH: Binary Executed from Write Path (Dropper Detected)
+# MITRE: T1105 Ingress Tool Transfer / TA0002 Execution
+# ----------------------------------------------------------------------------
+- rule: Binary Executed from Write Path
+  desc: >
+    An executable was launched from a path typically writable at runtime
+    (/tmp, /dev/shm, /var/tmp). Attackers download and execute binaries
+    from writable paths to bypass read-only filesystem controls.
+  condition: >
+    spawned_process and container and
+    (proc.exepath startswith "/tmp/" or
+     proc.exepath startswith "/dev/shm/" or
+     proc.exepath startswith "/var/tmp/" or
+     proc.exepath startswith "/run/")
+  output: >
+    HIGH: Binary executed from writable path — possible dropper
+    (user=%user.name exe=%proc.exepath command=%proc.cmdline
+     parent=%proc.pname parent_exe=%proc.pexepath
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - execution
+    - dropper
+    - mitre_t1105
+
+# ----------------------------------------------------------------------------
+# HIGH: Cryptocurrency Miner Process
+# MITRE: T1496 Resource Hijacking / TA0040 Impact
+# ----------------------------------------------------------------------------
+- rule: Cryptocurrency Miner Detected
+  desc: >
+    A cryptocurrency mining process was detected. Miners consume cluster compute
+    resources, increase infrastructure costs, and indicate a compromised container.
+    Mining software is frequently deployed as a secondary payload after exploit.
+  condition: >
+    spawned_process and
+    (proc.name in (xmrig, ethminer, minerd, cpuminer, cgminer, bfgminer,
+                   nbminer, gminer, phoenixminer, t-rex) or
+     proc.cmdline contains "stratum+tcp://" or
+     proc.cmdline contains "stratum+ssl://" or
+     proc.cmdline contains "--donate-level 0" or
+     proc.cmdline contains "xmrig" or
+     proc.cmdline contains "-o pool." or
+     (proc.cmdline contains "pool" and proc.cmdline contains "wallet"))
+  output: >
+    CRITICAL: Cryptocurrency miner process detected
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     parent=%proc.pname
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - impact
+    - crypto_miner
+    - resource_hijacking
+    - mitre_t1496
+
+# ----------------------------------------------------------------------------
+# MEDIUM: Package Manager Execution in Running Container
+# MITRE: T1072 Software Deployment Tools / TA0002 Execution
+# ----------------------------------------------------------------------------
+- rule: Package Manager in Running Container
+  desc: >
+    A package manager was executed in a running production container.
+    Container images should be immutable — software should never be installed
+    at runtime. This may indicate an attacker establishing persistence.
+  condition: >
+    spawned_process and container and
+    proc.name in (apt, apt-get, aptitude, dpkg, rpm, yum, dnf,
+                  zypper, apk, snap, flatpak, pip, pip3, npm, gem,
+                  cargo, go) and
+    not k8s.ns.name in (development, ci-cd, build) and
+    not proc.pname in (apt, apt-get, dpkg, rpm, yum, pip, npm)
+  output: >
+    MEDIUM: Package manager executed in running container
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     parent=%proc.pname
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: WARNING
+  tags:
+    - execution
+    - persistence
+    - immutability
+    - mitre_t1072
+
+# ============================================================================
+# DEFENSE EVASION RULES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# HIGH: Falco Process Killed or Stopped
+# Attackers terminate security tooling to prevent detection
+# MITRE: T1562.001 Disable or Modify Tools
+# ----------------------------------------------------------------------------
+- rule: Falco Process Killed
+  desc: >
+    A process attempted to kill or stop the Falco runtime security daemon.
+    Disabling security monitoring is a key defense evasion technique.
+    This requires immediate investigation.
+  condition: >
+    spawned_process and
+    ((proc.name = "kill" and proc.cmdline contains "falco") or
+     (proc.name in (systemctl, service) and proc.cmdline contains "stop" and
+      proc.cmdline contains "falco"))
+  output: >
+    CRITICAL: Attempt to kill Falco security daemon
+    (user=%user.name command=%proc.cmdline parent=%proc.pname
+     container=%container.name namespace=%k8s.ns.name)
+  priority: CRITICAL
+  tags:
+    - defense_evasion
+    - disable_tools
+    - mitre_t1562_001
+
+# ----------------------------------------------------------------------------
+# MEDIUM: Debugger/Tracer Attached to Process
+# MITRE: T1055 Process Injection / TA0005 Defense Evasion
+# ----------------------------------------------------------------------------
+- rule: Debugger Attached to Container Process
+  desc: >
+    A debugging or tracing tool (strace, gdb, ptrace) was attached to a process
+    in a container. This may indicate memory inspection to extract secrets,
+    manipulation of security controls, or vulnerability research by an attacker.
+  condition: >
+    spawned_process and container and
+    known_profiling_tools and
+    not k8s.ns.name = "development"
+  output: >
+    HIGH: Debugging tool attached to container process
+    (user=%user.name process=%proc.name command=%proc.cmdline
+     parent=%proc.pname
+     container=%container.name image=%container.image.repository
+     pod=%k8s.pod.name namespace=%k8s.ns.name)
+  priority: ERROR
+  tags:
+    - defense_evasion
+    - process_injection
+    - mitre_t1055

@@ -1,0 +1,352 @@
+---
+# Network Policy: Service-to-Service Allow Rules
+# Author: Evgeniy Gantman
+# Purpose: Define explicit ingress/egress rules for each service based on
+#          verified communication requirements (principle of least privilege)
+#
+# Compliance:
+#   - PCI DSS 1.3.1 — Inbound traffic limited to that necessary
+#   - PCI DSS 1.3.2 — Outbound traffic limited to that necessary
+#   - PCI DSS 1.2.1 — Restrict inbound and outbound traffic
+#   - NIST SP 800-204 — Zero-trust microservices communication
+#
+# Architecture:
+#   External Traffic → Ingress Controller (ingress-nginx namespace)
+#                   → API Gateway (api-gateway pods)
+#                   → Backend Services (payment-api, order-api)
+#                   → Data Layer (postgres, redis)
+#
+# All flows below are explicitly modeled from this diagram.
+# Any service-to-service communication NOT listed here is blocked by default-deny.
+
+# ============================================================================
+# API Gateway: Allow ingress from ingress-nginx controller
+# The NGINX ingress controller terminates external TLS and forwards to gateway
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-api-gateway
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/traffic-direction: ingress
+  annotations:
+    description: "Allow NGINX ingress controller to forward traffic to API Gateway"
+    security.io/pci-dss: "1.3.1"
+    security.io/flow: "external → nginx-ingress → api-gateway"
+spec:
+  # Target: api-gateway pods only
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Allow only from the ingress-nginx namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          # Further restrict to ingress controller pods specifically
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        # HTTP backend port — TLS is terminated at ingress, traffic is plain HTTP internally
+        # mTLS between services is enforced by Istio (see istio/peer-authentication.yaml)
+        - protocol: TCP
+          port: 8080
+
+---
+# ============================================================================
+# Payment API: Allow ingress from API Gateway only
+# Payment service must not receive traffic from any source other than gateway
+# PCI DSS 1.3 — Cardholder data environments restrict access to required paths
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-payment-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow API Gateway to call Payment API — only approved ingress path"
+    security.io/pci-dss: "1.3.1"
+    security.io/flow: "api-gateway → payment-api"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: payment-api
+      security.io/pci-scope: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# ============================================================================
+# Payment API: Allow ingress from payment namespace only (cross-namespace)
+# Handles calls from other payment microservices (e.g., card-processor)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-payment-internal
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow intra-payment-namespace service-to-service traffic"
+    security.io/pci-dss: "1.3.1,1.3.2"
+    security.io/flow: "payment/* → payment/*"
+spec:
+  # Applies to all pods in payment namespace
+  podSelector:
+    matchLabels:
+      security.io/pci-scope: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        # Only pods within the same payment namespace
+        - podSelector:
+            matchLabels:
+              security.io/pci-scope: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8443
+        - protocol: TCP
+          port: 9090  # Internal gRPC
+  egress:
+    # Payment services may call other payment services
+    - to:
+        - podSelector:
+            matchLabels:
+              security.io/pci-scope: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8443
+        - protocol: TCP
+          port: 9090
+
+---
+# ============================================================================
+# Order API: Allow ingress from API Gateway
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-order-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow API Gateway to call Order API"
+    security.io/flow: "api-gateway → order-api"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: order-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# ============================================================================
+# Order API: Allow egress to Payment API (order → payment flow)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-order-to-payment-egress
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow Order API to call Payment API for payment processing"
+    security.io/flow: "order-api → payment-api"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: order-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: payment-api
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# ============================================================================
+# PostgreSQL: Allow ingress from application tier only
+# Database must not accept connections from pods outside the app tier
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-postgres
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow only application tier pods to connect to PostgreSQL"
+    security.io/pci-dss: "1.3.1"
+    security.io/rationale: >
+      PostgreSQL must only accept connections from the application tier.
+      Direct access from API gateway, batch jobs not in the allowlist,
+      or developer namespaces is blocked.
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Application tier pods with explicit label
+        - podSelector:
+            matchLabels:
+              tier: application
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# ============================================================================
+# Redis Cache: Allow ingress from application tier
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-redis
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow application tier pods to connect to Redis cache"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: application
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+# ============================================================================
+# Application Services: Allow egress to PostgreSQL and Redis
+# Application pods need egress to their data stores
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-tier-data-egress
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow application tier pods to connect to PostgreSQL and Redis"
+spec:
+  podSelector:
+    matchLabels:
+      tier: application
+  policyTypes:
+    - Egress
+  egress:
+    # PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+
+---
+# ============================================================================
+# Vault Agent: Allow ingress from Vault namespace
+# Vault agent sidecar pulls secrets from Vault server
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-agent-egress
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow Vault Agent sidecars to communicate with Vault server"
+    security.io/rationale: >
+      Vault Agent injected as a sidecar retrieves and renews secrets from
+      the Vault server. This egress allows the agent to authenticate and
+      fetch secret leases.
+spec:
+  podSelector:
+    matchLabels:
+      vault.hashicorp.com/agent-inject: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+      ports:
+        # Vault API and cluster ports
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201

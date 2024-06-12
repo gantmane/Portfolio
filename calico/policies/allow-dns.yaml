@@ -1,0 +1,120 @@
+---
+# Network Policy: Allow DNS Egress to kube-dns
+# Author: Evgeniy Gantman
+# Purpose: Permit UDP/TCP port 53 egress to CoreDNS after default-deny baseline
+#
+# Compliance:
+#   - PCI DSS 1.3.2 — Restrict outbound traffic to that which is necessary
+#   - CIS Kubernetes Benchmark 5.3.2 — Ensure NetworkPolicy is enabled
+#
+# Rationale:
+#   A default-deny egress policy blocks all traffic including DNS resolution.
+#   Without DNS, pods cannot resolve Kubernetes Service names (e.g. payment-api.production.svc.cluster.local).
+#   This policy permits only CoreDNS traffic in kube-system, nothing else.
+#
+# MITRE ATT&CK:
+#   - T1071.004 — DNS (monitoring for DNS-based C2 is handled separately in Falco)
+
+# ============================================================================
+# Production Namespace — Allow DNS Egress
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/compliance: pci-dss
+  annotations:
+    description: "Allow DNS egress to kube-dns (CoreDNS) — required after default-deny"
+    security.io/pci-dss: "1.3.2"
+    security.io/rationale: >
+      After applying default-deny, pods cannot resolve cluster DNS.
+      This permits UDP and TCP port 53 egress only to CoreDNS pods in kube-system.
+      Without this, all service name resolution fails and applications cannot start.
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# ============================================================================
+# Payment Namespace — Allow DNS Egress
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/compliance: pci-dss
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow DNS egress to kube-dns for payment namespace"
+    security.io/pci-dss: "1.3.2"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# ============================================================================
+# Staging Namespace — Allow DNS Egress
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: staging
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow DNS egress to kube-dns for staging namespace"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

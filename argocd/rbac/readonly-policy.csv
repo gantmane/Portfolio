@@ -1,0 +1,47 @@
+# ArgoCD RBAC — Read-Only Policy
+# Format: p, <role>, <resource>, <action>, <object>, <effect>
+#         g, <user/group>, <role>
+#
+# Readonly role: get only, no sync/create/delete/exec
+
+## ── Application permissions ─────────────────────────────────────────────────
+p, role:readonly, applications, get, */*, allow
+
+## ── ApplicationSet permissions ──────────────────────────────────────────────
+p, role:readonly, applicationsets, get, */*, allow
+
+## ── Cluster permissions ──────────────────────────────────────────────────────
+p, role:readonly, clusters, get, *, allow
+
+## ── Repository permissions ──────────────────────────────────────────────────
+p, role:readonly, repositories, get, *, allow
+
+## ── Project permissions ─────────────────────────────────────────────────────
+p, role:readonly, projects, get, *, allow
+
+## ── Logs (view only, no exec) ───────────────────────────────────────────────
+p, role:readonly, logs, get, */*, allow
+
+## ── Explicit deny — no write, sync, or exec actions ────────────────────────
+p, role:readonly, applications, create,   */*, deny
+p, role:readonly, applications, update,   */*, deny
+p, role:readonly, applications, delete,   */*, deny
+p, role:readonly, applications, sync,     */*, deny
+p, role:readonly, applications, override, */*, deny
+p, role:readonly, clusters,      create,  *, deny
+p, role:readonly, clusters,      update,  *, deny
+p, role:readonly, clusters,      delete,  *, deny
+p, role:readonly, repositories,  create,  *, deny
+p, role:readonly, repositories,  update,  *, deny
+p, role:readonly, repositories,  delete,  *, deny
+p, role:readonly, exec,          create,  */*, deny
+
+## ── Group bindings ──────────────────────────────────────────────────────────
+# Keycloak group → ArgoCD role mapping
+g, argocd-readonly, role:readonly
+g, dev-team,        role:readonly
+g, auditors,        role:readonly
+
+## ── Default fallback ────────────────────────────────────────────────────────
+# Configured in values.yaml: policy.default: role:readonly
+# Any authenticated user not in any group above gets read-only by default

@@ -1,0 +1,145 @@
+## ArgoCD Helm values — HA mode, Keycloak OIDC, Prometheus metrics
+## Chart: argo/argo-cd, version: 6.x
+
+global:
+  image:
+    tag: v2.10.0
+
+## ── Controller ──────────────────────────────────────────────────────────────
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+
+## ── Server ──────────────────────────────────────────────────────────────────
+server:
+  replicas: 3
+  autoscaling:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+  config:
+    ## OIDC via Keycloak
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.gantmanbiz.com/realms/homelab
+      clientID: argocd
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+    url: https://argocd.gantmanbiz.com
+    application.instanceLabelKey: argocd.argoproj.io/app-name
+    ## Health check config for custom resources
+    resource.customizations.health.cert-manager.io_Certificate: |
+      hs = {}
+      if obj.status ~= nil then
+        if obj.status.conditions ~= nil then
+          for i, condition in ipairs(obj.status.conditions) do
+            if condition.type == "Ready" and condition.status == "False" then
+              hs.status = "Degraded"
+              hs.message = condition.message
+              return hs
+            end
+            if condition.type == "Ready" and condition.status == "True" then
+              hs.status = "Healthy"
+              hs.message = condition.message
+              return hs
+            end
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for certificate"
+      return hs
+
+## ── Repo Server ─────────────────────────────────────────────────────────────
+repoServer:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+
+## ── Application Set Controller ──────────────────────────────────────────────
+applicationSet:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+
+## ── Redis HA ────────────────────────────────────────────────────────────────
+redis-ha:
+  enabled: true
+  haproxy:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+## ── RBAC ────────────────────────────────────────────────────────────────────
+configs:
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:admin, projects, *, *, allow
+      g, argocd-admins, role:admin
+      g, argocd-readonly, role:readonly
+    scopes: "[groups]"
+
+  ## Credentials for private repos (managed via External Secrets in prod)
+  repositories: {}
+
+  ## Known hosts for Git servers
+  ssh:
+    knownHosts: |
+      github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SRS1GmiqMCTE6dDZ0bFo8ySdcBNJHzqg0RJqsAqZwCRSmFJFHs9P8j6bFRcGKVRqR5V1KeHQ==

@@ -1,0 +1,125 @@
+## Application: monitoring
+## kube-prometheus-stack — Prometheus, Alertmanager, Grafana
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  labels:
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: infrastructure
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "58.*"
+    helm:
+      releaseName: monitoring
+      values: |
+        ## Prometheus
+        prometheus:
+          prometheusSpec:
+            retention: 30d
+            retentionSize: "50GB"
+            replicas: 2
+            replicaExternalLabelName: prometheus_replica
+            ## Scrape all ServiceMonitors across namespaces
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests:
+                cpu: 500m
+                memory: 2Gi
+              limits:
+                cpu: 2000m
+                memory: 8Gi
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 100Gi
+
+        ## Alertmanager
+        alertmanager:
+          alertmanagerSpec:
+            replicas: 2
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+
+        ## Grafana
+        grafana:
+          enabled: true
+          replicas: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ## Auth via Keycloak OIDC
+          grafana.ini:
+            auth.generic_oauth:
+              enabled: true
+              name: Keycloak
+              allow_sign_up: true
+              client_id: grafana
+              scopes: openid email profile groups
+              auth_url: https://keycloak.gantmanbiz.com/realms/homelab/protocol/openid-connect/auth
+              token_url: https://keycloak.gantmanbiz.com/realms/homelab/protocol/openid-connect/token
+              api_url: https://keycloak.gantmanbiz.com/realms/homelab/protocol/openid-connect/userinfo
+          persistence:
+            enabled: true
+            size: 10Gi
+          defaultDashboardsTimezone: UTC
+
+        ## Node exporter — DaemonSet on all nodes
+        nodeExporter:
+          enabled: true
+
+        ## kube-state-metrics
+        kubeStateMetrics:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: ""
+      kind: Secret
+      name: monitoring-grafana
+      jsonPointers:
+        - /data

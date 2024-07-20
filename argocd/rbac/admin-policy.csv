@@ -1,0 +1,50 @@
+# ArgoCD RBAC — Admin Policy
+# Format: p, <role>, <resource>, <action>, <object>, <effect>
+#         g, <user/group>, <role>
+#
+# Resources: applications, applicationsets, clusters, repositories, projects, logs, exec
+# Actions:   get, create, update, delete, sync, action, override
+# Object:    <project>/<application>  or  *  for wildcard
+
+## ── Application permissions ─────────────────────────────────────────────────
+p, role:admin, applications, get,      */*, allow
+p, role:admin, applications, create,   */*, allow
+p, role:admin, applications, update,   */*, allow
+p, role:admin, applications, delete,   */*, allow
+p, role:admin, applications, sync,     */*, allow
+p, role:admin, applications, override, */*, allow
+p, role:admin, applications, action/*, */*, allow
+
+## ── ApplicationSet permissions ──────────────────────────────────────────────
+p, role:admin, applicationsets, get,    */*, allow
+p, role:admin, applicationsets, create, */*, allow
+p, role:admin, applicationsets, update, */*, allow
+p, role:admin, applicationsets, delete, */*, allow
+
+## ── Cluster permissions ──────────────────────────────────────────────────────
+p, role:admin, clusters, get,    *, allow
+p, role:admin, clusters, create, *, allow
+p, role:admin, clusters, update, *, allow
+p, role:admin, clusters, delete, *, allow
+
+## ── Repository permissions ──────────────────────────────────────────────────
+p, role:admin, repositories, get,    *, allow
+p, role:admin, repositories, create, *, allow
+p, role:admin, repositories, update, *, allow
+p, role:admin, repositories, delete, *, allow
+
+## ── Project permissions ─────────────────────────────────────────────────────
+p, role:admin, projects, get,    *, allow
+p, role:admin, projects, create, *, allow
+p, role:admin, projects, update, *, allow
+p, role:admin, projects, delete, *, allow
+
+## ── Logs and Exec (break-glass) ─────────────────────────────────────────────
+p, role:admin, logs, get,  */*, allow
+p, role:admin, exec, create, */*, allow
+
+## ── Group bindings ──────────────────────────────────────────────────────────
+# Keycloak group → ArgoCD role mapping
+g, argocd-admins,  role:admin
+g, platform-team,  role:admin
+g, security-team,  role:admin

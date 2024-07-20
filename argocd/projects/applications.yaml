@@ -1,0 +1,100 @@
+## AppProject: applications
+## Business workloads — APIs, frontends, background services, data pipelines
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: applications
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Business workloads — APIs, background services, data pipelines, frontends"
+
+  ## Allowed source repositories
+  sourceRepos:
+    - https://github.com/gantmane/Portfolio.git
+    - https://github.com/gantmane/*.git
+    - https://charts.bitnami.com/bitnami
+
+  ## Allowed destinations — workload namespaces only (no kube-system)
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: production
+    - server: https://kubernetes.default.svc
+      namespace: staging
+    - server: https://kubernetes.default.svc
+      namespace: development
+    - server: https://kubernetes.default.svc
+      namespace: data-pipelines
+
+  ## Cluster-scoped resources — applications do NOT get cluster-wide access
+  clusterResourceWhitelist: []
+
+  ## Namespace-scoped resources allowed for workloads
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: PersistentVolumeClaim
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: apps
+      kind: DaemonSet
+    - group: apps
+      kind: ReplicaSet
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: external-secrets.io
+      kind: ExternalSecret
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: monitoring.coreos.com
+      kind: PodMonitor
+
+  ## Orphaned resource monitoring
+  orphanedResources:
+    warn: true
+
+  ## Sync windows — applications can deploy anytime except peak hours
+  syncWindows:
+    - kind: deny
+      schedule: "0 18 * * 5"   # Block Friday evening deploys
+      duration: 16h
+      applications:
+        - "*"
+      namespaces:
+        - production
+
+  ## Project-level roles
+  roles:
+    - name: app-deployer
+      description: Deploy applications to staging and production
+      policies:
+        - p, proj:applications:app-deployer, applications, sync, applications/*, allow
+        - p, proj:applications:app-deployer, applications, get, applications/*, allow
+        - p, proj:applications:app-deployer, applications, create, applications/staging-*, allow
+      groups:
+        - dev-team
+        - argocd-admins
+    - name: app-readonly
+      description: View application state and logs
+      policies:
+        - p, proj:applications:app-readonly, applications, get, applications/*, allow
+      groups:
+        - argocd-readonly

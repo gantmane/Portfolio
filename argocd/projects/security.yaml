@@ -1,0 +1,101 @@
+## AppProject: security
+## Security tooling — Kyverno, Falco, Wazuh, OPA Gatekeeper, network policies
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: security
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Security platform — policy enforcement, runtime threat detection, compliance"
+
+  ## Allowed source repositories
+  sourceRepos:
+    - https://github.com/gantmane/Portfolio.git
+    - https://kyverno.github.io/kyverno
+    - https://falcosecurity.github.io/charts
+    - https://open-policy-agent.github.io/gatekeeper/charts
+    - https://wazuh.github.io/wazuh-kubernetes
+    - https://aquasecurity.github.io/helm-charts
+
+  ## Allowed destinations — security tools span multiple namespaces
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kyverno
+    - server: https://kubernetes.default.svc
+      namespace: falco
+    - server: https://kubernetes.default.svc
+      namespace: wazuh
+    - server: https://kubernetes.default.svc
+      namespace: opa-gatekeeper
+    - server: https://kubernetes.default.svc
+      namespace: trivy-system
+
+  ## Cluster-scoped resources for policy enforcement tools
+  clusterResourceWhitelist:
+    - group: kyverno.io
+      kind: ClusterPolicy
+    - group: kyverno.io
+      kind: ClusterPolicyReport
+    - group: constraints.gatekeeper.sh
+      kind: "*"
+    - group: templates.gatekeeper.sh
+      kind: ConstraintTemplate
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionWebhook
+    - group: admissionregistration.k8s.io
+      kind: MutatingAdmissionWebhook
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+
+  ## All namespace-scoped resources allowed within security namespaces
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  ## Orphaned resource monitoring — security tools must be intentional
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: kyverno.io
+        kind: PolicyReport
+
+  ## Sync windows — security policy changes require off-hours window
+  syncWindows:
+    - kind: allow
+      schedule: "0 1 * * *"   # Daily 01:00 UTC (off-hours)
+      duration: 1h
+      applications:
+        - "kyverno"
+        - "opa-gatekeeper"
+    - kind: allow
+      schedule: "*/15 * * * *" # Detection tools update every 15 min
+      duration: 5m
+      applications:
+        - "falco"
+        - "trivy"
+
+  ## Project-level roles
+  roles:
+    - name: security-admin
+      description: Full access to security project (security team)
+      policies:
+        - p, proj:security:security-admin, applications, *, security/*, allow
+        - p, proj:security:security-admin, repositories, *, *, allow
+      groups:
+        - argocd-admins
+        - security-team
+    - name: security-readonly
+      description: View security policies and reports
+      policies:
+        - p, proj:security:security-readonly, applications, get, security/*, allow
+      groups:
+        - argocd-readonly
+        - dev-team

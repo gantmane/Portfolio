@@ -1,0 +1,43 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: database-credentials
+  namespace: payments
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: database-credentials
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      engineVersion: v2
+      data:
+        DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@postgres-ha:5432/paylerdb"
+        DB_USERNAME: "{{ .username }}"
+        DB_PASSWORD: "{{ .password }}"
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: VaultDynamicSecret
+          name: postgres-dynamic-creds
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: VaultDynamicSecret
+metadata:
+  name: postgres-dynamic-creds
+  namespace: payments
+spec:
+  path: "database/creds/app-readwrite"
+  method: GET
+  provider:
+    server: "https://vault.internal:8200"
+    auth:
+      kubernetes:
+        mountPath: "kubernetes"
+        role: "app-payments"
+        serviceAccountRef:
+          name: payment-api

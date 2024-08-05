@@ -1,0 +1,55 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: api-keys
+  namespace: payments
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: api-keys
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  data:
+    - secretKey: STRIPE_API_KEY
+      remoteRef:
+        key: kv/payments/stripe
+        property: api_key
+    - secretKey: STRIPE_WEBHOOK_SECRET
+      remoteRef:
+        key: kv/payments/stripe
+        property: webhook_secret
+    - secretKey: SENDGRID_API_KEY
+      remoteRef:
+        key: kv/payments/sendgrid
+        property: api_key
+    - secretKey: SLACK_WEBHOOK_URL
+      remoteRef:
+        key: kv/shared/slack
+        property: webhook_url
+    - secretKey: PAGERDUTY_INTEGRATION_KEY
+      remoteRef:
+        key: kv/shared/pagerduty
+        property: integration_key
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: aws-api-keys
+  namespace: payments
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: aws-api-keys
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  dataFrom:
+    - extract:
+        key: /prod/payments/api-keys
+        conversionStrategy: Default
+        decodingStrategy: None

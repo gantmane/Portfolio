@@ -1,0 +1,642 @@
+{
+  "id": "production",
+  "realm": "production",
+  "displayName": "Production Realm",
+  "enabled": true,
+  "sslRequired": "all",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "defaultSignatureAlgorithm": "RS256",
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeoutRememberMe": 0,
+  "ssoSessionMaxLifespanRememberMe": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": true,
+  "offlineSessionMaxLifespan": 5184000,
+  "clientSessionIdleTimeout": 300,
+  "clientSessionMaxLifespan": 3600,
+  "clientOfflineSessionIdleTimeout": 0,
+  "clientOfflineSessionMaxLifespan": 0,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "oauth2DeviceCodeLifespan": 600,
+  "oauth2DevicePollingInterval": 5,
+  "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpSupportedApplications": ["totpAppFreeOTPName", "totpAppGoogleName"],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10,
+      "config": {}
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 50,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30,
+      "config": {}
+    }
+  ],
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {
+    "host": "${env.SMTP_HOST}",
+    "port": "587",
+    "from": "keycloak@${env.DOMAIN}",
+    "fromDisplayName": "Keycloak",
+    "ssl": "false",
+    "starttls": "true",
+    "auth": "true",
+    "user": "${env.SMTP_USER}",
+    "password": "${env.SMTP_PASSWORD}"
+  },
+  "eventsEnabled": true,
+  "eventsExpiration": 604800,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "LOGOUT_ERROR",
+    "REGISTER", "REGISTER_ERROR", "REFRESH_TOKEN", "REFRESH_TOKEN_ERROR",
+    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
+    "FEDERATED_IDENTITY_LINK", "FEDERATED_IDENTITY_LINK_ERROR",
+    "REMOVE_FEDERATED_IDENTITY", "REMOVE_FEDERATED_IDENTITY_ERROR",
+    "UPDATE_EMAIL", "UPDATE_EMAIL_ERROR", "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR",
+    "UPDATE_PROFILE", "UPDATE_PROFILE_ERROR", "VERIFY_EMAIL", "VERIFY_EMAIL_ERROR",
+    "SEND_RESET_PASSWORD", "SEND_VERIFY_EMAIL", "EXECUTE_ACTIONS"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "id": "role-admin",
+        "name": "admin",
+        "description": "Full administrative access",
+        "composite": true,
+        "composites": {
+          "realm": ["developer", "auditor", "readonly"]
+        },
+        "clientRole": false,
+        "containerId": "production",
+        "attributes": {
+          "access-level": ["4"]
+        }
+      },
+      {
+        "id": "role-developer",
+        "name": "developer",
+        "description": "Developer access — deploy and manage services",
+        "composite": true,
+        "composites": {
+          "realm": ["readonly"]
+        },
+        "clientRole": false,
+        "containerId": "production",
+        "attributes": {
+          "access-level": ["3"]
+        }
+      },
+      {
+        "id": "role-auditor",
+        "name": "auditor",
+        "description": "Read-only audit access with log visibility",
+        "composite": true,
+        "composites": {
+          "realm": ["readonly"]
+        },
+        "clientRole": false,
+        "containerId": "production",
+        "attributes": {
+          "access-level": ["2"]
+        }
+      },
+      {
+        "id": "role-readonly",
+        "name": "readonly",
+        "description": "Read-only access to non-sensitive resources",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "production",
+        "attributes": {
+          "access-level": ["1"]
+        }
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "group-admins",
+      "name": "admins",
+      "path": "/admins",
+      "realmRoles": ["admin"],
+      "subGroups": []
+    },
+    {
+      "id": "group-developers",
+      "name": "developers",
+      "path": "/developers",
+      "realmRoles": ["developer"],
+      "subGroups": []
+    },
+    {
+      "id": "group-auditors",
+      "name": "auditors",
+      "path": "/auditors",
+      "realmRoles": ["auditor"],
+      "subGroups": []
+    },
+    {
+      "id": "group-readonly",
+      "name": "readonly",
+      "path": "/readonly",
+      "realmRoles": ["readonly"],
+      "subGroups": []
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "api-gateway",
+      "name": "API Gateway",
+      "description": "Primary API gateway OIDC client with PKCE",
+      "rootUrl": "https://api.${env.DOMAIN}",
+      "adminUrl": "https://api.${env.DOMAIN}",
+      "baseUrl": "/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${env.API_GATEWAY_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://api.${env.DOMAIN}/auth/callback",
+        "https://api.${env.DOMAIN}/oauth2/callback"
+      ],
+      "webOrigins": ["https://api.${env.DOMAIN}"],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "require.pushed.authorization.requests": "false",
+        "access.token.lifespan": "300",
+        "client.session.idle.timeout": "1800",
+        "client.session.max.lifespan": "36000",
+        "use.refresh.tokens": "true",
+        "tls-client-certificate-bound-access-tokens": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "groups"],
+      "protocolMappers": [
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "teleport",
+      "name": "Teleport",
+      "description": "Teleport infrastructure access OIDC client",
+      "rootUrl": "https://teleport.${env.DOMAIN}",
+      "adminUrl": "https://teleport.${env.DOMAIN}",
+      "baseUrl": "/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${env.TELEPORT_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://teleport.${env.DOMAIN}/v1/webapi/oidc/callback"
+      ],
+      "webOrigins": ["https://teleport.${env.DOMAIN}"],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "600",
+        "backchannel.logout.session.required": "true"
+      },
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": ["groups"],
+      "protocolMappers": [
+        {
+          "name": "teleport-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "teleport-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "grafana",
+      "name": "Grafana",
+      "description": "Grafana observability platform OIDC client",
+      "rootUrl": "https://grafana.${env.DOMAIN}",
+      "adminUrl": "https://grafana.${env.DOMAIN}",
+      "baseUrl": "/",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${env.GRAFANA_CLIENT_SECRET}",
+      "redirectUris": [
+        "https://grafana.${env.DOMAIN}/login/generic_oauth"
+      ],
+      "webOrigins": ["https://grafana.${env.DOMAIN}"],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "300",
+        "backchannel.logout.session.required": "true"
+      },
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "optionalClientScopes": ["groups"],
+      "protocolMappers": [
+        {
+          "name": "grafana-role-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "grafana-org-role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.value": "Viewer",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "grafana_role",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "corporate-saml",
+      "displayName": "Corporate IdP (SAML)",
+      "internalId": "idp-corporate-saml",
+      "providerId": "saml",
+      "enabled": true,
+      "updateProfileFirstLoginMode": "on",
+      "trustEmail": false,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "singleSignOnServiceUrl": "${env.SAML_SSO_URL}",
+        "singleLogoutServiceUrl": "${env.SAML_SLO_URL}",
+        "nameIDPolicyFormat": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+        "principalType": "SUBJECT",
+        "signatureAlgorithm": "RSA_SHA256",
+        "xmlSigKeyInfoKeyNameTransformer": "KEY_ID",
+        "useJwksUrl": "false",
+        "loginHint": "false",
+        "allowCreate": "true",
+        "syncMode": "IMPORT",
+        "authnContextComparisonType": "exact",
+        "hideOnLoginPage": "false",
+        "backchannelSupported": "false",
+        "postBindingResponse": "true",
+        "postBindingLogout": "true",
+        "postBindingAuthnRequest": "true",
+        "wantAssertionsSigned": "true",
+        "wantAssertionsEncrypted": "false",
+        "forceAuthn": "false",
+        "validateSignature": "true",
+        "signingCertificate": "${env.SAML_SIGNING_CERT}"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "id": "saml-email-mapper",
+      "name": "email",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute": "email",
+        "user.attribute": "email"
+      }
+    },
+    {
+      "id": "saml-firstname-mapper",
+      "name": "firstName",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute": "firstName",
+        "user.attribute": "firstName"
+      }
+    },
+    {
+      "id": "saml-lastname-mapper",
+      "name": "lastName",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute": "lastName",
+        "user.attribute": "lastName"
+      }
+    },
+    {
+      "id": "saml-role-admin-mapper",
+      "name": "admin-role-mapper",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-role-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute.value": "CORP_ADMIN",
+        "attribute": "memberOf",
+        "role": "admin"
+      }
+    },
+    {
+      "id": "saml-role-dev-mapper",
+      "name": "developer-role-mapper",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-role-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute.value": "CORP_DEV",
+        "attribute": "memberOf",
+        "role": "developer"
+      }
+    }
+  ],
+  "browserFlow": "browser",
+  "registrationFlow": "registration",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients",
+  "dockerAuthenticationFlow": "docker auth",
+  "authenticationFlows": [
+    {
+      "id": "flow-browser-mfa",
+      "alias": "browser",
+      "description": "Browser flow with MFA enforcement",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-spnego",
+          "authenticatorFlow": false,
+          "requirement": "DISABLED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "authenticatorFlow": false,
+          "requirement": "ALTERNATIVE",
+          "priority": 25,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "autheticatorFlow": true,
+          "flowAlias": "browser-mfa-forms",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "flow-browser-mfa-forms",
+      "alias": "browser-mfa-forms",
+      "description": "Username+password then OTP",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticatorFlow": true,
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "flowAlias": "browser-mfa-otp",
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "flow-browser-mfa-otp",
+      "alias": "browser-mfa-otp",
+      "description": "OTP enforcement",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "id": "scope-groups",
+      "name": "groups",
+      "description": "Group membership claims",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Your group memberships"
+      },
+      "protocolMappers": [
+        {
+          "id": "mapper-groups",
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

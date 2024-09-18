@@ -1,0 +1,165 @@
+{
+  "_description": "Group-to-role protocol mapper definitions — apply per client or as realm client scope",
+  "version": "1.0",
+  "mappers": [
+    {
+      "id": "mapper-group-membership",
+      "name": "group-membership",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-group-membership-mapper",
+      "consentRequired": false,
+      "config": {
+        "full.path": "false",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "groups",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "id": "mapper-group-to-realm-role",
+      "name": "group-to-realm-role",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "consentRequired": false,
+      "config": {
+        "multivalued": "true",
+        "userinfo.token.claim": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "realm_roles",
+        "jsonType.label": "String"
+      }
+    },
+    {
+      "id": "mapper-group-to-client-role",
+      "name": "group-to-client-role",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-client-role-mapper",
+      "consentRequired": false,
+      "config": {
+        "multivalued": "true",
+        "userinfo.token.claim": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "client_roles",
+        "jsonType.label": "String"
+      }
+    }
+  ],
+  "groupRoleMappings": [
+    {
+      "group": "/admins",
+      "realmRoles": ["admin"],
+      "description": "Members of /admins group receive admin realm role"
+    },
+    {
+      "group": "/developers",
+      "realmRoles": ["developer"],
+      "description": "Members of /developers group receive developer realm role"
+    },
+    {
+      "group": "/auditors",
+      "realmRoles": ["auditor"],
+      "description": "Members of /auditors group receive auditor realm role"
+    },
+    {
+      "group": "/readonly",
+      "realmRoles": ["readonly"],
+      "description": "Members of /readonly group receive readonly realm role"
+    }
+  ],
+  "clientScopeDefinition": {
+    "id": "scope-groups",
+    "name": "groups",
+    "description": "Adds group membership and derived roles to tokens",
+    "protocol": "openid-connect",
+    "attributes": {
+      "include.in.token.scope": "true",
+      "display.on.consent.screen": "true",
+      "consent.screen.text": "Your group memberships and associated permissions",
+      "gui.order": "1"
+    },
+    "protocolMappers": [
+      {
+        "id": "scope-mapper-group-membership",
+        "name": "group-membership",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-group-membership-mapper",
+        "consentRequired": false,
+        "config": {
+          "full.path": "false",
+          "id.token.claim": "true",
+          "access.token.claim": "true",
+          "claim.name": "groups",
+          "userinfo.token.claim": "true"
+        }
+      },
+      {
+        "id": "scope-mapper-realm-roles",
+        "name": "realm-roles",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-usermodel-realm-role-mapper",
+        "consentRequired": false,
+        "config": {
+          "multivalued": "true",
+          "userinfo.token.claim": "true",
+          "id.token.claim": "true",
+          "access.token.claim": "true",
+          "claim.name": "realm_access.roles",
+          "jsonType.label": "String"
+        }
+      }
+    ]
+  },
+  "samlGroupMapper": {
+    "id": "saml-group-mapper",
+    "name": "saml-groups",
+    "protocol": "saml",
+    "protocolMapper": "saml-group-idp-mapper",
+    "consentRequired": false,
+    "config": {
+      "single": "false",
+      "attribute.nameformat": "Basic",
+      "attribute.name": "groups"
+    }
+  },
+  "identityProviderGroupMappers": [
+    {
+      "id": "idp-mapper-admin",
+      "name": "corporate-admin-to-realm-admin",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-group-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute.value": "CORP_ADMIN",
+        "attribute": "memberOf",
+        "group": "/admins"
+      }
+    },
+    {
+      "id": "idp-mapper-developer",
+      "name": "corporate-dev-to-realm-developer",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-group-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute.value": "CORP_DEV",
+        "attribute": "memberOf",
+        "group": "/developers"
+      }
+    },
+    {
+      "id": "idp-mapper-auditor",
+      "name": "corporate-audit-to-realm-auditor",
+      "identityProviderAlias": "corporate-saml",
+      "identityProviderMapper": "saml-group-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "attribute.value": "CORP_AUDIT",
+        "attribute": "memberOf",
+        "group": "/auditors"
+      }
+    }
+  ]
+}

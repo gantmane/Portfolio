@@ -1,0 +1,333 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: identity-provider
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-db-secret
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+type: Opaque
+stringData:
+  # Populate via: kubectl create secret generic keycloak-db-secret \
+  #   --from-literal=username=keycloak \
+  #   --from-literal=password=<CHANGE_ME> \
+  #   --namespace keycloak
+  username: keycloak
+  password: CHANGE_ME
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-admin-secret
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+type: Opaque
+stringData:
+  # Populate via: kubectl create secret generic keycloak-admin-secret \
+  #   --from-literal=username=admin \
+  #   --from-literal=password=<CHANGE_ME> \
+  #   --namespace keycloak
+  username: admin
+  password: CHANGE_ME
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-config
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+data:
+  KC_DB: postgres
+  KC_DB_URL: jdbc:postgresql://postgres-service.keycloak.svc.cluster.local:5432/keycloak
+  KC_DB_SCHEMA: public
+  KC_HOSTNAME: keycloak.CHANGE_ME_DOMAIN
+  KC_HOSTNAME_STRICT: "true"
+  KC_HOSTNAME_STRICT_HTTPS: "true"
+  KC_HTTP_ENABLED: "false"
+  KC_HTTPS_PORT: "8443"
+  KC_PROXY: edge
+  KC_HEALTH_ENABLED: "true"
+  KC_METRICS_ENABLED: "true"
+  KC_LOG_LEVEL: INFO
+  KC_CACHE: ispn
+  KC_CACHE_STACK: kubernetes
+  JAVA_OPTS_APPEND: >-
+    -Djgroups.dns.query=keycloak-headless.keycloak.svc.cluster.local
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/version: "24.0.4"
+    app.kubernetes.io/component: identity-provider
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/version: "24.0.4"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: keycloak
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: keycloak
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:24.0.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - start
+            - --optimized
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - name: management
+              containerPort: 9000
+              protocol: TCP
+            - name: jgroups
+              containerPort: 7800
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: keycloak-config
+          env:
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db-secret
+                  key: username
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db-secret
+                  key: password
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-secret
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-secret
+                  key: password
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /opt/keycloak/conf/tls
+              readOnly: true
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: keycloak-tls
+            optional: true
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: management
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: keycloak
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: jgroups
+      port: 7800
+      targetPort: 7800
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - keycloak.CHANGE_ME_DOMAIN
+      secretName: keycloak-tls
+  rules:
+    - host: keycloak.CHANGE_ME_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8443
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak-pdb
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keycloak-discovery
+  namespace: keycloak
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-discovery
+  namespace: keycloak
+subjects:
+  - kind: ServiceAccount
+    name: keycloak
+    namespace: keycloak
+roleRef:
+  kind: Role
+  name: keycloak-discovery
+  apiGroup: rbac.authorization.k8s.io

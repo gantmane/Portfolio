@@ -1,0 +1,251 @@
+{
+  "name": "Data Exfiltration Response",
+  "description": "Detects and responds to data exfiltration: blocks egress traffic, identifies exfiltrated data scope, preserves network forensics, and initiates breach notification workflow.",
+  "author": "Evgeniy Gantman",
+  "version": "1.0.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-guardduty",
+      "name": "GuardDuty Exfil Finding",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "parameters": {
+        "path": "exfil-alert",
+        "httpMethod": "POST",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "guardduty-webhook-token"
+        }
+      }
+    },
+    {
+      "id": "parse-exfil-finding",
+      "name": "Parse Exfil Finding",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const event = $input.first().json;\nconst detail = event.detail || event;\n\nconst exfilTypes = {\n  'Exfiltration:S3/ObjectRead.Unusual': { target: 's3', severity: 'SEV1', pci: true },\n  'Exfiltration:S3/AnomalousBehavior': { target: 's3', severity: 'SEV1', pci: true },\n  'UnauthorizedAccess:EC2/TorIPCaller': { target: 'ec2', severity: 'SEV2', pci: false },\n  'Discovery:S3/AnomalousBehavior': { target: 's3', severity: 'SEV2', pci: false },\n  'Exfiltration:Runtime/NetworkConnection': { target: 'runtime', severity: 'SEV1', pci: true }\n};\n\nconst findingType = detail.type || 'Unknown';\nconst context = exfilTypes[findingType] || { target: 'unknown', severity: 'SEV2', pci: false };\n\nconst resource = detail.resource || {};\nconst s3 = resource.s3BucketDetails?.[0] || {};\nconst instance = resource.instanceDetails || {};\nconst network = detail.service?.action?.networkConnectionAction || {};\n\nreturn [{\n  json: {\n    incidentId: 'EXFIL-' + Date.now().toString(36).toUpperCase(),\n    findingId: detail.id,\n    findingType,\n    exfilTarget: context.target,\n    severity: context.severity,\n    pciScope: context.pci,\n    accountId: detail.accountId,\n    region: detail.region || 'eu-central-1',\n    s3BucketName: s3.name || 'N/A',\n    s3BucketOwner: s3.owner?.id || 'N/A',\n    instanceId: instance.instanceId || 'N/A',\n    instanceType: instance.instanceType || 'N/A',\n    destinationIp: network.remoteIpDetails?.ipAddressV4 || 'N/A',\n    destinationPort: network.remotePortDetails?.port || 'N/A',\n    destinationCountry: network.remoteIpDetails?.country?.countryName || 'N/A',\n    transferBytes: detail.service?.additionalInfo?.transferredBytes || 0,\n    timestamp: detail.updatedAt || new Date().toISOString(),\n    gdprNotificationRequired: context.pci,\n    notificationDeadlineHours: context.pci ? 72 : null\n  }\n}];"
+      }
+    },
+    {
+      "id": "block-s3-public-access",
+      "name": "Block S3 Public Access",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWS_REMEDIATION_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "action": "block_s3_public_access",
+          "bucketName": "={{ $json.s3BucketName }}",
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "aws-lambda-invoke-auth"
+        }
+      }
+    },
+    {
+      "id": "block-egress-nacl",
+      "name": "Block Destination IP via NACL",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWS_REMEDIATION_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "action": "add_nacl_deny",
+          "destinationIp": "={{ $json.destinationIp }}",
+          "region": "={{ $json.region }}",
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "aws-lambda-invoke-auth"
+        }
+      }
+    },
+    {
+      "id": "enable-vpc-flow-logs",
+      "name": "Capture VPC Flow Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 450],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWS_REMEDIATION_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "action": "capture_vpc_flow_logs",
+          "instanceId": "={{ $json.instanceId }}",
+          "destinationIp": "={{ $json.destinationIp }}",
+          "lookbackHours": 24,
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "aws-lambda-invoke-auth"
+        }
+      }
+    },
+    {
+      "id": "query-s3-access-logs",
+      "name": "Query S3 Access Logs via Athena",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 600],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ATHENA_QUERY_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "query": "SELECT requester, key, bytes_sent, remote_ip, operation FROM s3_access_logs WHERE bucket = '{{ $json.s3BucketName }}' AND parse_datetime(request_datetime,'dd/MMM/yyyy:HH:mm:ss Z') > current_timestamp - interval '24' hour ORDER BY bytes_sent DESC LIMIT 100",
+          "database": "security_logs",
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "athena-query-auth"
+        }
+      }
+    },
+    {
+      "id": "check-pci-scope",
+      "name": "Check PCI/GDPR Scope",
+      "type": "n8n-nodes-base.if",
+      "position": [700, 400],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('parse-exfil-finding').item.json.pciScope }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "create-breach-notification-task",
+      "name": "Create Breach Notification Task",
+      "type": "n8n-nodes-base.jira",
+      "position": [900, 250],
+      "parameters": {
+        "operation": "create",
+        "project": "SEC",
+        "issueType": "Task",
+        "summary": "=[GDPR/PCI] Breach Notification Required - {{ $('parse-exfil-finding').item.json.incidentId }}",
+        "description": "=**URGENT: Regulatory notification may be required within 72 hours.**\n\n**Incident:** {{ $('parse-exfil-finding').item.json.incidentId }}\n**Data at Risk:** S3 Bucket `{{ $('parse-exfil-finding').item.json.s3BucketName }}`\n**Transfer Volume:** {{ $('parse-exfil-finding').item.json.transferBytes }} bytes\n**Destination:** {{ $('parse-exfil-finding').item.json.destinationIp }} ({{ $('parse-exfil-finding').item.json.destinationCountry }})\n**GDPR Art. 33 Deadline:** {{ new Date(Date.now() + 72*3600000).toISOString() }}\n\n**Required Actions:**\n1. Determine scope of personal data accessed\n2. Assess breach severity per GDPR Art. 33\n3. Notify DPA if required within 72h\n4. Document remediation in GDPR register",
+        "labels": ["gdpr", "pci-dss", "breach-notification"],
+        "priority": "Highest"
+      },
+      "credentials": {
+        "jiraSoftwareCloud": {
+          "name": "jira-security-ops"
+        }
+      }
+    },
+    {
+      "id": "create-main-jira",
+      "name": "Create Main Incident Ticket",
+      "type": "n8n-nodes-base.jira",
+      "position": [900, 500],
+      "parameters": {
+        "operation": "create",
+        "project": "SEC",
+        "issueType": "Security Incident",
+        "summary": "=[{{ $('parse-exfil-finding').item.json.severity }}] Data Exfiltration - {{ $('parse-exfil-finding').item.json.findingType }} ({{ $('parse-exfil-finding').item.json.incidentId }})",
+        "description": "=**Incident ID:** {{ $('parse-exfil-finding').item.json.incidentId }}\n**Finding:** {{ $('parse-exfil-finding').item.json.findingType }}\n**Account:** {{ $('parse-exfil-finding').item.json.accountId }} / {{ $('parse-exfil-finding').item.json.region }}\n**S3 Bucket:** {{ $('parse-exfil-finding').item.json.s3BucketName }}\n**Instance:** {{ $('parse-exfil-finding').item.json.instanceId }}\n**Destination:** {{ $('parse-exfil-finding').item.json.destinationIp }}:{{ $('parse-exfil-finding').item.json.destinationPort }} ({{ $('parse-exfil-finding').item.json.destinationCountry }})\n**Transfer:** {{ $('parse-exfil-finding').item.json.transferBytes }} bytes\n**PCI Scope:** {{ $('parse-exfil-finding').item.json.pciScope }}\n\n**Automated Actions:**\n- S3 public access blocked\n- Egress IP blocked via NACL\n- VPC flow logs captured\n- S3 access logs queried via Athena\n\n**Compliance:** PCI DSS 12.10.2, GDPR Art. 33",
+        "labels": ["data-exfiltration", "p1"],
+        "priority": "Highest"
+      },
+      "credentials": {
+        "jiraSoftwareCloud": {
+          "name": "jira-security-ops"
+        }
+      }
+    },
+    {
+      "id": "notify-slack-exfil",
+      "name": "Alert Security and Legal",
+      "type": "n8n-nodes-base.slack",
+      "position": [1100, 400],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "#security-incidents",
+        "text": "=:outbox_tray: *DATA EXFILTRATION DETECTED*\n*Incident:* `{{ $('parse-exfil-finding').item.json.incidentId }}`\n*Type:* {{ $('parse-exfil-finding').item.json.findingType }}\n*Bucket:* `{{ $('parse-exfil-finding').item.json.s3BucketName }}`\n*Destination:* `{{ $('parse-exfil-finding').item.json.destinationIp }}` ({{ $('parse-exfil-finding').item.json.destinationCountry }})\n*Transfer:* {{ $('parse-exfil-finding').item.json.transferBytes }} bytes\n*PCI/GDPR scope:* {{ $('parse-exfil-finding').item.json.pciScope }}\n\n*Containment:* S3 access blocked, NACL deny rule added, flow logs captured\n*Jira:* {{ $('create-main-jira').item.json.key }}\n\n@security-team @legal — possible GDPR 72h notification window open"
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "slack-security-bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger-guardduty": {
+      "main": [
+        [{ "node": "parse-exfil-finding", "type": "main", "index": 0 }]
+      ]
+    },
+    "parse-exfil-finding": {
+      "main": [
+        [
+          { "node": "block-s3-public-access", "type": "main", "index": 0 },
+          { "node": "block-egress-nacl", "type": "main", "index": 0 },
+          { "node": "enable-vpc-flow-logs", "type": "main", "index": 0 },
+          { "node": "query-s3-access-logs", "type": "main", "index": 0 },
+          { "node": "check-pci-scope", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "check-pci-scope": {
+      "main": [
+        [{ "node": "create-breach-notification-task", "type": "main", "index": 0 }],
+        [{ "node": "create-main-jira", "type": "main", "index": 0 }]
+      ]
+    },
+    "create-breach-notification-task": {
+      "main": [
+        [{ "node": "create-main-jira", "type": "main", "index": 0 }]
+      ]
+    },
+    "create-main-jira": {
+      "main": [
+        [{ "node": "notify-slack-exfil", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

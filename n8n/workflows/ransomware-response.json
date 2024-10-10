@@ -1,0 +1,257 @@
+{
+  "name": "Ransomware Detection Response",
+  "description": "Responds to ransomware detection: isolates affected hosts, disables write access to backup targets, snapshots volumes, and initiates forensic evidence collection.",
+  "author": "Evgeniy Gantman",
+  "version": "1.0.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-wazuh",
+      "name": "Wazuh Ransomware Alert",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "parameters": {
+        "path": "ransomware-alert",
+        "httpMethod": "POST",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "wazuh-webhook-token"
+        }
+      }
+    },
+    {
+      "id": "classify-alert",
+      "name": "Classify Ransomware Indicators",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const alert = $input.first().json;\nconst ruleId = alert.rule?.id;\nconst description = (alert.rule?.description || '').toLowerCase();\nconst agent = alert.agent || {};\n\nconst indicators = [];\nif (description.includes('encrypt') || description.includes('ransomware')) indicators.push('encryption');\nif (description.includes('shadow copy') || description.includes('vssadmin')) indicators.push('vss-deletion');\nif (description.includes('backup') && description.includes('delete')) indicators.push('backup-deletion');\nif (description.includes('.locked') || description.includes('.encrypted') || description.includes('readme_how_to_decrypt')) indicators.push('encrypted-files');\nif (ruleId >= 87700 && ruleId <= 87799) indicators.push('fim-mass-modification');\n\nconst confidence = indicators.length >= 2 ? 'high' : indicators.length === 1 ? 'medium' : 'low';\n\nreturn [{\n  json: {\n    incidentId: 'RANSOM-' + Date.now().toString(36).toUpperCase(),\n    agentId: agent.id,\n    agentName: agent.name,\n    agentIp: agent.ip,\n    hostOs: alert.data?.win?.system?.computer || agent.name,\n    indicators,\n    confidence,\n    ruleId,\n    ruleDescription: alert.rule?.description,\n    timestamp: alert.timestamp || new Date().toISOString(),\n    severity: confidence === 'high' ? 'SEV1' : 'SEV2',\n    wazuhAlertId: alert.id\n  }\n}];"
+      }
+    },
+    {
+      "id": "check-confidence",
+      "name": "Check Detection Confidence",
+      "type": "n8n-nodes-base.if",
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": "low",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "isolate-host-wazuh",
+      "name": "Isolate Host via Wazuh Active Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 200],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.WAZUH_API_URL }}/active-response",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "command": "netsh-block-all",
+          "custom_command": false,
+          "alert": {
+            "data": {
+              "srcip": "={{ $json.agentIp }}"
+            }
+          },
+          "arguments": [],
+          "agents": ["={{ $json.agentId }}"]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "wazuh-api-auth"
+        }
+      }
+    },
+    {
+      "id": "snapshot-volumes",
+      "name": "Snapshot EBS Volumes",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 350],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWS_SNAPSHOT_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "action": "snapshot_instance_volumes",
+          "instanceName": "={{ $json.agentName }}",
+          "reason": "ransomware-containment",
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "aws-lambda-invoke-auth"
+        }
+      }
+    },
+    {
+      "id": "block-backup-writes",
+      "name": "Block Backup S3 Write Access",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AWS_SNAPSHOT_LAMBDA_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "action": "enable_s3_mfa_delete",
+          "bucket": "={{ $env.BACKUP_S3_BUCKET }}",
+          "reason": "ransomware-containment",
+          "incidentId": "={{ $json.incidentId }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "aws-lambda-invoke-auth"
+        }
+      }
+    },
+    {
+      "id": "collect-forensics",
+      "name": "Collect Memory and Process List",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 650],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $env.WAZUH_API_URL }}/active-response",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "command": "collect-forensics",
+          "agents": ["={{ $json.agentId }}"],
+          "arguments": ["--output", "/var/ossec/forensics/{{ $json.incidentId }}"]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "wazuh-api-auth"
+        }
+      }
+    },
+    {
+      "id": "create-jira",
+      "name": "Create Jira P1 Ticket",
+      "type": "n8n-nodes-base.jira",
+      "position": [900, 300],
+      "parameters": {
+        "operation": "create",
+        "project": "SEC",
+        "issueType": "Security Incident",
+        "summary": "=[SEV1] Ransomware Detected - {{ $('classify-alert').item.json.agentName }} ({{ $('classify-alert').item.json.incidentId }})",
+        "description": "=**Incident ID:** {{ $('classify-alert').item.json.incidentId }}\n**Host:** {{ $('classify-alert').item.json.agentName }} ({{ $('classify-alert').item.json.agentIp }})\n**Confidence:** {{ $('classify-alert').item.json.confidence }}\n**Indicators:** {{ $('classify-alert').item.json.indicators.join(', ') }}\n**Wazuh Rule:** {{ $('classify-alert').item.json.ruleId }} - {{ $('classify-alert').item.json.ruleDescription }}\n\n**Automated Actions:**\n- Host network isolated via Wazuh active response\n- EBS volume snapshots initiated\n- Backup S3 MFA-delete enabled\n- Forensic artifacts collection started\n\n**Compliance:** NIST SP 800-61, PCI DSS 12.10.5",
+        "labels": ["ransomware", "p1", "containment-active"],
+        "priority": "Highest"
+      },
+      "credentials": {
+        "jiraSoftwareCloud": {
+          "name": "jira-security-ops"
+        }
+      }
+    },
+    {
+      "id": "notify-war-room",
+      "name": "Open Slack War Room",
+      "type": "n8n-nodes-base.slack",
+      "position": [900, 450],
+      "parameters": {
+        "operation": "channel:create",
+        "channelName": "=ransom-{{ $('classify-alert').item.json.incidentId.toLowerCase() }}",
+        "options": {
+          "isPrivate": true,
+          "description": "=Ransomware IR: {{ $('classify-alert').item.json.agentName }}"
+        }
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "slack-security-bot"
+        }
+      }
+    },
+    {
+      "id": "alert-security-channel",
+      "name": "Alert Security Channel",
+      "type": "n8n-nodes-base.slack",
+      "position": [900, 600],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "#security-incidents",
+        "text": "=:biohazard: *RANSOMWARE DETECTED — CONTAINMENT ACTIVE*\n*Incident:* `{{ $('classify-alert').item.json.incidentId }}`\n*Host:* `{{ $('classify-alert').item.json.agentName }}` (`{{ $('classify-alert').item.json.agentIp }}`)\n*Confidence:* `{{ $('classify-alert').item.json.confidence }}`\n*Indicators:* {{ $('classify-alert').item.json.indicators.join(', ') }}\n\n*Actions taken:* Host isolated, volumes snapshotted, backup writes blocked\n*War room:* #ransom-{{ $('classify-alert').item.json.incidentId.toLowerCase() }}\n*Jira:* {{ $('create-jira').item.json.key }}\n\n@security-team @sre-oncall — immediate response required"
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "slack-security-bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger-wazuh": {
+      "main": [
+        [{ "node": "classify-alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "classify-alert": {
+      "main": [
+        [{ "node": "check-confidence", "type": "main", "index": 0 }]
+      ]
+    },
+    "check-confidence": {
+      "main": [
+        [
+          { "node": "isolate-host-wazuh", "type": "main", "index": 0 },
+          { "node": "snapshot-volumes", "type": "main", "index": 0 },
+          { "node": "block-backup-writes", "type": "main", "index": 0 },
+          { "node": "collect-forensics", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "isolate-host-wazuh": {
+      "main": [
+        [{ "node": "create-jira", "type": "main", "index": 0 }]
+      ]
+    },
+    "create-jira": {
+      "main": [
+        [
+          { "node": "notify-war-room", "type": "main", "index": 0 },
+          { "node": "alert-security-channel", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}

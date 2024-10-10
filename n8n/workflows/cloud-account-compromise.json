@@ -1,0 +1,207 @@
+{
+  "name": "AWS Account Compromise Response",
+  "description": "Detects and responds to AWS account compromise: disables compromised IAM entities, revokes active sessions, captures CloudTrail evidence, and notifies security team.",
+  "author": "Evgeniy Gantman",
+  "version": "1.0.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-webhook",
+      "name": "GuardDuty Finding Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "parameters": {
+        "path": "guardduty-finding",
+        "httpMethod": "POST",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "guardduty-webhook-token"
+        }
+      }
+    },
+    {
+      "id": "filter-compromise",
+      "name": "Filter Compromise Findings",
+      "type": "n8n-nodes-base.filter",
+      "position": [300, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.detail.type }}",
+              "rightValue": "UnauthorizedAccess:IAMUser",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      }
+    },
+    {
+      "id": "parse-finding",
+      "name": "Parse Finding Context",
+      "type": "n8n-nodes-base.code",
+      "position": [500, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const finding = $input.first().json;\nconst detail = finding.detail || finding;\n\nconst principal = detail.resource?.accessKeyDetails || {};\nconst network = detail.service?.action?.awsApiCallAction?.remoteIpDetails || {};\n\nreturn [{\n  json: {\n    findingId: detail.id,\n    findingType: detail.type,\n    severity: detail.severity,\n    region: detail.region || 'eu-central-1',\n    accountId: detail.accountId,\n    iamUserName: principal.userName || 'unknown',\n    accessKeyId: principal.accessKeyId || 'unknown',\n    principalId: principal.principalId || 'unknown',\n    sourceIp: network.ipAddressV4 || 'unknown',\n    sourceCountry: network.country?.countryName || 'unknown',\n    apiCall: detail.service?.action?.awsApiCallAction?.api || 'unknown',\n    timestamp: detail.updatedAt || new Date().toISOString(),\n    incidentId: 'INC-AWS-' + Date.now().toString(36).toUpperCase()\n  }\n}];"
+      }
+    },
+    {
+      "id": "disable-access-key",
+      "name": "Disable Compromised Access Key",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [700, 200],
+      "parameters": {
+        "operation": "updateAccessKey",
+        "accessKeyId": "={{ $json.accessKeyId }}",
+        "userName": "={{ $json.iamUserName }}",
+        "status": "Inactive"
+      },
+      "credentials": {
+        "aws": {
+          "name": "aws-security-responder"
+        }
+      }
+    },
+    {
+      "id": "attach-deny-policy",
+      "name": "Attach Explicit Deny Policy",
+      "type": "n8n-nodes-base.awsIam",
+      "position": [700, 350],
+      "parameters": {
+        "operation": "attachUserPolicy",
+        "userName": "={{ $json.iamUserName }}",
+        "policyArn": "arn:aws:iam::{{ $json.accountId }}:policy/SecurityIncidentDenyAll"
+      },
+      "credentials": {
+        "aws": {
+          "name": "aws-security-responder"
+        }
+      }
+    },
+    {
+      "id": "collect-cloudtrail",
+      "name": "Collect CloudTrail Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CLOUDTRAIL_QUERY_ENDPOINT }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "accessKeyId": "={{ $json.accessKeyId }}",
+          "startTime": "={{ new Date(Date.now() - 86400000).toISOString() }}",
+          "endTime": "={{ new Date().toISOString() }}"
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "cloudtrail-query-auth"
+        }
+      }
+    },
+    {
+      "id": "create-jira-ticket",
+      "name": "Create Jira Security Incident",
+      "type": "n8n-nodes-base.jira",
+      "position": [900, 300],
+      "parameters": {
+        "operation": "create",
+        "project": "SEC",
+        "issueType": "Security Incident",
+        "summary": "=[SEV1] AWS Account Compromise - {{ $('parse-finding').item.json.iamUserName }} ({{ $('parse-finding').item.json.incidentId }})",
+        "description": "=**Finding:** {{ $('parse-finding').item.json.findingType }}\n**Severity:** {{ $('parse-finding').item.json.severity }}\n**Account:** {{ $('parse-finding').item.json.accountId }}\n**Region:** {{ $('parse-finding').item.json.region }}\n**Compromised User:** {{ $('parse-finding').item.json.iamUserName }}\n**Access Key:** {{ $('parse-finding').item.json.accessKeyId }}\n**Source IP:** {{ $('parse-finding').item.json.sourceIp }} ({{ $('parse-finding').item.json.sourceCountry }})\n**API Call:** {{ $('parse-finding').item.json.apiCall }}\n\n**Automated Actions Taken:**\n- Access key disabled\n- DenyAll policy attached\n- CloudTrail evidence collected\n\n**Compliance:** PCI DSS 12.10.2, NIST IR.2.093",
+        "labels": ["security-incident", "account-compromise", "p1"],
+        "priority": "Highest"
+      },
+      "credentials": {
+        "jiraSoftwareCloud": {
+          "name": "jira-security-ops"
+        }
+      }
+    },
+    {
+      "id": "notify-slack",
+      "name": "Notify Security Slack Channel",
+      "type": "n8n-nodes-base.slack",
+      "position": [900, 450],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "#security-incidents",
+        "text": "=:rotating_light: *AWS ACCOUNT COMPROMISE DETECTED*\n*Incident:* {{ $('parse-finding').item.json.incidentId }}\n*User:* `{{ $('parse-finding').item.json.iamUserName }}`\n*Access Key:* `{{ $('parse-finding').item.json.accessKeyId }}`\n*Source IP:* `{{ $('parse-finding').item.json.sourceIp }}` ({{ $('parse-finding').item.json.sourceCountry }})\n*Account:* `{{ $('parse-finding').item.json.accountId }}`\n*Region:* `{{ $('parse-finding').item.json.region }}`\n\n*Automated containment:* Key disabled, DenyAll policy attached\n*Jira:* {{ $('create-jira-ticket').item.json.key }}\n\n@security-team — manual review required"
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "slack-security-bot"
+        }
+      }
+    },
+    {
+      "id": "trigger-pagerduty",
+      "name": "Page Security On-Call",
+      "type": "n8n-nodes-base.pagerDuty",
+      "position": [900, 600],
+      "parameters": {
+        "operation": "incident:create",
+        "title": "=[SEV1] AWS Account Compromise - {{ $('parse-finding').item.json.iamUserName }}",
+        "serviceId": "={{ $env.PAGERDUTY_SECURITY_SERVICE_ID }}",
+        "urgency": "high",
+        "body": "=AWS account compromise detected. Automated containment applied. Manual forensic review required. Incident: {{ $('parse-finding').item.json.incidentId }}"
+      },
+      "credentials": {
+        "pagerDutyApi": {
+          "name": "pagerduty-security"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger-webhook": {
+      "main": [
+        [{ "node": "filter-compromise", "type": "main", "index": 0 }]
+      ]
+    },
+    "filter-compromise": {
+      "main": [
+        [{ "node": "parse-finding", "type": "main", "index": 0 }]
+      ]
+    },
+    "parse-finding": {
+      "main": [
+        [
+          { "node": "disable-access-key", "type": "main", "index": 0 },
+          { "node": "attach-deny-policy", "type": "main", "index": 0 },
+          { "node": "collect-cloudtrail", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "disable-access-key": {
+      "main": [
+        [{ "node": "create-jira-ticket", "type": "main", "index": 0 }]
+      ]
+    },
+    "create-jira-ticket": {
+      "main": [
+        [
+          { "node": "notify-slack", "type": "main", "index": 0 },
+          { "node": "trigger-pagerduty", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}

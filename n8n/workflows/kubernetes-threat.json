@@ -1,0 +1,309 @@
+{
+  "name": "Kubernetes Security Threat Response",
+  "description": "Responds to Kubernetes security threats: privilege escalation, unauthorized API calls, suspicious container activity. Integrates Falco, Kyverno audit, and kubectl containment.",
+  "author": "Evgeniy Gantman",
+  "version": "1.0.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-falco",
+      "name": "Falco Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "parameters": {
+        "path": "falco-alert",
+        "httpMethod": "POST",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "falco-webhook-token"
+        }
+      }
+    },
+    {
+      "id": "parse-falco-alert",
+      "name": "Parse Falco Alert",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const alert = $input.first().json;\n\nconst threatMap = {\n  'Terminal shell in container': { category: 'shell-in-container', severity: 'SEV2', contain: true },\n  'Privilege Escalation in Container': { category: 'privilege-escalation', severity: 'SEV1', contain: true },\n  'Launch Privileged Container': { category: 'privileged-container', severity: 'SEV1', contain: true },\n  'Container Drift Detected': { category: 'container-drift', severity: 'SEV2', contain: false },\n  'Kubernetes Client Tool Launched in Container': { category: 'kubectl-in-container', severity: 'SEV1', contain: true },\n  'Write below root': { category: 'rootfs-write', severity: 'SEV2', contain: false },\n  'Netcat Remote Code Execution in Container': { category: 'rce', severity: 'SEV1', contain: true },\n  'Create Symlink Over Sensitive Files': { category: 'symlink-attack', severity: 'SEV2', contain: true },\n  'Sudo Potential Privilege Escalation': { category: 'sudo-escalation', severity: 'SEV1', contain: true }\n};\n\nconst ruleName = alert.rule || 'Unknown';\nconst context = Object.entries(threatMap).find(([k]) => ruleName.includes(k))?.[1] || \n  { category: 'generic-k8s-threat', severity: 'SEV2', contain: false };\n\nconst fields = alert.output_fields || {};\n\nreturn [{\n  json: {\n    incidentId: 'K8S-' + Date.now().toString(36).toUpperCase(),\n    ruleName,\n    threatCategory: context.category,\n    severity: context.severity,\n    shouldContain: context.contain,\n    priority: alert.priority,\n    podName: fields['k8s.pod.name'] || fields['container.name'] || 'unknown',\n    namespace: fields['k8s.ns.name'] || 'unknown',\n    containerName: fields['container.name'] || 'unknown',\n    containerId: fields['container.id'] || 'unknown',\n    image: fields['container.image.repository'] + ':' + (fields['container.image.tag'] || 'latest'),\n    processName: fields['proc.name'] || 'unknown',\n    processCmd: fields['proc.cmdline'] || 'unknown',\n    userName: fields['user.name'] || 'unknown',\n    nodeHostname: fields['k8s.node.name'] || fields['container.id'] || 'unknown',\n    timestamp: alert.time || new Date().toISOString(),\n    rawOutput: alert.output\n  }\n}];"
+      }
+    },
+    {
+      "id": "check-should-contain",
+      "name": "Should Contain Threat?",
+      "type": "n8n-nodes-base.if",
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldContain }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "kill-pod",
+      "name": "Delete Compromised Pod",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 150],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $env.KUBE_API_SERVER }}/api/v1/namespaces/{{ $json.namespace }}/pods/{{ $json.podName }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "gracePeriodSeconds",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "k8s-security-sa-token"
+        }
+      }
+    },
+    {
+      "id": "label-pod-compromised",
+      "name": "Label Namespace for Isolation",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.KUBE_API_SERVER }}/api/v1/namespaces/{{ $json.namespace }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "metadata": {
+            "labels": {
+              "security.io/incident": "={{ $json.incidentId }}",
+              "security.io/quarantine": "true"
+            }
+          }
+        },
+        "headers": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/merge-patch+json"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "k8s-security-sa-token"
+        }
+      }
+    },
+    {
+      "id": "apply-network-policy",
+      "name": "Apply Deny-All NetworkPolicy",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 450],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.KUBE_API_SERVER }}/apis/networking.k8s.io/v1/namespaces/{{ $json.namespace }}/networkpolicies",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "body": {
+          "apiVersion": "networking.k8s.io/v1",
+          "kind": "NetworkPolicy",
+          "metadata": {
+            "name": "=security-quarantine-{{ $json.incidentId.toLowerCase() }}",
+            "namespace": "={{ $json.namespace }}",
+            "labels": {
+              "security.io/incident": "={{ $json.incidentId }}"
+            }
+          },
+          "spec": {
+            "podSelector": {
+              "matchLabels": {
+                "app": "={{ $json.podName.split('-').slice(0, -2).join('-') }}"
+              }
+            },
+            "policyTypes": ["Ingress", "Egress"]
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "k8s-security-sa-token"
+        }
+      }
+    },
+    {
+      "id": "collect-pod-logs",
+      "name": "Collect Pod Logs Before Delete",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 600],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.KUBE_API_SERVER }}/api/v1/namespaces/{{ $json.namespace }}/pods/{{ $json.podName }}/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "container",
+              "value": "={{ $json.containerName }}"
+            },
+            {
+              "name": "tailLines",
+              "value": "500"
+            },
+            {
+              "name": "timestamps",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "k8s-security-sa-token"
+        }
+      }
+    },
+    {
+      "id": "query-audit-logs",
+      "name": "Query K8s Audit Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 400],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.LOKI_URL }}/loki/api/v1/query_range",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={job=\"k8s-audit\"} |= \"{{ $('parse-falco-alert').item.json.namespace }}\" | json | namespace=\"{{ $('parse-falco-alert').item.json.namespace }}\""
+            },
+            {
+              "name": "start",
+              "value": "={{ new Date(Date.now() - 3600000).getTime() * 1000000 }}"
+            },
+            {
+              "name": "end",
+              "value": "={{ new Date().getTime() * 1000000 }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "loki-query-auth"
+        }
+      }
+    },
+    {
+      "id": "create-jira-k8s",
+      "name": "Create Jira K8s Security Ticket",
+      "type": "n8n-nodes-base.jira",
+      "position": [1100, 300],
+      "parameters": {
+        "operation": "create",
+        "project": "SEC",
+        "issueType": "Security Incident",
+        "summary": "=[{{ $('parse-falco-alert').item.json.severity }}] K8s Threat: {{ $('parse-falco-alert').item.json.threatCategory }} in {{ $('parse-falco-alert').item.json.namespace }}/{{ $('parse-falco-alert').item.json.podName }} ({{ $('parse-falco-alert').item.json.incidentId }})",
+        "description": "=**Incident ID:** {{ $('parse-falco-alert').item.json.incidentId }}\n**Falco Rule:** {{ $('parse-falco-alert').item.json.ruleName }}\n**Threat Category:** {{ $('parse-falco-alert').item.json.threatCategory }}\n**Namespace:** {{ $('parse-falco-alert').item.json.namespace }}\n**Pod:** {{ $('parse-falco-alert').item.json.podName }}\n**Container:** {{ $('parse-falco-alert').item.json.containerName }}\n**Image:** {{ $('parse-falco-alert').item.json.image }}\n**Process:** {{ $('parse-falco-alert').item.json.processName }} — `{{ $('parse-falco-alert').item.json.processCmd }}`\n**User in Container:** {{ $('parse-falco-alert').item.json.userName }}\n**Node:** {{ $('parse-falco-alert').item.json.nodeHostname }}\n\n**Automated Actions:**\n- Pod deleted (gracePeriod=0)\n- Namespace labeled quarantine\n- Deny-All NetworkPolicy applied\n- Pod logs captured\n- K8s audit logs queried\n\n**Compliance:** CIS K8s 5.2, NIST SP 800-190",
+        "labels": ["kubernetes", "container-security", "falco"],
+        "priority": "High"
+      },
+      "credentials": {
+        "jiraSoftwareCloud": {
+          "name": "jira-security-ops"
+        }
+      }
+    },
+    {
+      "id": "notify-slack-k8s",
+      "name": "Notify Security and SRE",
+      "type": "n8n-nodes-base.slack",
+      "position": [1100, 500],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "#security-incidents",
+        "text": "=:kubernetes: *KUBERNETES SECURITY THREAT*\n*Incident:* `{{ $('parse-falco-alert').item.json.incidentId }}`\n*Rule:* {{ $('parse-falco-alert').item.json.ruleName }}\n*Category:* `{{ $('parse-falco-alert').item.json.threatCategory }}`\n*Pod:* `{{ $('parse-falco-alert').item.json.namespace }}/{{ $('parse-falco-alert').item.json.podName }}`\n*Image:* `{{ $('parse-falco-alert').item.json.image }}`\n*Process:* `{{ $('parse-falco-alert').item.json.processCmd }}`\n\n*Containment:* Pod deleted, NetworkPolicy deny-all applied\n*Jira:* {{ $('create-jira-k8s').item.json.key }}\n\n@security-team @sre-team — review audit logs and investigate image supply chain"
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "slack-security-bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "trigger-falco": {
+      "main": [
+        [{ "node": "parse-falco-alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "parse-falco-alert": {
+      "main": [
+        [
+          { "node": "check-should-contain", "type": "main", "index": 0 },
+          { "node": "collect-pod-logs", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "check-should-contain": {
+      "main": [
+        [
+          { "node": "kill-pod", "type": "main", "index": 0 },
+          { "node": "label-pod-compromised", "type": "main", "index": 0 },
+          { "node": "apply-network-policy", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "kill-pod": {
+      "main": [
+        [{ "node": "query-audit-logs", "type": "main", "index": 0 }]
+      ]
+    },
+    "query-audit-logs": {
+      "main": [
+        [{ "node": "create-jira-k8s", "type": "main", "index": 0 }]
+      ]
+    },
+    "create-jira-k8s": {
+      "main": [
+        [{ "node": "notify-slack-k8s", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

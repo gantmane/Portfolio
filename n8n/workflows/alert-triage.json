@@ -1,0 +1,220 @@
+{
+  "name": "Wazuh Alert Triage",
+  "description": "Receives Wazuh webhook alerts, classifies severity, performs automated containment for critical findings, and creates Jira tickets with enriched context.",
+  "author": "Evgeniy Gantman",
+  "version": "2.1.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Wazuh Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [100, 300],
+      "parameters": {
+        "path": "wazuh-alert",
+        "httpMethod": "POST",
+        "authentication": "headerAuth",
+        "responseMode": "lastNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "wazuh-webhook-token"
+        }
+      }
+    },
+    {
+      "id": "validate-payload",
+      "name": "Validate and Parse Alert",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Validate required fields from Wazuh alert webhook\nconst alert = $input.first().json.body;\n\nif (!alert.rule || !alert.agent || !alert.timestamp) {\n  throw new Error('Invalid Wazuh alert payload: missing required fields');\n}\n\n// Normalize severity mapping: Wazuh level 1-15 → P1-P4\nconst levelToSeverity = (level) => {\n  if (level >= 14) return { priority: 'P1', label: 'CRITICAL', pagerduty: true };\n  if (level >= 11) return { priority: 'P2', label: 'HIGH',     pagerduty: true };\n  if (level >= 8)  return { priority: 'P3', label: 'MEDIUM',   pagerduty: false };\n  return                  { priority: 'P4', label: 'LOW',      pagerduty: false };\n};\n\nconst severity = levelToSeverity(alert.rule.level);\n\nreturn [{\n  json: {\n    alertId: alert.id,\n    timestamp: alert.timestamp,\n    agentName: alert.agent.name,\n    agentIp: alert.agent.ip,\n    ruleId: alert.rule.id,\n    ruleDescription: alert.rule.description,\n    ruleLevel: alert.rule.level,\n    mitreAttack: alert.rule.mitre?.id || [],\n    severity: severity.priority,\n    severityLabel: severity.label,\n    triggerPagerDuty: severity.pagerduty,\n    groups: alert.rule.groups || [],\n    rawAlert: alert\n  }\n}];"
+      }
+    },
+    {
+      "id": "severity-router",
+      "name": "Route by Severity",
+      "type": "n8n-nodes-base.switch",
+      "position": [500, 300],
+      "parameters": {
+        "mode": "expression",
+        "rules": [
+          {
+            "value1": "={{ $json.severity }}",
+            "operation": "equal",
+            "value2": "P1",
+            "output": 0
+          },
+          {
+            "value1": "={{ $json.severity }}",
+            "operation": "equal",
+            "value2": "P2",
+            "output": 1
+          },
+          {
+            "value1": "={{ $json.severity }}",
+            "operation": "inArray",
+            "value2": "P3,P4",
+            "output": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "auto-contain-p1",
+      "name": "P1 Auto-Containment",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WAZUH_API_URL }}/active-response",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "body": {
+          "command": "firewall-drop5",
+          "custom": false,
+          "alert": {
+            "data": {
+              "srcip": "={{ $json.agentIp }}"
+            }
+          },
+          "arguments": [],
+          "agents": ["={{ $json.agentName }}"]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "notes": "Automatically drops traffic from suspected attacker IP via Wazuh active response. Triggers firewall-drop5 which adds iptables DROP rule for 300 seconds."
+    },
+    {
+      "id": "enrich-with-threatintel",
+      "name": "Threat Intel Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.MISP_URL }}/attributes/restSearch",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "qs": {
+          "value": "={{ $json.agentIp }}",
+          "type": "ip-src|ip-dst",
+          "withAttachments": false,
+          "limit": 5,
+          "returnFormat": "json"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "Query MISP threat intelligence for the source IP. If no match, continues with empty enrichment."
+    },
+    {
+      "id": "create-jira-ticket",
+      "name": "Create Jira Incident",
+      "type": "n8n-nodes-base.jira",
+      "position": [900, 300],
+      "parameters": {
+        "operation": "issue:create",
+        "projectKey": "SOC",
+        "summary": "=[{{ $json.severity }}] {{ $json.ruleDescription }} — {{ $json.agentName }}",
+        "issueType": "Incident",
+        "priority": "={{ $json.severity === 'P1' ? 'Highest' : $json.severity === 'P2' ? 'High' : 'Medium' }}",
+        "description": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "Alert ID: {{ $json.alertId }}"}]
+            },
+            {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "Agent: {{ $json.agentName }} ({{ $json.agentIp }})"}]
+            },
+            {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "Rule: [{{ $json.ruleId }}] {{ $json.ruleDescription }}"}]
+            },
+            {
+              "type": "paragraph",
+              "content": [{"type": "text", "text": "MITRE ATT&CK: {{ $json.mitreAttack.join(', ') || 'N/A' }}"}]
+            }
+          ]
+        },
+        "labels": ["security", "wazuh", "={{ $json.severityLabel.toLowerCase() }}"],
+        "additionalFields": {
+          "customField": {
+            "customFields": [
+              {"id": "customfield_10200", "value": "={{ $json.timestamp }}"},
+              {"id": "customfield_10201", "value": "={{ $json.agentName }}"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "notify-slack",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "position": [1100, 200],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "=#soc-alerts",
+        "text": "{{ $json.severity === 'P1' ? '<!channel>' : '' }} *[{{ $json.severity }}] Security Alert*",
+        "attachments": [
+          {
+            "color": "={{ $json.severity === 'P1' ? '#FF0000' : $json.severity === 'P2' ? '#FF8C00' : '#FFA500' }}",
+            "fields": [
+              {"title": "Rule", "value": "={{ $json.ruleDescription }}", "short": false},
+              {"title": "Agent", "value": "={{ $json.agentName }} ({{ $json.agentIp }})", "short": true},
+              {"title": "MITRE", "value": "={{ $json.mitreAttack.join(', ') || 'N/A' }}", "short": true},
+              {"title": "Jira", "value": "={{ $node['create-jira-ticket'].json.key }}", "short": true},
+              {"title": "Auto-Contained", "value": "={{ $json.severity === 'P1' ? 'YES (firewall-drop5)' : 'NO' }}", "short": true}
+            ],
+            "footer": "Wazuh Alert Triage | n8n",
+            "ts": "={{ Math.floor(new Date($json.timestamp).getTime() / 1000) }}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pagerduty-p1",
+      "name": "PagerDuty P1 Alert",
+      "type": "n8n-nodes-base.pagerDuty",
+      "position": [1100, 400],
+      "parameters": {
+        "operation": "incident:create",
+        "title": "[P1] {{ $json.ruleDescription }} — {{ $json.agentName }}",
+        "urgency": "high",
+        "body": "Agent: {{ $json.agentName }}\nRule: [{{ $json.ruleId }}] {{ $json.ruleDescription }}\nMITRE: {{ $json.mitreAttack.join(', ') || 'N/A' }}\nJira: {{ $node['create-jira-ticket'].json.key }}\nAuto-contained: YES"
+      },
+      "runOnItems": [{"key": "triggerPagerDuty", "value": true}]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {"main": [["validate-payload"]]},
+    "validate-payload": {"main": [["severity-router"]]},
+    "severity-router": {
+      "main": [
+        ["auto-contain-p1", "enrich-with-threatintel"],
+        ["enrich-with-threatintel"],
+        ["create-jira-ticket"]
+      ]
+    },
+    "auto-contain-p1": {"main": [["enrich-with-threatintel"]]},
+    "enrich-with-threatintel": {"main": [["create-jira-ticket"]]},
+    "create-jira-ticket": {"main": [["notify-slack", "pagerduty-p1"]]}
+  },
+  "settings": {
+    "errorWorkflow": "error-handler-workflow",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 30,
+    "timezone": "UTC"
+  }
+}

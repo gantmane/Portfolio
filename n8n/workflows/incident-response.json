@@ -1,0 +1,176 @@
+{
+  "name": "P1 Incident Response Automation",
+  "description": "Automates P1 security incident response: creates war room, collects forensic artifacts, notifies stakeholders, and tracks remediation steps.",
+  "author": "Evgeniy Gantman",
+  "version": "1.4.0",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-pagerduty",
+      "name": "PagerDuty Incident Trigger",
+      "type": "n8n-nodes-base.pagerDutyTrigger",
+      "position": [100, 300],
+      "parameters": {
+        "events": ["incident.triggered"],
+        "filters": {
+          "urgency": "high",
+          "service": "security-operations"
+        }
+      }
+    },
+    {
+      "id": "classify-incident",
+      "name": "Classify Incident Type",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const incident = $input.first().json;\nconst title = incident.incident.title.toLowerCase();\n\n// Map incident title patterns to IR playbook types\nconst classify = (t) => {\n  if (t.includes('breach') || t.includes('exfil') || t.includes('pan')) return 'data-breach';\n  if (t.includes('ransomware') || t.includes('encrypt')) return 'ransomware';\n  if (t.includes('ddos') || t.includes('spike') || t.includes('flood')) return 'ddos';\n  if (t.includes('privilege') || t.includes('escalat') || t.includes('sudo')) return 'privilege-escalation';\n  if (t.includes('malware') || t.includes('trojan') || t.includes('backdoor')) return 'malware';\n  if (t.includes('compromise') || t.includes('account') || t.includes('credential')) return 'account-compromise';\n  return 'generic-security-incident';\n};\n\nconst incidentType = classify(title);\n\n// Playbook defines containment steps and evidence to collect\nconst playbooks = {\n  'data-breach': {\n    containment: ['isolate_host', 'revoke_credentials', 'block_exfil_ips'],\n    evidence: ['memory_dump', 'disk_image', 'network_logs', 'vault_audit_log'],\n    severity: 'SEV1',\n    compliance: ['PCI DSS 12.10.2', 'GDPR Art. 33']\n  },\n  'ransomware': {\n    containment: ['isolate_host', 'disable_backups_write', 'snapshot_volumes'],\n    evidence: ['disk_image', 'process_list', 'network_connections'],\n    severity: 'SEV1',\n    compliance: ['NIST SP 800-61']\n  },\n  'privilege-escalation': {\n    containment: ['lock_account', 'revoke_sudo', 'kill_processes'],\n    evidence: ['auth_logs', 'process_list', 'bash_history'],\n    severity: 'SEV2',\n    compliance: ['PCI DSS 10.2.1.3']\n  },\n  'account-compromise': {\n    containment: ['force_logout', 'revoke_tokens', 'mfa_reset'],\n    evidence: ['login_history', 'api_access_logs', 'oauth_tokens'],\n    severity: 'SEV2',\n    compliance: ['PCI DSS 8.2.1']\n  }\n};\n\nconst playbook = playbooks[incidentType] || playbooks['generic-security-incident'] || {\n  containment: ['isolate_host'],\n  evidence: ['network_logs', 'auth_logs'],\n  severity: 'SEV2',\n  compliance: []\n};\n\nreturn [{\n  json: {\n    incidentId: incident.incident.id,\n    incidentUrl: incident.incident.html_url,\n    title: incident.incident.title,\n    incidentType,\n    severity: playbook.severity,\n    containmentSteps: playbook.containment,\n    evidenceToCollect: playbook.evidence,\n    complianceRequirements: playbook.compliance,\n    timestamp: new Date().toISOString(),\n    responder: incident.incident.assignments?.[0]?.assignee?.name || 'Unassigned'\n  }\n}];"
+      }
+    },
+    {
+      "id": "create-war-room",
+      "name": "Create Slack War Room",
+      "type": "n8n-nodes-base.slack",
+      "position": [500, 200],
+      "parameters": {
+        "operation": "channel:create",
+        "channelName": "=inc-{{ $json.incidentId.substring(0, 8) }}-{{ $json.incidentType }}",
+        "options": {
+          "isPrivate": true,
+          "description": "=Incident Response: {{ $json.title }} | Severity: {{ $json.severity }}"
+        }
+      }
+    },
+    {
+      "id": "invite-responders",
+      "name": "Invite On-Call Responders",
+      "type": "n8n-nodes-base.slack",
+      "position": [500, 350],
+      "parameters": {
+        "operation": "channel:invite",
+        "channelId": "={{ $node['create-war-room'].json.channel.id }}",
+        "userIds": "={{ $env.SOC_TEAM_SLACK_IDS }}"
+      }
+    },
+    {
+      "id": "post-incident-brief",
+      "name": "Post Incident Brief to War Room",
+      "type": "n8n-nodes-base.slack",
+      "position": [700, 250],
+      "parameters": {
+        "operation": "message:post",
+        "channel": "={{ $node['create-war-room'].json.channel.id }}",
+        "text": "<!here> *INCIDENT DECLARED: {{ $json.severity }} — {{ $json.incidentType.toUpperCase() }}*",
+        "attachments": [
+          {
+            "color": "#FF0000",
+            "fields": [
+              {"title": "Incident", "value": "={{ $json.title }}", "short": false},
+              {"title": "PagerDuty", "value": "={{ $json.incidentUrl }}", "short": true},
+              {"title": "Type", "value": "={{ $json.incidentType }}", "short": true},
+              {"title": "Lead Responder", "value": "={{ $json.responder }}", "short": true},
+              {"title": "Compliance", "value": "={{ $json.complianceRequirements.join(', ') || 'N/A' }}", "short": true},
+              {
+                "title": "Containment Steps",
+                "value": "={{ $json.containmentSteps.map((s, i) => `${i+1}. ${s}`).join('\\n') }}",
+                "short": false
+              },
+              {
+                "title": "Evidence to Collect",
+                "value": "={{ $json.evidenceToCollect.map(e => `• ${e}`).join('\\n') }}",
+                "short": false
+              }
+            ],
+            "footer": "IR Automation v{{ $json.severity === 'SEV1' ? 'CRITICAL' : 'HIGH' }}",
+            "ts": "={{ Math.floor(Date.now() / 1000) }}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "collect-wazuh-evidence",
+      "name": "Collect Wazuh Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [700, 450],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.WAZUH_API_URL }}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBasicAuth",
+        "qs": {
+          "q": "=agent.name={{ $json.responder }}&limit=500&pretty=true",
+          "sort": "-timestamp"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "create-thehive-case",
+      "name": "Create TheHive Case",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.THEHIVE_URL }}/api/v1/case",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "body": {
+          "title": "={{ $json.title }}",
+          "description": "Automated case from PagerDuty incident {{ $json.incidentId }}",
+          "severity": "={{ $json.severity === 'SEV1' ? 4 : $json.severity === 'SEV2' ? 3 : 2 }}",
+          "tags": ["=automated", "=n8n", "={{ $json.incidentType }}", "=pci-dss"],
+          "customFields": {
+            "incidentId": "={{ $json.incidentId }}",
+            "incidentType": "={{ $json.incidentType }}",
+            "complianceRequirements": "={{ $json.complianceRequirements.join(', ') }}"
+          },
+          "tasks": "={{ $json.containmentSteps.map((step, i) => ({ title: step, description: `Containment step ${i+1}`, status: 'Waiting' })) }}"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "notify-stakeholders",
+      "name": "Notify Stakeholders by Severity",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [1100, 300],
+      "parameters": {
+        "to": "={{ $json.severity === 'SEV1' ? $env.SEV1_STAKEHOLDERS : $env.SEV2_STAKEHOLDERS }}",
+        "subject": "=[{{ $json.severity }}] Security Incident Declared: {{ $json.title }}",
+        "text": "A {{ $json.severity }} security incident has been declared.\n\nType: {{ $json.incidentType }}\nPagerDuty: {{ $json.incidentUrl }}\nWar Room: #inc-{{ $json.incidentId.substring(0, 8) }}-{{ $json.incidentType }}\n\nCompliance Requirements: {{ $json.complianceRequirements.join(', ') || 'N/A' }}\n\nThis notification was generated automatically by n8n IR automation.",
+        "options": {
+          "replyTo": "soc-alerts@example.com",
+          "cc": "={{ $json.severity === 'SEV1' ? $env.SEV1_CC_LIST : '' }}"
+        }
+      }
+    },
+    {
+      "id": "start-timeline",
+      "name": "Start Incident Timeline",
+      "type": "n8n-nodes-base.jira",
+      "position": [1100, 450],
+      "parameters": {
+        "operation": "issue:update",
+        "issueKey": "={{ $node['create-jira-ticket']?.json?.key || 'SOC-NEW' }}",
+        "comment": "=**IR Timeline Started**\n- {{ $json.timestamp }}: Incident {{ $json.incidentId }} declared\n- {{ $json.timestamp }}: War room created: #inc-{{ $json.incidentId.substring(0, 8) }}\n- {{ $json.timestamp }}: TheHive case: {{ $node['create-thehive-case']?.json?.id || 'pending' }}\n- Containment steps dispatched: {{ $json.containmentSteps.join(', ') }}"
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "trigger-pagerduty": {"main": [["classify-incident"]]},
+    "classify-incident": {"main": [["create-war-room", "invite-responders", "collect-wazuh-evidence"]]},
+    "create-war-room": {"main": [["post-incident-brief"]]},
+    "invite-responders": {"main": [["post-incident-brief"]]},
+    "post-incident-brief": {"main": [["create-thehive-case"]]},
+    "collect-wazuh-evidence": {"main": [["create-thehive-case"]]},
+    "create-thehive-case": {"main": [["notify-stakeholders", "start-timeline"]]}
+  },
+  "settings": {
+    "errorWorkflow": "error-handler-workflow",
+    "saveManualExecutions": false,
+    "executionTimeout": 120,
+    "timezone": "UTC"
+  }
+}

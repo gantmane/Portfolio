@@ -1,0 +1,215 @@
+# ElastAlert 2 — Lateral Movement Detection (SMB + RDP patterns)
+# MITRE: T1021.001 — Remote Services: RDP
+#        T1021.002 — Remote Services: SMB/Windows Admin Shares
+#        T1110.001 — Brute Force: Password Guessing
+#        T1550.002 — Pass the Hash
+# Covers: SMB admin share spray, RDP brute force, sequential host pivoting
+
+name: lateral-movement-smb-rdp
+type: frequency
+
+# ---------------------------------------------------------------------------
+# Index and time window
+# ---------------------------------------------------------------------------
+index: so-*
+use_strftime_index: false
+
+# ---------------------------------------------------------------------------
+# RDP Brute Force sub-rule
+# Detects: >20 failed RDP logon events from single source in 10 minutes
+# ---------------------------------------------------------------------------
+---
+name: rdp-brute-force
+type: frequency
+
+index: so-*
+num_events: 20
+timeframe:
+  minutes: 10
+
+query_key: source.ip
+
+filter:
+  - bool:
+      must:
+        - terms:
+            destination.port: [3389]
+        - term:
+            event.outcome: "failure"
+        - terms:
+            event.category: ["authentication"]
+      must_not:
+        - terms:
+            source.ip:
+              - "10.10.1.50"    # authorized Tenable scanner
+              - "10.10.1.51"    # authorized pentest host
+
+alert:
+  - slack
+  - pagerduty
+
+slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
+slack_channel_override: "#soc-alerts"
+slack_msg_color: danger
+
+pagerduty_service_key: "{{ PAGERDUTY_SERVICE_KEY }}"
+pagerduty_client_name: "Security Onion — ElastAlert"
+
+alert_text_type: alert_text_only
+alert_text: |
+  RDP BRUTE FORCE DETECTED
+  ------------------------
+  Source IP:    {source.ip}
+  Target:       {destination.ip}:{destination.port}
+  Failures:     {count} in 10 min
+  Time:         {starttime}
+
+  MITRE: T1110.001 (Brute Force), T1021.001 (RDP)
+
+  Action: Block source IP at perimeter, review targeted accounts.
+  Playbook: PLAY-003 in security-onion/playbook/custom-plays.yaml
+
+realert:
+  minutes: 15
+
+include:
+  - source.ip
+  - destination.ip
+  - destination.port
+  - user.name
+  - winlog.event_id
+  - event.outcome
+
+---
+# ---------------------------------------------------------------------------
+# SMB Admin Share Spray sub-rule
+# Detects: single source accessing ADMIN$/C$/IPC$ on >3 unique targets in 5 min
+# MITRE: T1021.002, T1550.002
+# ---------------------------------------------------------------------------
+name: smb-admin-share-spray
+type: cardinality
+
+index: so-*
+timeframe:
+  minutes: 5
+
+query_key: source.ip
+cardinality_field: destination.ip
+max_cardinality: 3
+
+filter:
+  - bool:
+      must:
+        - terms:
+            destination.port: [445, 139]
+        - terms:
+            file.share_name:
+              - "ADMIN$"
+              - "C$"
+              - "D$"
+              - "IPC$"
+      must_not:
+        - terms:
+            source.ip:
+              - "192.168.1.10"   # DC1 — legitimate SYSVOL/NETLOGON
+              - "192.168.1.11"   # DC2
+
+alert:
+  - slack
+  - pagerduty
+
+slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
+slack_channel_override: "#soc-alerts"
+slack_msg_color: danger
+
+pagerduty_service_key: "{{ PAGERDUTY_SERVICE_KEY }}"
+
+alert_text_type: alert_text_only
+alert_text: |
+  SMB LATERAL MOVEMENT DETECTED
+  ------------------------------
+  Source IP:       {source.ip}
+  Unique targets:  {cardinality_count} hosts in 5 min
+  Share accessed:  {file.share_name}
+  Time:            {starttime}
+
+  MITRE: T1021.002 (SMB Admin Shares), T1550.002 (Pass-the-Hash)
+
+  Action: Isolate source host, force account password reset.
+  Playbook: PLAY-002 in security-onion/playbook/custom-plays.yaml
+
+realert:
+  minutes: 10
+
+exponential_realert:
+  hours: 1
+
+include:
+  - source.ip
+  - destination.ip
+  - destination.port
+  - file.share_name
+  - user.name
+  - winlog.event_id
+  - event.action
+
+---
+# ---------------------------------------------------------------------------
+# Sequential Host Pivot Detection
+# Detects: host-A connects to host-B, then host-B makes new outbound connections
+# within 2 minutes (indicative of PsExec / Impacket pivot chain)
+# MITRE: T1021.002, T1570 — Lateral Tool Transfer
+# ---------------------------------------------------------------------------
+name: smb-pivot-chain
+type: sequence
+
+index: so-*
+timeframe:
+  minutes: 2
+
+sequences:
+  - filter:
+      - bool:
+          must:
+            - terms:
+                destination.port: [445]
+            - term:
+                event.action: "smb-share-access"
+    query_key: destination.ip
+    use_count: false
+
+  - filter:
+      - bool:
+          must:
+            - terms:
+                destination.port: [445, 3389, 5985, 5986]
+            - term:
+                event.outcome: "success"
+    query_key: source.ip   # source of 2nd event must match destination of 1st
+    use_count: false
+
+alert:
+  - slack
+
+slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
+slack_channel_override: "#soc-alerts"
+slack_msg_color: danger
+
+alert_text_type: alert_text_only
+alert_text: |
+  PIVOT CHAIN DETECTED (SMB -> Lateral)
+  --------------------------------------
+  Pivot host:     {destination.ip} (step 1) / {source.ip} (step 2)
+  New target:     {destination.ip} (step 2)
+  Time delta:     < 2 minutes
+  Time:           {starttime}
+
+  MITRE: T1021.002, T1570 (Lateral Tool Transfer)
+
+  Action: Trace full pivot chain, isolate affected hosts.
+
+realert:
+  minutes: 30
+
+doc_type: _doc
+use_count_query: false

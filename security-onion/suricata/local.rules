@@ -1,0 +1,137 @@
+# Suricata Local Rules — Custom Signatures
+# Environment: Payler PCI CDE + homelab perimeter
+# Format: Suricata 7.x rule syntax
+# Updated: 2025-12
+# MITRE ATT&CK references in metadata fields
+
+# ---------------------------------------------------------------------------
+# Group 1: Payment Card Data Detection (PCI DSS Req 3, 4)
+# MITRE: T1041, T1190, T1657
+# ---------------------------------------------------------------------------
+
+# Visa card number pattern in HTTP request body (unencrypted)
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"PCI — Visa PAN in cleartext HTTP POST";
+    flow:established,to_server;
+    http.method; content:"POST";
+    http.request_body; pcre:"/\b4[0-9]{12}(?:[0-9]{3})?\b/";
+    classtype:policy-violation;
+    metadata:affected_product HTTP, attack_target Client_Endpoint,
+              created_at 2024_01_01, deployment Perimeter,
+              mitre_tactic_id TA0010, mitre_technique_id T1041,
+              signature_severity Critical;
+    sid:9001001; rev:3;)
+
+# Mastercard pattern in cleartext HTTP
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"PCI — Mastercard PAN in cleartext HTTP POST";
+    flow:established,to_server;
+    http.method; content:"POST";
+    http.request_body; pcre:"/\b5[1-5][0-9]{14}\b/";
+    classtype:policy-violation;
+    metadata:mitre_tactic_id TA0010, mitre_technique_id T1041,
+              signature_severity Critical;
+    sid:9001002; rev:2;)
+
+# Track 2 data pattern (=XXXXXXXXXXXXXX=YYMM...)
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"PCI — Track 2 data pattern in cleartext HTTP";
+    flow:established,to_server;
+    http.request_body; pcre:"/;[0-9]{13,19}=[0-9]{4}[0-9]{3}/";
+    classtype:trojan-activity;
+    metadata:mitre_tactic_id TA0010, mitre_technique_id T1041,
+              signature_severity Critical;
+    sid:9001003; rev:1;)
+
+# CVV pattern adjacent to PAN in JSON payload
+alert http any any -> $EXTERNAL_NET any (
+    msg:"PCI — CVV data exfiltration attempt";
+    flow:established,to_server;
+    http.request_body;
+    content:"cvv"; nocase;
+    pcre:"/\"cvv\"\s*:\s*\"[0-9]{3,4}\"/i";
+    classtype:policy-violation;
+    metadata:mitre_technique_id T1041, signature_severity Critical;
+    sid:9001004; rev:1;)
+
+# ---------------------------------------------------------------------------
+# Group 2: Known C2 Framework Signatures
+# MITRE: T1071.001, T1573, T1105
+# ---------------------------------------------------------------------------
+
+# Cobalt Strike default malleable C2 beacon (JARM fingerprint pattern in URI)
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"C2 — Cobalt Strike malleable profile URI pattern";
+    flow:established,to_server;
+    http.uri; pcre:"/^\/[a-zA-Z0-9]{4,8}\.gif$/";
+    http.header_names; content:"|0d 0a|Accept:"; fast_pattern;
+    threshold:type limit, track by_src, count 1, seconds 60;
+    classtype:trojan-activity;
+    metadata:mitre_tactic_id TA0011, mitre_technique_id T1071.001,
+              signature_severity High;
+    sid:9002001; rev:4;)
+
+# Sliver C2 — mTLS beacon on non-standard port
+alert tls $HOME_NET any -> $EXTERNAL_NET !443 (
+    msg:"C2 — Sliver framework mTLS beacon pattern";
+    tls.sni; pcre:"/^[a-z0-9]{8,12}\.(com|net|io)$/";
+    tls.cert_subject; content:"Sliver"; nocase;
+    classtype:trojan-activity;
+    metadata:mitre_technique_id T1573.002, signature_severity High;
+    sid:9002002; rev:2;)
+
+# DNS beacon — high-frequency subdomain queries (data exfil via DNS)
+alert dns $HOME_NET any -> any 53 (
+    msg:"C2 — Potential DNS beaconing / exfiltration";
+    dns.query; pcre:"/^[a-z0-9]{20,}\..*\.[a-z]{2,4}$/";
+    detection_filter:track by_src, count 20, seconds 60;
+    classtype:trojan-activity;
+    metadata:mitre_tactic_id TA0011, mitre_technique_id T1071.004,
+              signature_severity Medium;
+    sid:9002003; rev:3;)
+
+# ---------------------------------------------------------------------------
+# Group 3: Lateral Movement Indicators
+# MITRE: T1021.002, T1550.002, T1135
+# ---------------------------------------------------------------------------
+
+# PsExec-style remote service creation over SMB
+alert smb $HOME_NET any -> $HOME_NET any (
+    msg:"Lateral Movement — PsExec PSEXESVC pipe access";
+    smb.named_pipe; content:"PSEXESVC";
+    classtype:policy-violation;
+    metadata:mitre_tactic_id TA0008, mitre_technique_id T1021.002,
+              signature_severity High;
+    sid:9003001; rev:2;)
+
+# SMB admin share enumeration
+alert smb $EXTERNAL_NET any -> $HOME_NET 445 (
+    msg:"Lateral Movement — SMB admin share access attempt";
+    smb.share; pcre:"/^(ADMIN|C|D|IPC)\$$/";
+    threshold:type threshold, track by_src, count 3, seconds 30;
+    classtype:attempted-recon;
+    metadata:mitre_technique_id T1135, signature_severity Medium;
+    sid:9003002; rev:1;)
+
+# ---------------------------------------------------------------------------
+# Group 4: Recon / Scanning
+# MITRE: T1046 — Network Service Scanning
+# ---------------------------------------------------------------------------
+
+# Nmap SYN scan signature (TCP SYN to multiple ports)
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (
+    msg:"Recon — Nmap SYN scan detected";
+    flags:S,12;
+    threshold:type threshold, track by_src, count 30, seconds 10;
+    classtype:attempted-recon;
+    metadata:mitre_technique_id T1046, signature_severity Low;
+    sid:9004001; rev:2;)
+
+# Port scan from internal segment to CDE (insider threat / pivot)
+alert tcp $HOME_NET any -> $CARD_DATA_SERVERS any (
+    msg:"Recon — Internal host scanning CDE segment";
+    flags:S;
+    threshold:type threshold, track by_src, count 15, seconds 10;
+    classtype:attempted-recon;
+    metadata:mitre_technique_id T1046, signature_severity High;
+    sid:9004002; rev:1;)

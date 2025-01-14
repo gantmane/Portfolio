@@ -1,0 +1,112 @@
+# ElastAlert 2 — Payment Transaction Spike Detection
+# MITRE: T1657 — Financial Theft
+# PCI DSS: Req 10.7 — Detect and respond to failures of critical controls
+# Trigger: merchant transaction count exceeds 3x 7-day rolling avg in 5 minutes
+
+name: payment-transaction-spike
+type: spike
+
+# ---------------------------------------------------------------------------
+# Index and time window
+# ---------------------------------------------------------------------------
+index: so-*
+use_strftime_index: false
+timeframe:
+  minutes: 5
+
+# ---------------------------------------------------------------------------
+# Spike configuration
+# Reference window: 7 days rolling baseline
+# Spike height: 3x above baseline triggers alert
+# ---------------------------------------------------------------------------
+spike_height: 3
+spike_type: up
+threshold_ref: 10        # require at least 10 events in ref window to fire
+threshold_cur: 30        # require at least 30 events in current window
+
+# Aggregate per merchant_id to catch per-merchant spikes
+query_key: merchant_id
+
+timeframe:
+  minutes: 5
+
+# Reference window for baseline
+ref_window_size:
+  days: 7
+
+# ---------------------------------------------------------------------------
+# Elasticsearch filter — scope to payment API log events
+# ---------------------------------------------------------------------------
+filter:
+  - bool:
+      must:
+        - term:
+            event.dataset: "payment.transaction"
+        - term:
+            http.request.method: "POST"
+        - wildcard:
+            url.path: "/api/v*/payments*"
+      must_not:
+        - term:
+            http.response.status_code: 400
+        - term:
+            http.response.status_code: 401
+
+# ---------------------------------------------------------------------------
+# Alerting
+# ---------------------------------------------------------------------------
+alert:
+  - slack
+  - email
+
+slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
+slack_channel_override: "#fraud-alerts"
+slack_username_override: "elastalert-pci"
+slack_msg_color: danger
+
+email:
+  - "fraud-team@payler.com"
+  - "soc@payler.com"
+
+alert_text_type: alert_text_only
+alert_text: |
+  PAYMENT SPIKE ALERT
+  ------------------
+  Merchant ID:     {merchant_id}
+  Transactions:    {count} in 5 min (baseline: ~{ref_count})
+  Spike factor:    {spike_height:.1f}x
+  Time:            {starttime}
+
+  MITRE: T1657 — Financial Theft
+  PCI DSS: Req 10.7
+
+  Action: Review merchant account for card testing or compromised integration.
+  Playbook: PLAY-004 in security-onion/playbook/custom-plays.yaml
+
+# ---------------------------------------------------------------------------
+# Alert dedup — suppress repeat alerts for same merchant within 30 min
+# ---------------------------------------------------------------------------
+realert:
+  minutes: 30
+
+exponential_realert:
+  hours: 2
+
+# ---------------------------------------------------------------------------
+# Enrichment fields to include in alert
+# ---------------------------------------------------------------------------
+include:
+  - merchant_id
+  - merchant_name
+  - source.ip
+  - destination.ip
+  - http.response.status_code
+  - transaction.currency
+  - transaction.amount
+
+# ---------------------------------------------------------------------------
+# Alert on error — notify if ElastAlert itself fails
+# ---------------------------------------------------------------------------
+alert_on_new_data: false
+use_count_query: true
+doc_type: _doc

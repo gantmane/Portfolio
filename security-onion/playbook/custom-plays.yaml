@@ -1,0 +1,151 @@
+# Security Onion Playbook — Custom Detection Plays
+# Format: Security Onion 2.4 playbook YAML (SIGMA-inspired)
+# MITRE ATT&CK references inline per play.
+---
+
+plays:
+  # -------------------------------------------------------------------------
+  # Play 1: Payment Card Data in Cleartext HTTP
+  # MITRE: T1041 — Exfiltration Over C2 Channel
+  #        T1190 — Exploit Public-Facing Application
+  # -------------------------------------------------------------------------
+  - id: PLAY-001
+    name: "Payment Card Data in Cleartext HTTP"
+    description: >
+      Detects PANs or track data patterns transmitted over unencrypted HTTP.
+      Violates PCI DSS Requirement 4.2 (no unprotected PANs over open networks).
+    severity: critical
+    tags:
+      - pci-dss
+      - t1041
+      - t1190
+    detection:
+      source: so-suricata
+      filter:
+        event_type: alert
+        alert.signature_id:
+          - 9001001
+          - 9001002
+          - 9001003
+    response:
+      - Isolate source IP from CDE segment
+      - Capture full PCAP for evidence preservation
+      - Notify PCI compliance officer
+      - Open JIRA ticket: PCI-INCIDENT severity=critical
+    references:
+      - https://attack.mitre.org/techniques/T1041/
+      - PCI DSS v4.0 Req 4.2
+
+  # -------------------------------------------------------------------------
+  # Play 2: Lateral Movement via SMB (Pass-the-Hash / PsExec pattern)
+  # MITRE: T1021.002 — Remote Services: SMB/Windows Admin Shares
+  #        T1550.002 — Use Alternate Authentication Material: Pass the Hash
+  # -------------------------------------------------------------------------
+  - id: PLAY-002
+    name: "Lateral Movement via SMB Admin Shares"
+    description: >
+      Detects sequential SMB connections to ADMIN$, C$, or IPC$ from a single
+      source to multiple targets within a 5-minute window. Indicative of PsExec,
+      Impacket, or pass-the-hash lateral movement.
+    severity: high
+    tags:
+      - lateral-movement
+      - t1021.002
+      - t1550.002
+    detection:
+      source: elastalert
+      rule_file: rules/lateral-movement.yaml
+    response:
+      - Block source IP at perimeter firewall
+      - Force password reset for affected accounts
+      - Collect memory dump from source host
+      - Escalate to IR lead
+    references:
+      - https://attack.mitre.org/techniques/T1021/002/
+      - https://attack.mitre.org/techniques/T1550/002/
+
+  # -------------------------------------------------------------------------
+  # Play 3: Suspicious RDP Brute Force
+  # MITRE: T1110.001 — Brute Force: Password Guessing
+  #        T1021.001 — Remote Services: Remote Desktop Protocol
+  # -------------------------------------------------------------------------
+  - id: PLAY-003
+    name: "RDP Brute Force Attempt"
+    description: >
+      Detects more than 20 failed RDP authentication attempts from a single
+      source IP within 10 minutes. Threshold tuned to reduce false positives
+      from legitimate MFA timeout scenarios.
+    severity: high
+    tags:
+      - credential-access
+      - t1110.001
+      - t1021.001
+    detection:
+      source: elastalert
+      rule_file: rules/lateral-movement.yaml
+      condition: rdp_brute_force
+    response:
+      - Block source IP at edge firewall for 24h
+      - Alert AD admin to review targeted accounts
+      - Check for successful login following the brute force
+    references:
+      - https://attack.mitre.org/techniques/T1110/001/
+      - https://attack.mitre.org/techniques/T1021/001/
+
+  # -------------------------------------------------------------------------
+  # Play 4: Anomalous Payment Transaction Volume
+  # MITRE: T1657 — Financial Theft
+  # -------------------------------------------------------------------------
+  - id: PLAY-004
+    name: "Payment Transaction Volume Anomaly"
+    description: >
+      Detects a 3x spike in payment transactions per merchant_id compared to
+      the 7-day rolling baseline. Indicative of card testing, cashing-out,
+      or compromised merchant integration.
+    severity: high
+    tags:
+      - financial-fraud
+      - pci-dss
+      - t1657
+    detection:
+      source: elastalert
+      rule_file: rules/payment-anomaly.yaml
+    response:
+      - Flag merchant_id for fraud review
+      - Temporarily rate-limit API endpoint for merchant
+      - Notify anti-fraud team via PagerDuty
+      - Preserve 48h of transaction logs for forensics
+    references:
+      - https://attack.mitre.org/techniques/T1657/
+      - PCI DSS v4.0 Req 10.7
+
+  # -------------------------------------------------------------------------
+  # Play 5: Suspicious TLS Certificate (Self-Signed on Non-Standard Port)
+  # MITRE: T1071.001 — Application Layer Protocol: Web Protocols
+  #        T1573.002 — Encrypted Channel: Asymmetric Cryptography
+  # -------------------------------------------------------------------------
+  - id: PLAY-005
+    name: "Suspicious TLS Certificate on Non-Standard Port"
+    description: >
+      Detects outbound TLS connections to non-standard ports (not 443/8443)
+      using self-signed certificates. Common in C2 frameworks (Cobalt Strike,
+      Sliver, Mythic) attempting to blend into HTTPS traffic.
+    severity: medium
+    tags:
+      - c2
+      - t1071.001
+      - t1573.002
+    detection:
+      source: so-zeek
+      filter:
+        log_type: ssl
+        validation_status: "self signed certificate"
+        dest_port:
+          not_in: [443, 8443, 8080, 8888]
+    response:
+      - Quarantine source host for investigation
+      - Extract JA3/JA3S fingerprint and compare against threat intel
+      - Check process responsible for connection (EDR telemetry)
+    references:
+      - https://attack.mitre.org/techniques/T1071/001/
+      - https://attack.mitre.org/techniques/T1573/002/

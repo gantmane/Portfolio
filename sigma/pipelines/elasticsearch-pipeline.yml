@@ -1,0 +1,205 @@
+name: elasticsearch-sigma-pipeline
+title: Elasticsearch / ELK Stack Sigma Conversion Pipeline
+description: |
+    Converts Sigma rules to Elasticsearch Query DSL or EQL (Event Query Language)
+    for use with Elastic SIEM, Kibana Detection Rules, and OpenSearch. Supports
+    both Lucene query string format (for Kibana KQL) and full Elasticsearch
+    Query DSL JSON output. Handles field name normalization from Sigma to ECS
+    (Elastic Common Schema) 8.x. Compatible with Elastic Stack 8.x and
+    OpenSearch 2.x with minor index pattern adjustments.
+version: 2.0
+authors:
+    - Evgeny Gantman
+
+# --- Backend Configuration ---
+backend:
+    name: elasticsearch
+    output_format: eql
+    ecs_version: "8.11"
+    kibana_version: "8.11"
+    index_patterns:
+        aws_cloudtrail: "logs-aws.cloudtrail-*"
+        linux_auth: "logs-system.auth-*"
+        nginx: "logs-nginx.access-*"
+        okta: "logs-okta.system-*"
+        windows_security: "logs-windows.security-*"
+        firewall: "logs-*firewall*"
+        kubernetes: "logs-kubernetes.audit_logs-*"
+        payment: "logs-payment.*"
+    notes: |
+        Index patterns assume Elastic integrations (Fleet/Agent) are used.
+        For Logstash pipelines adjust index patterns to match your naming convention.
+
+# --- Log Source to ECS Index Mapping ---
+logsource_mappings:
+
+    - sigma_logsource:
+          product: aws
+          service: cloudtrail
+      elasticsearch:
+          index: "logs-aws.cloudtrail-*"
+          pipeline: "aws-cloudtrail"
+          data_stream: true
+          notes: "Use Elastic AWS integration or custom Logstash S3 input"
+
+    - sigma_logsource:
+          product: linux
+          service: auth
+      elasticsearch:
+          index: "logs-system.auth-*"
+          pipeline: "system"
+          data_stream: true
+
+    - sigma_logsource:
+          category: webserver
+          product: nginx
+      elasticsearch:
+          index: "logs-nginx.access-*"
+          pipeline: "nginx"
+          data_stream: true
+
+    - sigma_logsource:
+          product: okta
+          service: system
+      elasticsearch:
+          index: "logs-okta.system-*"
+          pipeline: "okta"
+          data_stream: true
+
+    - sigma_logsource:
+          product: windows
+          service: security
+      elasticsearch:
+          index: "logs-windows.security-*"
+          pipeline: "windows"
+          data_stream: true
+
+    - sigma_logsource:
+          category: firewall
+          product: generic
+      elasticsearch:
+          index: "logs-*firewall*,logs-network.*"
+          pipeline: "network"
+          data_stream: true
+
+    - sigma_logsource:
+          category: application
+          product: kubernetes
+      elasticsearch:
+          index: "logs-kubernetes.audit_logs-*"
+          pipeline: "kubernetes"
+          data_stream: true
+
+    - sigma_logsource:
+          category: application
+          product: payment
+      elasticsearch:
+          index: "logs-payment.*"
+          pipeline: "custom"
+          data_stream: true
+          notes: "Custom data stream — requires ILM policy for PCI DSS log retention"
+
+# --- ECS Field Mappings ---
+# Sigma field name -> ECS 8.x field name
+field_mappings:
+
+    aws_cloudtrail:
+        eventName: aws.cloudtrail.event_name
+        eventSource: aws.cloudtrail.event_source
+        sourceIPAddress: source.ip
+        userIdentity.arn: aws.cloudtrail.user_identity.arn
+        userIdentity.type: aws.cloudtrail.user_identity.type
+        userIdentity.accountId: cloud.account.id
+        requestParameters.policyArn: aws.cloudtrail.request_parameters
+        requestParameters.bucketName: aws.cloudtrail.request_parameters
+
+    linux_auth:
+        message: message
+        src_ip: source.ip
+        user: user.name
+        hostname: host.hostname
+        type: process.name
+
+    nginx_access:
+        request: url.original
+        status: http.response.status_code
+        remote_addr: source.ip
+        http_user_agent: user_agent.original
+        bytes_sent: http.response.body.bytes
+        body_bytes_sent: http.response.body.bytes
+        request_method: http.request.method
+
+    okta:
+        eventType: okta.event_type
+        outcome.result: okta.outcome.result
+        outcome.reason: okta.outcome.reason
+        actor.id: okta.actor.id
+        actor.displayName: okta.actor.display_name
+        client.ipAddress: source.ip
+
+    windows_security:
+        EventID: winlog.event_id
+        SubjectUserName: winlog.event_data.SubjectUserName
+        SubjectDomainName: winlog.event_data.SubjectDomainName
+        IpAddress: source.ip
+        LogonType: winlog.event_data.LogonType
+        NewProcessName: process.executable
+        ProcessCommandLine: process.command_line
+        ShareName: winlog.event_data.ShareName
+
+    kubernetes:
+        verb: kubernetes.audit.verb
+        objectRef.resource: kubernetes.audit.objectRef.resource
+        objectRef.subresource: kubernetes.audit.objectRef.subresource
+        objectRef.namespace: kubernetes.audit.objectRef.namespace
+        user.username: user.name
+        sourceIPs: source.ip
+
+    firewall:
+        src_ip: source.ip
+        dst_ip: destination.ip
+        dst_port: destination.port
+        protocol: network.transport
+        bytes_sent: source.bytes
+        bytes_received: destination.bytes
+        direction: network.direction
+        action: event.outcome
+
+# --- Alert Level to Kibana Severity Mapping ---
+level_mappings:
+    informational: low
+    low: low
+    medium: medium
+    high: high
+    critical: critical
+
+# --- Aggregation and Timeframe ---
+aggregation:
+    enabled: true
+    eql_sequence_support: true
+    notes: |
+        Sigma aggregate conditions (count, distinct_count) are converted to
+        EQL sequences or Kibana threshold rules. Complex aggregations may
+        require manual review and conversion to ML jobs or runtime fields.
+
+# --- MITRE ATT&CK Integration ---
+mitre:
+    enabled: true
+    tag_prefix: "attack.t"
+    map_to_kibana_mitre: true
+    notes: |
+        Elastic SIEM supports native MITRE ATT&CK mapping in detection rules.
+        Sigma attack.t* tags are automatically mapped to threat.technique.id.
+
+# --- Output Configuration ---
+output:
+    format: ndjson
+    kibana_api_compatible: true
+    include_rule_metadata: true
+    output_dir: ./output/elasticsearch/
+    rule_author_override: "Evgeny Gantman — DevSecOps"
+    tags_prefix: "sigma"
+    notes: |
+        Import via Kibana API: POST /api/detection_engine/rules/_import
+        Or use detection-rules CLI: detection-rules import-rules-toml
+        Review false positive tuning before enabling in production.

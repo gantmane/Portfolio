@@ -1,0 +1,184 @@
+name: wazuh-sigma-pipeline
+title: Wazuh SIEM Sigma Conversion Pipeline
+description: |
+    Converts Sigma rules to Wazuh XML rule format. Maps Sigma log source
+    definitions to Wazuh log group names and normalizes field names to Wazuh
+    data.* namespace. Handles Wazuh-specific alert levels, rule groups,
+    MITRE ATT&CK annotation, and frequency/timeframe aggregation rules.
+    Compatible with Wazuh 4.4+ agent and manager deployments.
+version: 2.0
+authors:
+    - Evgeny Gantman
+
+# --- Log Source Mappings ---
+# Maps Sigma logsource (product/service/category) to Wazuh log groups
+logsource_mappings:
+
+    - sigma_logsource:
+          product: aws
+          service: cloudtrail
+      wazuh:
+          log_group: amazon-cloudwatch-wodle
+          rule_group: aws
+          decoder: aws-cloudwatch
+          field_prefix: data.aws
+          event_source_field: data.aws.source
+          notes: "Requires Wazuh AWS CloudTrail integration (wodle aws-s3)"
+
+    - sigma_logsource:
+          product: linux
+          service: auth
+      wazuh:
+          log_group: syslog
+          rule_group: authentication_failed,authentication_failures
+          decoder: sshd
+          field_prefix: data
+          notes: "Maps to /var/log/auth.log or /var/log/secure depending on distro"
+
+    - sigma_logsource:
+          category: webserver
+          product: nginx
+      wazuh:
+          log_group: web-log
+          rule_group: web,nginx
+          decoder: web-accesslog
+          field_prefix: data
+          url_field: data.url
+          status_field: data.code
+          notes: "Nginx combined log format; srcip is data.srcip"
+
+    - sigma_logsource:
+          product: okta
+          service: system
+      wazuh:
+          log_group: Okta
+          rule_group: okta
+          decoder: json
+          field_prefix: data.okta
+          notes: "Requires Wazuh Okta integration or Logstash Okta input"
+
+    - sigma_logsource:
+          product: windows
+          service: security
+      wazuh:
+          log_group: EventChannel
+          rule_group: windows,security_event
+          decoder: windows_security
+          field_prefix: data.win.eventdata
+          event_id_field: data.win.system.eventID
+          notes: "Windows Security Event Log via Wazuh Windows agent"
+
+    - sigma_logsource:
+          category: firewall
+          product: generic
+      wazuh:
+          log_group: firewall,iptables,pf,cisco-ios
+          rule_group: network_traffic
+          decoder: firewall
+          field_prefix: data
+          notes: "Generic firewall mapping; adjust log_group to your firewall product"
+
+    - sigma_logsource:
+          category: application
+          product: kubernetes
+          definition: Kubernetes API server audit logs
+      wazuh:
+          log_group: kubernetes
+          rule_group: kubernetes
+          decoder: json
+          field_prefix: data.kubernetes
+          notes: "Requires Wazuh Kubernetes audit log integration"
+
+    - sigma_logsource:
+          category: application
+          product: payment
+      wazuh:
+          log_group: payment-gateway
+          rule_group: payment,pci
+          decoder: json
+          field_prefix: data.payment
+          notes: "Custom log group for payment gateway JSON logs"
+
+# --- Field Name Translations ---
+# Maps Sigma field names to Wazuh field equivalents
+field_mappings:
+
+    aws_cloudtrail:
+        eventName: data.aws.eventName
+        eventSource: data.aws.eventSource
+        sourceIPAddress: data.aws.sourceIPAddress
+        userIdentity.arn: data.aws.userIdentity.arn
+        userIdentity.type: data.aws.userIdentity.type
+        userIdentity.accountId: data.aws.userIdentity.accountId
+        requestParameters.policyArn: data.aws.requestParameters.policyArn
+        requestParameters.bucketName: data.aws.requestParameters.bucketName
+        requestParameters.name: data.aws.requestParameters.name
+
+    linux_auth:
+        message: full_log
+        src_ip: data.srcip
+        user: data.dstuser
+        type: data.program_name
+        hostname: agent.name
+
+    okta:
+        eventType: data.okta.eventType
+        outcome.result: data.okta.outcome.result
+        outcome.reason: data.okta.outcome.reason
+        actor.id: data.okta.actor.id
+        actor.displayName: data.okta.actor.displayName
+        client.ipAddress: data.okta.client.ipAddress
+
+    windows_security:
+        EventID: data.win.system.eventID
+        SubjectUserName: data.win.eventdata.subjectUserName
+        SubjectDomainName: data.win.eventdata.subjectDomainName
+        IpAddress: data.win.eventdata.ipAddress
+        LogonType: data.win.eventdata.logonType
+        NewProcessName: data.win.eventdata.newProcessName
+        ProcessCommandLine: data.win.eventdata.commandLine
+        ShareName: data.win.eventdata.shareName
+
+    kubernetes:
+        verb: data.kubernetes.verb
+        objectRef.resource: data.kubernetes.objectRef.resource
+        objectRef.subresource: data.kubernetes.objectRef.subresource
+        objectRef.namespace: data.kubernetes.objectRef.namespace
+        objectRef.name: data.kubernetes.objectRef.name
+        user.username: data.kubernetes.user.username
+        sourceIPs: data.kubernetes.sourceIPs
+
+# --- Alert Level Mapping ---
+# Maps Sigma levels to Wazuh severity levels (1-15)
+level_mappings:
+    informational: 3
+    low: 5
+    medium: 7
+    high: 10
+    critical: 13
+
+# --- MITRE ATT&CK Tag Handling ---
+# Sigma tags with attack.t* are mapped to Wazuh MITRE element blocks
+mitre_tag_prefix: "attack.t"
+mitre_output_element: "mitre"
+
+# --- Aggregation / Timeframe ---
+# Sigma timeframe + count conditions map to Wazuh frequency rules
+frequency_rules:
+    enabled: true
+    default_timeframe_seconds: 300
+    default_frequency: 5
+    notes: |
+        Wazuh frequency rules require parent rule to match first event.
+        Set <same_source_ip> and <timeframe> in generated XML.
+
+# --- Output Format ---
+output:
+    format: wazuh-xml
+    rule_id_start: 100000
+    rule_id_increment: 10
+    output_dir: /var/ossec/etc/rules/sigma/
+    include_comment: true
+    notes: |
+        Generated rules require restart: systemctl restart wazuh-manager
+        Review rule IDs for conflicts with custom rules in local_rules.xml

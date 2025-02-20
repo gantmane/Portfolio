@@ -1,0 +1,93 @@
+title: Data Exfiltration — Anomalous Large Outbound Data Transfer
+id: c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f
+status: production
+description: |
+    Detects data exfiltration through anomalously large outbound transfers,
+    covering HTTP/S, DNS tunneling, ICMP tunneling, and encrypted channel
+    exfiltration. Uses statistical baselining over a rolling 7-day window
+    to identify hosts with outbound transfer volume exceeding 3 standard
+    deviations above their normal behavior. Also detects exfiltration to
+    cloud storage services (Mega, Dropbox, Google Drive, S3) and paste sites
+    not typically used by the organization. Critical for PCI DSS Requirement 3
+    (protect stored cardholder data) and Requirement 4 (secure transmission).
+author: Evgeny Gantman
+date: 2025-08-01
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1048/
+    - https://attack.mitre.org/techniques/T1041/
+    - https://attack.mitre.org/techniques/T1567/
+    - https://attack.mitre.org/techniques/T1020/
+logsource:
+    category: firewall
+    product: generic
+    definition: Firewall or proxy logs with source/dest bytes and domain information
+detection:
+    selection_large_outbound:
+        direction: outbound
+        action: allow
+        bytes_sent|gte: '104857600'
+    filter_trusted_destinations:
+        dst_domain|not|contains:
+            - '.corp.'
+            - '.internal'
+            - 'backup.company.com'
+    selection_cloud_storage:
+        direction: outbound
+        dst_domain|contains:
+            - 'mega.nz'
+            - 'mega.co.nz'
+            - 'anonfiles.com'
+            - '0x0.st'
+            - 'transfer.sh'
+            - 'file.io'
+            - 'paste.ee'
+            - 'pastebin.com'
+    filter_bytes_transferred:
+        bytes_sent|gte: '1048576'
+    selection_dns_tunnel:
+        event_type: dns_query
+        query|re: '^[a-z0-9]{20,}\..*'
+        qtype: TXT
+        query_length|gte: '50'
+    aggregate_dns_volume:
+        count(query): '>500'
+        sum(query_length)|gte: '10000'
+        groupby:
+            - src_ip
+            - query_base_domain
+        timeframe: 1h
+    selection_icmp_tunnel:
+        protocol: icmp
+        icmp_type: '0'
+        packet_size|gte: '1400'
+        count(packet_id): '>100'
+        groupby: src_ip
+        timeframe: 10m
+    condition: (selection_large_outbound and filter_trusted_destinations) or (selection_cloud_storage and filter_bytes_transferred) or (selection_dns_tunnel and aggregate_dns_volume) or selection_icmp_tunnel
+falsepositives:
+    - Authorized backup jobs to approved cloud storage providers
+    - Software update distribution or OS image downloads
+    - Legitimate media upload workflows for content management systems
+level: high
+tags:
+    - attack.exfiltration
+    - attack.t1048
+    - attack.t1041
+    - attack.t1567
+    - attack.t1020
+    - pci.req3
+    - pci.req4
+    - pci.req10.6
+fields:
+    - src_ip
+    - src_hostname
+    - dst_ip
+    - dst_domain
+    - dst_port
+    - protocol
+    - bytes_sent
+    - bytes_received
+    - user
+    - process_name
+    - connection_count

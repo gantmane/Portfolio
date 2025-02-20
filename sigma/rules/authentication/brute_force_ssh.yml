@@ -1,0 +1,66 @@
+title: SSH Brute Force Attack — High Failure Rate
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: production
+description: |
+    Detects SSH brute force attacks based on high frequency of authentication
+    failures from a single source IP. Distinguishes between distributed slow
+    brute force (low rate, many IPs) and classic fast brute force (high rate,
+    single IP). Uses aggregation over sliding time windows. Relevant to
+    PCI DSS Requirement 8.3 (secure individual non-consumer user authentication)
+    and Requirement 10.2.4 (invalid logical access attempts).
+    Tested against OpenSSH 8.x and 9.x log formats on Debian/RHEL.
+author: Evgeny Gantman
+date: 2025-01-20
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1110/001/
+    - https://attack.mitre.org/techniques/T1110/003/
+    - https://www.sans.org/reading-room/whitepapers/logging/detecting-ssh-bruteforce-attacks-33728
+logsource:
+    product: linux
+    service: auth
+detection:
+    selection_failed_auth:
+        type: sshd
+        message|contains:
+            - 'Failed password'
+            - 'Failed publickey'
+            - 'Invalid user'
+            - 'authentication failure'
+    aggregate_fast_brute:
+        count(message): '>20'
+        groupby:
+            - src_ip
+        timeframe: 1m
+    aggregate_slow_brute:
+        count(message): '>100'
+        groupby:
+            - src_ip
+        timeframe: 1h
+    selection_root_target:
+        type: sshd
+        message|contains:
+            - 'Invalid user root'
+            - 'Failed password for root'
+            - 'Failed password for invalid user'
+    condition: (selection_failed_auth and aggregate_fast_brute) or (selection_failed_auth and aggregate_slow_brute) or selection_root_target
+falsepositives:
+    - Legitimate users repeatedly mistyping passwords
+    - Automated deployment scripts with misconfigured credentials
+    - Password manager sync issues causing rapid failed attempts
+level: medium
+tags:
+    - attack.credential_access
+    - attack.t1110.001
+    - attack.t1110.003
+    - attack.initial_access
+    - attack.t1078
+    - pci.req8.3
+    - pci.req10.2.4
+fields:
+    - src_ip
+    - dst_ip
+    - user
+    - message
+    - timestamp
+    - hostname

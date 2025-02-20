@@ -1,0 +1,75 @@
+title: MFA Fatigue — Repeated Push Notification Bombing
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: production
+description: |
+    Detects MFA fatigue (push bombing) attacks where an attacker repeatedly
+    triggers MFA push notifications to the victim's device hoping they approve
+    one due to fatigue. This technique was used in Uber 2022, Cisco 2022, and
+    numerous other high-profile breaches. Detection uses push notification
+    event frequency from authentication provider audit logs (Okta, Azure AD,
+    Duo Security). Also detects the follow-up successful auth after multiple
+    failures as confirmation of successful fatigue attack.
+author: Evgeny Gantman
+date: 2025-03-15
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1621/
+    - https://www.mandiant.com/resources/blog/apt29-continues-targeting-microsoft
+    - https://help.okta.com/en-us/content/topics/reports/okta-system-log.htm
+logsource:
+    product: okta
+    service: system
+detection:
+    selection_mfa_push:
+        eventType|contains:
+            - system.authentication.auth_via_mfa
+            - user.authentication.auth_via_mfa
+        outcome.reason|contains:
+            - 'TIMEOUT'
+            - 'DENIED'
+            - 'User rejected'
+    aggregate_repeated_denial:
+        count(eventType): '>5'
+        groupby:
+            - actor.id
+            - client.ipAddress
+        timeframe: 10m
+    selection_success_after_failures:
+        eventType: user.session.start
+        outcome.result: SUCCESS
+    aggregate_preceded_by_failures:
+        count(eventType|contains:
+            - 'DENIED'
+            - 'TIMEOUT'): '>3'
+        groupby:
+            - actor.id
+        timeframe: 15m
+        before: selection_success_after_failures
+    filter_unusual_location:
+        client.geographicalContext.country|not|contains:
+            - 'Russia'
+            - 'Belarus'
+    condition: (selection_mfa_push and aggregate_repeated_denial) or (selection_success_after_failures and aggregate_preceded_by_failures)
+falsepositives:
+    - Users with poor connectivity dropping MFA push sessions repeatedly
+    - Users testing new authenticator apps and denying old device pushes
+    - Automated testing of MFA enrollment flows
+level: high
+tags:
+    - attack.credential_access
+    - attack.t1621
+    - attack.t1078
+    - attack.initial_access
+    - attack.t1556
+    - pci.req8.4
+    - pci.req8.6
+fields:
+    - actor.id
+    - actor.displayName
+    - client.ipAddress
+    - client.geographicalContext.country
+    - client.geographicalContext.city
+    - outcome.result
+    - outcome.reason
+    - eventType
+    - published

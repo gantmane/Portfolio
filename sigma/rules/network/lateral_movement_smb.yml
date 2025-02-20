@@ -1,0 +1,77 @@
+title: Lateral Movement via SMB — PsExec and Remote Service Execution
+id: a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d
+status: production
+description: |
+    Detects lateral movement via SMB using PsExec-like tools, WMIEXEC, or
+    remote service creation. These techniques create a named pipe (typically
+    PSEXESVC), write a service binary to ADMIN$ share, and execute it remotely.
+    Also detects pass-the-hash (PTH) attacks via NTLM authentication with
+    anomalous source characteristics. Covers Impacket, CrackMapExec,
+    Metasploit psexec_psh module, and native Windows net use + sc.exe chains.
+    Particularly relevant in Active Directory environments and post-breach
+    lateral movement during incident response.
+author: Evgeny Gantman
+date: 2025-07-01
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1021/002/
+    - https://attack.mitre.org/techniques/T1570/
+    - https://attack.mitre.org/techniques/T1550/002/
+    - https://www.ired.team/offensive-security/lateral-movement/lateral-movement-via-smb
+logsource:
+    product: windows
+    service: security
+detection:
+    selection_psexec_share:
+        EventID: 5145
+        ShareName|contains: 'ADMIN$'
+        RelativeTargetName|contains:
+            - 'PSEXESVC'
+            - '.exe'
+        AccessMask: '0x12019f'
+    selection_remote_service:
+        EventID: 7045
+        ServiceFileName|contains:
+            - '%systemroot%'
+            - 'cmd.exe'
+            - 'powershell'
+        ServiceType: 'User Mode Service'
+    filter_remote_logon:
+        EventID: 4624
+        LogonType: '3'
+        AuthenticationPackageName: NTLM
+    filter_anomalous_account:
+        EventID: 4624
+        SubjectUserName|not|endswith: '$'
+        LogonType: '3'
+    selection_wmi_lateral:
+        EventID: 4688
+        NewProcessName|endswith: 'WmiPrvSE.exe'
+        ProcessCommandLine|contains:
+            - 'cmd.exe'
+            - 'powershell'
+            - 'wscript'
+            - 'cscript'
+    condition: selection_psexec_share or selection_remote_service or (filter_remote_logon and filter_anomalous_account) or selection_wmi_lateral
+falsepositives:
+    - Legitimate remote administration via PsExec by IT operations
+    - SCCM/MECM software distribution using SMB and service creation
+    - Endpoint monitoring agents deploying updates remotely
+level: high
+tags:
+    - attack.lateral_movement
+    - attack.t1021.002
+    - attack.t1570
+    - attack.t1550.002
+    - attack.execution
+    - attack.t1569.002
+fields:
+    - Computer
+    - SubjectUserName
+    - SubjectDomainName
+    - IpAddress
+    - ShareName
+    - RelativeTargetName
+    - ServiceName
+    - ServiceFileName
+    - ProcessCommandLine

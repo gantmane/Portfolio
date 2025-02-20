@@ -1,0 +1,69 @@
+title: AWS S3 Bulk Data Exfiltration via GetObject
+id: c9d4f6a2-5b8e-4c7f-a3d1-6e9b2c5f8a01
+status: production
+description: |
+    Detects high-volume S3 GetObject API calls indicative of bulk data exfiltration.
+    Monitors for anomalous patterns including: cross-account access from unusual
+    principals, access via presigned URLs at scale, bucket replication to external
+    accounts, and bucket policy modifications enabling public read. Aligns with
+    PCI DSS Requirement 3 (protect stored cardholder data) and Requirement 4
+    (protect cardholder data with strong cryptography during transmission).
+author: Evgeny Gantman
+date: 2025-03-05
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1530/
+    - https://attack.mitre.org/techniques/T1537/
+    - https://research.nccgroup.com/2021/11/01/aws-s3-data-exfiltration-detection/
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_bulk_get:
+        eventSource: s3.amazonaws.com
+        eventName: GetObject
+    filter_external_principal:
+        userIdentity.type: AssumedRole
+        userIdentity.accountId|not: '123456789012'
+    selection_public_acl:
+        eventSource: s3.amazonaws.com
+        eventName:
+            - PutBucketAcl
+            - PutBucketPolicy
+        requestParameters.AccessControlPolicy.AccessControlList.Grant.Grantee.URI: 'http://acs.amazonaws.com/groups/global/AllUsers'
+    selection_cross_account_replication:
+        eventSource: s3.amazonaws.com
+        eventName: PutBucketReplication
+        requestParameters.ReplicationConfiguration.Rule.Destination.Account|not: '123456789012'
+    selection_presigned_anomaly:
+        eventSource: s3.amazonaws.com
+        eventName: GetObject
+        userIdentity.type: AWSAccount
+        additionalEventData.AuthType: REST-QUERY-STRING
+    aggregate_threshold:
+        eventName: GetObject
+        count: '>1000'
+        timeframe: 5m
+    condition: (selection_bulk_get and filter_external_principal) or selection_public_acl or selection_cross_account_replication or (selection_presigned_anomaly and aggregate_threshold)
+falsepositives:
+    - Authorized backup jobs and data lake ETL pipelines
+    - CDN cache warm-up processes
+    - Disaster recovery replication to secondary account
+level: high
+tags:
+    - attack.exfiltration
+    - attack.t1530
+    - attack.t1537
+    - attack.collection
+    - attack.t1074.002
+    - pci.req3
+    - pci.req4
+    - pci.req10
+fields:
+    - userIdentity.arn
+    - userIdentity.accountId
+    - sourceIPAddress
+    - requestParameters.bucketName
+    - requestParameters.key
+    - additionalEventData.bytesTransferredOut
+    - additionalEventData.AuthType

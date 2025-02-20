@@ -1,0 +1,60 @@
+title: AWS CloudTrail Logging Disabled or Tampered
+id: b5c7e2f1-3a9d-4b6c-8e1f-2d5a7c9b3e04
+status: production
+description: |
+    Detects attempts to disable, delete, or modify CloudTrail logging configuration,
+    which is a common adversary technique to cover tracks after initial access.
+    Also detects S3 bucket policy changes that could prevent log delivery.
+    Critical for PCI DSS Requirement 10 (log and monitor all access to system
+    components) and NIST CSF DE.CM-1 (monitor network for attack events).
+author: Evgeny Gantman
+date: 2025-02-10
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1562/008/
+    - https://attack.mitre.org/techniques/T1070/
+    - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_disable:
+        eventSource: cloudtrail.amazonaws.com
+        eventName:
+            - StopLogging
+            - DeleteTrail
+            - UpdateTrail
+    filter_update_disable:
+        requestParameters.enableLogFileValidation: 'false'
+    selection_s3_tamper:
+        eventSource: s3.amazonaws.com
+        eventName:
+            - DeleteBucketPolicy
+            - PutBucketPolicy
+            - DeleteBucketLifecycle
+        requestParameters.bucketName|contains: 'cloudtrail'
+    selection_kms_disable:
+        eventSource: cloudtrail.amazonaws.com
+        eventName: UpdateTrail
+        requestParameters.kmsKeyId: ''
+    condition: selection_disable or (selection_disable and filter_update_disable) or selection_s3_tamper or selection_kms_disable
+falsepositives:
+    - CloudTrail migration between regions or accounts by authorized administrators
+    - Automated compliance remediation tools
+    - Scheduled trail configuration management during maintenance windows
+level: critical
+tags:
+    - attack.defense_evasion
+    - attack.t1562.008
+    - attack.t1070
+    - attack.t1490
+    - pci.req10.5
+    - pci.req10.7
+fields:
+    - userIdentity.arn
+    - userIdentity.type
+    - eventName
+    - sourceIPAddress
+    - requestParameters.name
+    - requestParameters.bucketName
+    - responseElements

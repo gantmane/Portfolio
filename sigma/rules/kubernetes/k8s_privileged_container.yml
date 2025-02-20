@@ -1,0 +1,78 @@
+title: Kubernetes Privileged Container Creation
+id: d2e8b3c7-6f1a-4d9e-b5c2-7a3f1e6d9b04
+status: production
+description: |
+    Detects creation of Kubernetes pods or deployments with privileged security
+    contexts, hostPID, hostNetwork, or hostPath mounts that allow container
+    escape to the underlying node. These configurations are commonly exploited
+    for cluster privilege escalation. Covers Kubernetes Audit Log events from
+    API server. Detects both direct pod creation and indirect creation via
+    Deployments, DaemonSets, and StatefulSets with dangerous security contexts.
+author: Evgeny Gantman
+date: 2025-04-01
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1610/
+    - https://attack.mitre.org/techniques/T1611/
+    - https://kubernetes.io/docs/concepts/security/pod-security-standards/
+    - https://www.cisa.gov/sites/default/files/2022-11/K8s_Hardening_Guide_1.2.pdf
+logsource:
+    category: application
+    product: kubernetes
+    definition: Kubernetes API server audit logs with JSON format
+detection:
+    selection_create:
+        verb:
+            - create
+            - update
+            - patch
+        objectRef.resource:
+            - pods
+            - deployments
+            - daemonsets
+            - statefulsets
+            - replicasets
+    filter_privileged:
+        requestObject.spec.containers[*].securityContext.privileged: 'true'
+    filter_host_pid:
+        requestObject.spec.hostPID: 'true'
+    filter_host_network:
+        requestObject.spec.hostNetwork: 'true'
+    filter_host_path:
+        requestObject.spec.volumes[*].hostPath.path|contains:
+            - '/etc'
+            - '/var/run/docker.sock'
+            - '/proc'
+            - '/sys'
+            - '/dev'
+    filter_root_user:
+        requestObject.spec.containers[*].securityContext.runAsUser: '0'
+    filter_capability_add:
+        requestObject.spec.containers[*].securityContext.capabilities.add|contains:
+            - SYS_ADMIN
+            - SYS_PTRACE
+            - NET_ADMIN
+            - DAC_OVERRIDE
+    condition: selection_create and (filter_privileged or filter_host_pid or filter_host_network or filter_host_path or filter_root_user or filter_capability_add)
+falsepositives:
+    - Monitoring agents (Falco, Datadog, Wazuh) requiring elevated access
+    - CNI plugins during cluster bootstrapping
+    - Approved privileged workloads with exemption annotation
+level: high
+tags:
+    - attack.privilege_escalation
+    - attack.t1610
+    - attack.t1611
+    - attack.t1068
+    - attack.defense_evasion
+    - cis.k8s.5.2.1
+    - cis.k8s.5.2.2
+fields:
+    - user.username
+    - user.groups
+    - sourceIPs
+    - objectRef.namespace
+    - objectRef.name
+    - objectRef.resource
+    - requestObject.spec.containers[*].image
+    - requestObject.spec.containers[*].securityContext

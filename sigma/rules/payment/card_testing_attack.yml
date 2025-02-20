@@ -1,0 +1,79 @@
+title: Payment Card Testing Attack — Sequential Small-Amount Transactions
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a
+status: production
+description: |
+    Detects card testing (carding) attacks where attackers validate stolen
+    card numbers by submitting small-value transactions against a merchant's
+    payment endpoint. Characteristics include: rapid sequential transactions
+    under $5, high decline rate from a single IP or device fingerprint,
+    sequential BIN ranges, and unusual geographic mismatch between billing
+    address and IP geolocation. This is a direct PCI DSS compliance concern
+    (Req 6.4, 10.2, 10.6) and a common precursor to larger fraudulent charges.
+author: Evgeny Gantman
+date: 2025-04-20
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1496/
+    - https://www.pcisecuritystandards.org/documents/PCI_DSS_v4.0.pdf
+    - https://www.cybersource.com/content/dam/documents/solutions/card-testing-fraud.pdf
+logsource:
+    category: application
+    product: payment
+    definition: Payment gateway transaction logs with amount, status, and BIN fields
+detection:
+    selection_small_transaction:
+        event_type: transaction
+        transaction_amount|lt: '5.00'
+        transaction_currency: USD
+    filter_declined:
+        transaction_status:
+            - DECLINED
+            - FAILED
+            - DO_NOT_HONOR
+            - INSUFFICIENT_FUNDS
+    aggregate_rapid_attempts:
+        count(transaction_id): '>10'
+        groupby:
+            - source_ip
+        timeframe: 5m
+    aggregate_high_decline_rate:
+        count(transaction_status|contains: 'DECLINED'): '>8'
+        count(transaction_id): '>10'
+        groupby:
+            - source_ip
+        timeframe: 10m
+    filter_sequential_cards:
+        card_bin|re: '^(\d{6})$'
+        count(distinct(card_number)): '>5'
+        groupby:
+            - card_bin
+            - source_ip
+        timeframe: 10m
+    filter_geo_mismatch:
+        billing_country|not: ip_country
+    condition: (selection_small_transaction and filter_declined and aggregate_rapid_attempts) or (selection_small_transaction and aggregate_high_decline_rate) or (selection_small_transaction and filter_sequential_cards and filter_geo_mismatch)
+falsepositives:
+    - Payment gateway integration testing in non-production environments
+    - Legitimate micro-authorization verification (under $1 pre-auth holds)
+    - A/B testing of checkout flows with test card numbers
+level: critical
+tags:
+    - attack.impact
+    - attack.t1496
+    - attack.collection
+    - attack.t1119
+    - fraud.card_testing
+    - pci.req6.4
+    - pci.req10.2
+    - pci.req10.6
+fields:
+    - source_ip
+    - device_fingerprint
+    - card_bin
+    - card_last4
+    - transaction_amount
+    - transaction_status
+    - billing_country
+    - ip_country
+    - merchant_id
+    - gateway_response_code

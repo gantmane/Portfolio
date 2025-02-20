@@ -1,0 +1,70 @@
+title: Kubernetes kubectl exec into Running Container
+id: e5a1c9d3-8b2f-4e7a-c6d4-9f2a4e7b1c08
+status: production
+description: |
+    Detects interactive command execution inside running containers via kubectl exec.
+    This technique is used by attackers for lateral movement, persistence, and
+    post-exploitation after gaining initial access to a Kubernetes cluster.
+    Especially suspicious when targeting production namespaces, system namespaces,
+    or when shell interpreters are invoked. High fidelity in hardened environments
+    where exec access is restricted by RBAC and admission controllers.
+author: Evgeny Gantman
+date: 2025-04-15
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1609/
+    - https://attack.mitre.org/techniques/T1059/
+    - https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#exec
+logsource:
+    category: application
+    product: kubernetes
+    definition: Kubernetes API server audit logs
+detection:
+    selection_exec:
+        verb: create
+        objectRef.resource: pods
+        objectRef.subresource: exec
+    filter_shell:
+        requestURI|contains:
+            - command=bash
+            - command=sh
+            - command=/bin/bash
+            - command=/bin/sh
+            - command=python
+            - command=python3
+            - command=perl
+            - command=ruby
+    filter_sensitive_namespace:
+        objectRef.namespace:
+            - kube-system
+            - kube-public
+            - monitoring
+            - production
+            - prod
+            - payment
+            - cde
+    filter_system_user:
+        user.username|not|contains:
+            - system:serviceaccount
+    condition: selection_exec or (selection_exec and filter_shell) or (selection_exec and filter_sensitive_namespace)
+falsepositives:
+    - Authorized debugging sessions by SRE/platform engineers
+    - Automated health check scripts using exec
+    - CI/CD pipeline test runners executing inside pods
+level: medium
+tags:
+    - attack.execution
+    - attack.t1609
+    - attack.t1059.004
+    - attack.lateral_movement
+    - attack.t1021
+    - cis.k8s.5.4.1
+fields:
+    - user.username
+    - user.groups
+    - sourceIPs
+    - objectRef.namespace
+    - objectRef.name
+    - requestURI
+    - responseStatus.code
+    - stageTimestamp

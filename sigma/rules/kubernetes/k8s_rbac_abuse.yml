@@ -1,0 +1,75 @@
+title: Kubernetes RBAC ClusterRoleBinding to Privileged ClusterRole
+id: f7b3d5e9-2c4a-4f8b-d7e5-1c3a5f8d2b06
+status: production
+description: |
+    Detects creation or modification of ClusterRoleBindings that grant
+    cluster-admin or other privileged ClusterRoles to service accounts, users,
+    or groups. Also detects wildcard permissions in custom ClusterRoles and
+    RoleBindings that provide equivalent cluster-wide access. Privilege escalation
+    via RBAC is a primary post-exploitation technique in Kubernetes environments.
+    Overlaps with T1098 (Account Manipulation) and T1548 (Abuse Elevation
+    Control Mechanism).
+author: Evgeny Gantman
+date: 2025-05-01
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1098/
+    - https://attack.mitre.org/techniques/T1548/
+    - https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+    - https://www.nsa.gov/Press-Room/News-Highlights/Article/Article/2716980/nsa-cisa-release-kubernetes-hardening-guidance/
+logsource:
+    category: application
+    product: kubernetes
+    definition: Kubernetes API server audit logs
+detection:
+    selection_clusterrolebinding:
+        verb:
+            - create
+            - update
+            - patch
+        objectRef.resource: clusterrolebindings
+    filter_admin_role:
+        requestObject.roleRef.name|contains:
+            - cluster-admin
+            - system:masters
+            - admin
+    filter_broad_subject:
+        requestObject.subjects[*].name|contains:
+            - system:authenticated
+            - system:unauthenticated
+    selection_wildcard_role:
+        verb:
+            - create
+            - update
+        objectRef.resource:
+            - clusterroles
+            - roles
+        requestObject.rules[*].verbs|contains: '*'
+        requestObject.rules[*].resources|contains: '*'
+    selection_default_sa_binding:
+        verb: create
+        objectRef.resource: clusterrolebindings
+        requestObject.subjects[*].name: default
+        requestObject.subjects[*].kind: ServiceAccount
+    condition: (selection_clusterrolebinding and filter_admin_role) or (selection_clusterrolebinding and filter_broad_subject) or selection_wildcard_role or selection_default_sa_binding
+falsepositives:
+    - Cluster bootstrapping and initial admin setup
+    - Helm charts creating necessary RBAC during install
+    - GitOps controllers requiring elevated permissions
+level: high
+tags:
+    - attack.privilege_escalation
+    - attack.t1098
+    - attack.t1548
+    - attack.persistence
+    - attack.t1078.001
+    - cis.k8s.5.1.1
+    - cis.k8s.5.1.6
+fields:
+    - user.username
+    - user.groups
+    - sourceIPs
+    - objectRef.name
+    - requestObject.roleRef.name
+    - requestObject.subjects
+    - stageTimestamp

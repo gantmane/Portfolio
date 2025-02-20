@@ -1,0 +1,68 @@
+title: PAN (Primary Account Number) Exposure in Application Logs
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b
+status: production
+description: |
+    Detects unmasked Primary Account Numbers (PAN / full card numbers) appearing
+    in application logs, error outputs, debug traces, or HTTP request logs.
+    PAN data in logs is a direct PCI DSS Requirement 3.3.1 violation (do not
+    retain sensitive authentication data after authorization). Uses regex pattern
+    matching with Luhn algorithm validation hint. Covers Visa (4), Mastercard
+    (51-55, 2221-2720), Amex (34, 37), and Discover (6011, 622, 64-65).
+    Critical for detecting logging misconfigurations and developer debugging
+    of production payment flows.
+author: Evgeny Gantman
+date: 2025-05-10
+modified: 2025-11-20
+references:
+    - https://www.pcisecuritystandards.org/documents/PCI_DSS_v4.0.pdf
+    - https://attack.mitre.org/techniques/T1530/
+    - https://owasp.org/www-community/vulnerabilities/Sensitive_Data_Exposure
+logsource:
+    category: application
+    product: generic
+    definition: Application log aggregation — ELK, Splunk, or Wazuh log stream
+detection:
+    selection_visa:
+        message|re: '(?<![0-9])4[0-9]{12}(?:[0-9]{3})?(?![0-9])'
+    selection_mastercard:
+        message|re: '(?<![0-9])(?:5[1-5][0-9]{14}|2(?:2[2-9][1-9]|[3-6][0-9]{2}|7[01][0-9]|720)[0-9]{12})(?![0-9])'
+    selection_amex:
+        message|re: '(?<![0-9])3[47][0-9]{13}(?![0-9])'
+    selection_discover:
+        message|re: '(?<![0-9])6(?:011|5[0-9]{2})[0-9]{12}(?![0-9])'
+    filter_already_masked:
+        message|re: '\*{4,}'
+    filter_test_cards:
+        message|contains:
+            - '4111111111111111'
+            - '4242424242424242'
+            - '5555555555554444'
+            - '4012888888881881'
+    filter_log_source_exclusion:
+        log_source|contains:
+            - 'test'
+            - 'sandbox'
+            - 'staging'
+    condition: (selection_visa or selection_mastercard or selection_amex or selection_discover) and not filter_already_masked and not filter_test_cards and not filter_log_source_exclusion
+falsepositives:
+    - Security scanning tools logging detected PAN patterns as findings
+    - PAN tokenization service logs showing pre-tokenization values during debugging
+    - Test/sandbox environments with realistic test card data
+level: critical
+tags:
+    - attack.exfiltration
+    - attack.t1530
+    - attack.collection
+    - attack.t1119
+    - pci.req3.3.1
+    - pci.req3.4
+    - pci.req10.3
+fields:
+    - log_source
+    - service_name
+    - pod_name
+    - namespace
+    - message
+    - log_level
+    - timestamp
+    - file_path

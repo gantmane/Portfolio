@@ -1,0 +1,79 @@
+title: Payment Transaction Anomaly — Velocity and Amount Deviation
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c
+status: production
+description: |
+    Detects anomalous payment transactions based on velocity rules and
+    statistical deviation from user baseline behavior. Covers: transactions
+    exceeding configured thresholds within rolling windows, transactions to
+    high-risk merchant categories (gambling, crypto exchanges, wire transfers),
+    round-number amount patterns indicative of money laundering, and geographic
+    velocity anomalies (impossible travel between consecutive transactions).
+    Maps to PCI DSS Req 10.6 (review logs for anomalies), Req 6.4 (address
+    vulnerabilities), and relevant AML/fraud detection obligations.
+author: Evgeny Gantman
+date: 2025-06-01
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1496/
+    - https://www.pcisecuritystandards.org/documents/PCI_DSS_v4.0.pdf
+    - https://www.fatf-gafi.org/en/publications/Methodsandtrends/Moneylaunderingusingnewpaymentmethods.html
+logsource:
+    category: application
+    product: payment
+    definition: Payment gateway or card processor transaction event stream
+detection:
+    selection_high_risk_mcc:
+        event_type: transaction
+        merchant_category_code|contains:
+            - '7995'
+            - '6051'
+            - '6538'
+            - '4829'
+        transaction_status: APPROVED
+    selection_round_amount:
+        event_type: transaction
+        transaction_amount|endswith: '.00'
+        transaction_amount|gte: '1000'
+    aggregate_velocity_breach:
+        count(transaction_id): '>10'
+        sum(transaction_amount)|gte: '5000'
+        groupby:
+            - card_token
+            - account_id
+        timeframe: 1h
+    filter_impossible_travel:
+        event_type: transaction
+        transaction_country|not: prev_transaction_country
+        minutes_since_last_transaction|lt: '60'
+    selection_after_hours:
+        event_type: transaction
+        transaction_hour|gte: '23'
+        transaction_hour|lte: '5'
+        transaction_amount|gte: '500'
+    filter_new_beneficiary:
+        beneficiary_account_age_days|lt: '7'
+        transaction_amount|gte: '1000'
+    condition: selection_high_risk_mcc or (selection_round_amount and aggregate_velocity_breach) or filter_impossible_travel or (selection_after_hours and filter_new_beneficiary)
+falsepositives:
+    - Legitimate high-value B2B payments to new vendor accounts
+    - International travel causing genuine geographic velocity
+    - Automated recurring billing systems processing batch payments after hours
+level: high
+tags:
+    - attack.impact
+    - attack.t1496
+    - fraud.transaction_anomaly
+    - fraud.money_laundering
+    - pci.req10.6
+    - pci.req6.4
+fields:
+    - account_id
+    - card_token
+    - card_bin
+    - transaction_amount
+    - transaction_currency
+    - transaction_country
+    - merchant_category_code
+    - transaction_status
+    - gateway_response_code
+    - transaction_timestamp

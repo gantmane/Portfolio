@@ -1,0 +1,86 @@
+title: C2 Beacon — Periodic Outbound Connection to Unusual Destination
+id: b8c9d0e1-f2a3-4b4c-5d6e-7f8a9b0c1d2e
+status: production
+description: |
+    Detects Command and Control (C2) beaconing behavior based on periodic
+    outbound network connections with consistent interval patterns. C2 frameworks
+    (Cobalt Strike, Metasploit, Sliver, Brute Ratel) use jittered sleep intervals
+    that still produce statistically regular connection patterns. Detection uses
+    jitter-tolerant interval variance analysis. Also detects DNS C2 via high
+    query frequency to a single domain and HTTPS C2 via consistent small payload
+    sizes to rare domains. Requires NetFlow or DNS query logging.
+author: Evgeny Gantman
+date: 2025-07-15
+modified: 2025-11-20
+references:
+    - https://attack.mitre.org/techniques/T1071/001/
+    - https://attack.mitre.org/techniques/T1071/004/
+    - https://attack.mitre.org/techniques/T1573/
+    - https://www.mandiant.com/resources/blog/defining-cobalt-strike-components
+logsource:
+    category: firewall
+    product: generic
+    definition: Firewall or NetFlow logs with connection tuples and byte counts
+detection:
+    selection_periodic_connection:
+        direction: outbound
+        action: allow
+        protocol:
+            - tcp/443
+            - tcp/80
+            - tcp/8080
+            - tcp/8443
+    filter_non_corporate_dest:
+        dst_category: unknown
+        dst_reputation|lt: '30'
+    aggregate_beacon_pattern:
+        count(connection_id): '>20'
+        stddev(connection_interval_seconds)|lt: '30'
+        avg(connection_interval_seconds)|between: ['10', '300']
+        groupby:
+            - src_ip
+            - dst_ip
+            - dst_port
+        timeframe: 1h
+    selection_dns_c2:
+        event_type: dns_query
+        qtype:
+            - A
+            - TXT
+            - MX
+        count(query): '>100'
+        groupby:
+            - query
+            - src_ip
+        timeframe: 1h
+    filter_low_ttl_subdomain:
+        query_subdomain_depth|gte: '4'
+        dns_ttl|lt: '60'
+    filter_payload_size:
+        bytes_total|between: ['100', '2048']
+        connection_duration_seconds|lt: '5'
+    condition: (selection_periodic_connection and filter_non_corporate_dest and aggregate_beacon_pattern) or (selection_dns_c2 and filter_low_ttl_subdomain) or (selection_periodic_connection and filter_payload_size and aggregate_beacon_pattern)
+falsepositives:
+    - SaaS application heartbeats and telemetry (Teams, Slack, Datadog agents)
+    - Antivirus cloud lookup services with periodic check-in intervals
+    - NTP synchronization and time-based service polling
+level: high
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1071.004
+    - attack.t1573
+    - attack.t1095
+    - attack.persistence
+fields:
+    - src_ip
+    - dst_ip
+    - dst_port
+    - protocol
+    - bytes_sent
+    - bytes_received
+    - connection_duration_seconds
+    - dns_query
+    - dns_response
+    - process_name
+    - user

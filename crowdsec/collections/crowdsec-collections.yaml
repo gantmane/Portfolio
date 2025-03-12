@@ -1,0 +1,68 @@
+# CrowdSec collections to install
+# Run: cscli collections install <name> for each entry below,
+# or use the bootstrap script at the bottom of this file.
+#
+# Collections pull in bundled parsers + scenarios + postoverflows.
+
+collections:
+
+  # Web servers
+  - crowdsecurity/nginx          # Nginx parser + HTTP scenarios
+  - crowdsecurity/apache2        # Apache2 parser + HTTP scenarios
+
+  # Remote access
+  - crowdsecurity/sshd           # SSH brute-force (fast + slow)
+
+  # HTTP attack surface
+  - crowdsecurity/http-cve       # Known CVE exploit probing
+  - crowdsecurity/appsec-virtual-patching  # OWASP virtual patches
+
+  # Linux OS baseline
+  - crowdsecurity/linux          # Syslog, sudo abuse, OS-level threats
+  - crowdsecurity/linux-pam      # PAM auth failures
+
+  # Kubernetes
+  - crowdsecurity/kubernetes     # K8s audit log parser + scenarios
+  - crowdsecurity/k8s-audit-log  # Supplementary K8s audit scenarios
+
+  # WordPress (if applicable)
+  # - crowdsecurity/wordpress
+
+  # Databases (uncomment if log acquisition is configured)
+  # - crowdsecurity/mysql
+  # - crowdsecurity/postgresql
+
+  # Additional HTTP hardening
+  - crowdsecurity/whitelist-good-actors  # Known good bots (Googlebot, etc.)
+
+# --- Bootstrap script ---
+# #!/usr/bin/env bash
+# set -euo pipefail
+#
+# COLLECTIONS=(
+#   crowdsecurity/nginx
+#   crowdsecurity/apache2
+#   crowdsecurity/sshd
+#   crowdsecurity/http-cve
+#   crowdsecurity/appsec-virtual-patching
+#   crowdsecurity/linux
+#   crowdsecurity/linux-pam
+#   crowdsecurity/kubernetes
+#   crowdsecurity/k8s-audit-log
+#   crowdsecurity/whitelist-good-actors
+# )
+#
+# for collection in "${COLLECTIONS[@]}"; do
+#   echo "Installing: $collection"
+#   cscli collections install "$collection"
+# done
+#
+# # Install custom scenarios and parsers
+# cscli parsers install custom/payment-logs-parser
+# cscli scenarios install custom/card-testing
+# cscli scenarios install custom/payment-brute-force
+# cscli scenarios install custom/api-abuse
+#
+# # Reload CrowdSec
+# systemctl reload crowdsec
+# echo "Done."

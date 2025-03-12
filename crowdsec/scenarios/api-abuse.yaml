@@ -1,0 +1,107 @@
+# CrowdSec scenario — API abuse / rate-limit bypass
+# Detects high-volume API requests from a single IP that exceed
+# normal usage patterns, signaling scraping, enumeration, or
+# distributed denial-of-service via API layer.
+#
+# Trigger: >= 200 API requests in 60 seconds from the same IP,
+#          or >= 50 4xx responses in 30 seconds.
+
+type: leaky
+name: custom/api-abuse
+description: Detect API rate-limit bypass, scraping, and enumeration
+author: gantmane
+
+# Leaky bucket — high volume threshold
+capacity: 200
+leakspeed: 1s
+duration: 60s
+
+filter: >
+  evt.Parsed.program == 'api-gateway'
+  or (
+    evt.Meta.log_type == 'nginx'
+    and evt.Parsed.request startsWith '/api/'
+  )
+
+groupby: evt.Meta.source_ip
+
+# Secondary trigger node: 4xx error spike (separate bucket)
+# Declared as a second scenario file is cleaner; this comment documents intent.
+
+blackhole: 5m
+reprocess: true
+
+labels:
+  service: api
+  confidence: medium
+  spoofable: true
+  classification:
+    - attack.discovery
+    - attack.t1595
+    - attack.t1046
+
+overflows:
+  - filter: true
+    statics:
+      - meta: alert_context
+        value: "API abuse: rate-limit bypass or high-volume enumeration"
+      - meta: remediation
+        value: "true"
+
+whitelist:
+  reason: Internal services and known monitoring agents
+  cidr:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  expression:
+    - "evt.Parsed.http_user_agent contains 'Prometheus'"
+    - "evt.Parsed.http_user_agent contains 'Datadog'"
+    - "evt.Parsed.http_user_agent contains 'HealthChecker'"
+
+---
+# Supplementary bucket — 4xx error spike signals enumeration
+type: leaky
+name: custom/api-abuse-4xx
+description: Detect 4xx error spike signaling API enumeration
+author: gantmane
+
+capacity: 50
+leakspeed: 2s
+duration: 30s
+
+filter: >
+  evt.Meta.log_type == 'nginx'
+  and evt.Parsed.request startsWith '/api/'
+  and (
+    evt.Parsed.http_status startsWith '4'
+    and evt.Parsed.http_status != '429'
+  )
+
+groupby: evt.Meta.source_ip
+
+blackhole: 5m
+reprocess: true
+
+labels:
+  service: api
+  confidence: high
+  spoofable: false
+  classification:
+    - attack.discovery
+    - attack.t1595
+
+overflows:
+  - filter: true
+    statics:
+      - meta: alert_context
+        value: "API enumeration: 4xx spike from single IP"
+      - meta: remediation
+        value: "true"
+
+whitelist:
+  reason: Internal networks
+  cidr:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"

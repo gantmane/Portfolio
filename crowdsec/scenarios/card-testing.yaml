@@ -1,0 +1,120 @@
+# CrowdSec scenario — BIN enumeration / card testing
+# Detects systematic testing of card BIN ranges (first 6-8 digits)
+# from a single IP. Attackers test many BINs with small amounts ($0.01-$1.00)
+# to identify valid cards before scaling up fraud.
+#
+# Signals:
+#   1. Multiple unique BINs from one IP in a short window
+#   2. Small transaction amounts (micro-charges)
+#   3. Mix of hard declines (invalid card) and soft declines (do_not_honor)
+
+type: leaky
+name: custom/card-testing
+description: Detect BIN enumeration and card testing attacks
+author: gantmane
+
+# Sensitive bucket — 5 unique BINs in 10 minutes is already suspicious
+capacity: 5
+leakspeed: 30s
+duration: 10m
+
+filter: >
+  evt.Meta.log_type == 'payment-app'
+  and evt.Meta.is_payment_failure == 'true'
+  and evt.Meta.card_bin != ''
+  and (
+    evt.Meta.is_hard_decline == 'true'
+    or evt.Meta.payment_event == 'card_invalid'
+  )
+
+# Group by source IP — we want per-IP BIN diversity, not per-BIN
+groupby: evt.Meta.source_ip
+
+# Distinct BIN tracking — prevents counting same BIN multiple times
+# CrowdSec leaky bucket counts events; use distinct groupby on BIN
+# within the overflow expression to validate uniqueness.
+distinct: evt.Meta.card_bin
+
+blackhole: 10m
+reprocess: true
+
+labels:
+  service: payment
+  confidence: high
+  spoofable: false
+  classification:
+    - attack.credential_access
+    - attack.t1110.001
+    - attack.financial_fraud
+
+overflows:
+  - filter: "len(queue.GetDistinctCount('card_bin')) >= 3"
+    statics:
+      - meta: alert_context
+        value: "BIN enumeration: multiple distinct card BINs tested from single IP"
+      - meta: remediation
+        value: "true"
+      - meta: unique_bins_tested
+        expression: "string(len(queue.GetDistinctCount('card_bin')))"
+
+whitelist:
+  reason: Internal and test environments
+  ip:
+    - "127.0.0.1"
+  cidr:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  expression:
+    # Test card BINs (Stripe test cards start with 4242, 5555, etc.)
+    - "evt.Meta.card_bin in ['424242', '555555', '400000', '370000']"
+    - "evt.Meta.decline_reason == 'test_mode'"
+
+---
+# Supplementary scenario — micro-transaction probing
+# Small amounts ($0.01 - $1.00) are a classic card testing signal.
+type: leaky
+name: custom/card-testing-micro-charge
+description: Detect micro-transaction probing for card validation
+author: gantmane
+
+capacity: 8
+leakspeed: 20s
+duration: 15m
+
+filter: >
+  evt.Meta.log_type == 'payment-app'
+  and evt.Meta.payment_event in ['payment_declined', 'payment_failed']
+  and evt.Meta.amount != ''
+  and tonumber(evt.Meta.amount) > 0
+  and tonumber(evt.Meta.amount) <= 1.00
+
+groupby: evt.Meta.source_ip
+
+blackhole: 15m
+reprocess: true
+
+labels:
+  service: payment
+  confidence: medium
+  spoofable: false
+  classification:
+    - attack.financial_fraud
+    - attack.t1110
+
+overflows:
+  - filter: true
+    statics:
+      - meta: alert_context
+        value: "Card testing: repeated micro-charges ($0.01-$1.00) indicating card validation probing"
+      - meta: remediation
+        value: "true"
+
+whitelist:
+  reason: Internal and test environments
+  cidr:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  expression:
+    - "evt.Meta.decline_reason == 'test_mode'"

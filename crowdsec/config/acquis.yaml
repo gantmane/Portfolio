@@ -1,0 +1,75 @@
+# CrowdSec acquis.yaml
+# Log acquisition sources.
+
+---
+# Nginx access logs — HTTP threat detection
+filenames:
+  - /var/log/nginx/access.log
+  - /var/log/nginx/access.log.1
+  - /var/log/nginx/*.access.log
+labels:
+  type: nginx
+
+---
+# Nginx error logs — 4xx/5xx anomaly detection
+filenames:
+  - /var/log/nginx/error.log
+labels:
+  type: nginx
+
+---
+# SSH authentication — brute-force detection
+filenames:
+  - /var/log/auth.log
+  - /var/log/secure
+labels:
+  type: syslog
+
+---
+# Application payment logs — custom parser
+filenames:
+  - /var/log/app/payment.log
+  - /var/log/app/payment.log.*
+labels:
+  type: payment-app
+  program: payment-service
+
+---
+# Application API logs — rate-limit and abuse detection
+filenames:
+  - /var/log/app/api.log
+  - /var/log/app/api.log.*
+labels:
+  type: nginx
+  program: api-gateway
+
+---
+# Kubernetes audit logs — lateral movement and privilege escalation
+filenames:
+  - /var/log/kubernetes/audit/kube-apiserver-audit.log
+labels:
+  type: k8s-audit
+
+---
+# Docker container logs via journald
+source: journald
+journalctl_filter:
+  - "_TRANSPORT=stdout"
+  - "CONTAINER_NAME=nginx"
+labels:
+  type: nginx
+
+---
+# Syslog — general OS-level events
+filenames:
+  - /var/log/syslog
+  - /var/log/messages
+labels:
+  type: syslog
+
+---
+# CrowdSec agent self-monitoring via its own log (meta-detection)
+filenames:
+  - /var/log/crowdsec/crowdsec.log
+labels:
+  type: crowdsec

@@ -1,0 +1,80 @@
+# CrowdSec profiles.yaml
+# Maps scenario alerts to remediation decisions.
+# Evaluated top-to-bottom — first match wins.
+
+# --- Card testing / BIN enumeration: 7-day ban ---
+- name: card_testing_ban
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() in ["custom/card-testing", "custom/payment-brute-force"]
+  decisions:
+    - type: ban
+      duration: 168h
+  on_success: break
+
+# --- High-confidence CrowdSec threat intel: 48-hour ban ---
+- name: crowdsec_community_blocklist_ban
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() startsWith "crowdsecurity/"
+    - Alert.GetEventsCount() >= 10
+  decisions:
+    - type: ban
+      duration: 48h
+  on_success: break
+
+# --- API abuse: captcha challenge first, ban on repeat ---
+- name: api_abuse_captcha
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() == "custom/api-abuse"
+    - Alert.GetEventsCount() < 50
+  decisions:
+    - type: captcha
+      duration: 4h
+  on_success: break
+
+- name: api_abuse_ban
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() == "custom/api-abuse"
+    - Alert.GetEventsCount() >= 50
+  decisions:
+    - type: ban
+      duration: 24h
+  on_success: break
+
+# --- SSH brute-force: 12-hour ban ---
+- name: ssh_bruteforce_ban
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() in ["crowdsecurity/ssh-bf", "crowdsecurity/ssh-slow-bf"]
+  decisions:
+    - type: ban
+      duration: 12h
+  on_success: break
+
+# --- Nginx exploit scanners: 24-hour ban ---
+- name: http_probing_ban
+  filters:
+    - Alert.Remediation == true
+    - Alert.GetScenario() in [
+        "crowdsecurity/http-probing",
+        "crowdsecurity/http-bad-user-agent",
+        "crowdsecurity/http-path-traversal-probing",
+        "crowdsecurity/http-sqli-probing",
+        "crowdsecurity/http-xss-probing"
+      ]
+  decisions:
+    - type: ban
+      duration: 24h
+  on_success: break
+
+# --- Default fallback: 4-hour ban ---
+- name: default_ban
+  filters:
+    - Alert.Remediation == true
+  decisions:
+    - type: ban
+      duration: 4h
+  on_success: break

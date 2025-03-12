@@ -1,0 +1,69 @@
+# CrowdSec parser — custom payment application logs
+# Stage: s01-parse
+# Expects JSON log lines emitted by the payment service.
+#
+# Example log line:
+# {"time":"2024-01-15T10:23:45Z","level":"warn","event":"payment_declined",
+#  "ip":"1.2.3.4","card_bin":"411111","amount":1.00,"currency":"USD",
+#  "reason":"insufficient_funds","request_id":"abc-123","endpoint":"/api/v1/charge"}
+
+name: custom/payment-logs-parser
+description: Parse JSON payment service logs for card-testing and abuse detection
+author: gantmane
+labels:
+  type: payment-app
+
+filter: "evt.Meta.log_type == 'payment-app'"
+
+onsuccess: next_stage
+
+nodes:
+  # Parse raw JSON line
+  - grok:
+      name: PAYMENT_JSON
+      pattern: '%{DATA:payment_json}'
+      apply_on: Line
+    statics:
+      - meta: log_type
+        value: payment-app
+
+  # Extract fields from JSON payload
+  - nodes:
+      - filter: "evt.Line.Raw != ''"
+        statics:
+          - meta: source_ip
+            expression: "JsonExtract(evt.Line.Raw, 'ip')"
+          - meta: card_bin
+            expression: "JsonExtract(evt.Line.Raw, 'card_bin')"
+          - meta: payment_event
+            expression: "JsonExtract(evt.Line.Raw, 'event')"
+          - meta: endpoint
+            expression: "JsonExtract(evt.Line.Raw, 'endpoint')"
+          - meta: decline_reason
+            expression: "JsonExtract(evt.Line.Raw, 'reason')"
+          - meta: amount
+            expression: "JsonExtract(evt.Line.Raw, 'amount')"
+          - meta: currency
+            expression: "JsonExtract(evt.Line.Raw, 'currency')"
+          - meta: request_id
+            expression: "JsonExtract(evt.Line.Raw, 'request_id')"
+          - target: evt.StrTime
+            expression: "JsonExtract(evt.Line.Raw, 'time')"
+
+  # Normalize: map source_ip to evt.Meta.source_ip for scenario consumption
+  - statics:
+      - meta: IsInEU
+        expression: "GeoIPEnrich(evt.Meta.source_ip)"
+      - target: evt.MarshaledTime
+        expression: "evt.StrTime"
+
+postoverflows:
+  - filter: "evt.Meta.payment_event in ['payment_declined', 'payment_failed', 'card_invalid']"
+    statics:
+      - meta: is_payment_failure
+        value: "true"
+
+  - filter: "evt.Meta.decline_reason in ['do_not_honor', 'card_not_supported', 'invalid_card_number']"
+    statics:
+      - meta: is_hard_decline
+        value: "true"

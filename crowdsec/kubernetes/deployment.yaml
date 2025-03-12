@@ -1,0 +1,253 @@
+---
+# CrowdSec Kubernetes deployment
+# Components:
+#   1. Namespace
+#   2. LAPI Deployment + Service (central decision API)
+#   3. Agent DaemonSet (reads node logs, sends alerts to LAPI)
+#   4. Bouncer DaemonSet (nginx-bouncer — enforces bans at ingress)
+#   5. RBAC for K8s audit log access
+#   6. Prometheus ServiceMonitor
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crowdsec
+  labels:
+    app.kubernetes.io/name: crowdsec
+
+---
+# LAPI — Local API (decision store + bouncer endpoint)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-lapi
+  namespace: crowdsec
+  labels:
+    app: crowdsec-lapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crowdsec-lapi
+  template:
+    metadata:
+      labels:
+        app: crowdsec-lapi
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "6060"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: crowdsec
+      containers:
+        - name: crowdsec-lapi
+          image: crowdsecurity/crowdsec:latest
+          imagePullPolicy: Always
+          args: ["-c", "/etc/crowdsec/config.yaml.local"]
+          env:
+            - name: CROWDSEC_FEATURE_FLAGS
+              value: ""
+            - name: DISABLE_AGENT
+              value: "true"
+            - name: DISABLE_ONLINE_API
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: crowdsec-lapi-secrets
+          ports:
+            - name: lapi
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 6060
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/crowdsec/config.yaml.local
+              subPath: config.yaml.local
+            - name: profiles
+              mountPath: /etc/crowdsec/profiles.yaml
+              subPath: profiles.yaml
+            - name: data
+              mountPath: /var/lib/crowdsec/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: crowdsec-config
+        - name: profiles
+          configMap:
+            name: crowdsec-profiles
+        - name: data
+          persistentVolumeClaim:
+            claimName: crowdsec-lapi-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crowdsec-lapi
+  namespace: crowdsec
+  labels:
+    app: crowdsec-lapi
+spec:
+  selector:
+    app: crowdsec-lapi
+  ports:
+    - name: lapi
+      port: 8080
+      targetPort: 8080
+    - name: metrics
+      port: 6060
+      targetPort: 6060
+  type: ClusterIP
+
+---
+# Agent DaemonSet — reads node logs and ships alerts to LAPI
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: crowdsec-agent
+  namespace: crowdsec
+  labels:
+    app: crowdsec-agent
+spec:
+  selector:
+    matchLabels:
+      app: crowdsec-agent
+  template:
+    metadata:
+      labels:
+        app: crowdsec-agent
+    spec:
+      serviceAccountName: crowdsec
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      hostPID: false
+      hostNetwork: false
+      containers:
+        - name: crowdsec-agent
+          image: crowdsecurity/crowdsec:latest
+          imagePullPolicy: Always
+          env:
+            - name: DISABLE_LOCAL_API
+              value: "true"
+            - name: LOCAL_API_URL
+              value: "http://crowdsec-lapi:8080"
+          envFrom:
+            - secretRef:
+                name: crowdsec-agent-secrets
+          volumeMounts:
+            - name: acquis
+              mountPath: /etc/crowdsec/acquis.yaml
+              subPath: acquis.yaml
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: pods-logs
+              mountPath: /var/log/pods
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: acquis
+          configMap:
+            name: crowdsec-acquis
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: pods-logs
+          hostPath:
+            path: /var/log/pods
+
+---
+# RBAC — allow agent to read K8s audit logs via API
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crowdsec
+  namespace: crowdsec
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crowdsec-agent
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["audit.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crowdsec-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crowdsec-agent
+subjects:
+  - kind: ServiceAccount
+    name: crowdsec
+    namespace: crowdsec
+
+---
+# Prometheus ServiceMonitor (requires prometheus-operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: crowdsec-lapi
+  namespace: crowdsec
+  labels:
+    app: crowdsec-lapi
+spec:
+  selector:
+    matchLabels:
+      app: crowdsec-lapi
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+
+---
+# PVC for LAPI state (decisions database)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crowdsec-lapi-data
+  namespace: crowdsec
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path

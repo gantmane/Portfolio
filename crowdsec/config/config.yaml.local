@@ -1,0 +1,52 @@
+# CrowdSec config.yaml.local
+# Overrides for /etc/crowdsec/config.yaml
+# Drop this file into /etc/crowdsec/ — it is merged at startup.
+
+common:
+  log_level: info
+  log_media: stdout
+  log_dir: /var/log/crowdsec/
+  working_dir: /var/lib/crowdsec/data/
+
+crowdsec_service:
+  acquisition_path: /etc/crowdsec/acquis.yaml
+  acquisition_dir: /etc/crowdsec/acquis.d/
+  parser_routines: 4
+  buckets_routines: 4
+  output_routines: 4
+
+# Local API server — exposes decisions to bouncers
+api:
+  server:
+    listen_uri: 0.0.0.0:8080
+    profiles_path: /etc/crowdsec/profiles.yaml
+    console_path: /etc/crowdsec/console.yaml
+    log_level: info
+    use_forwarded_for_headers: true
+    trusted_proxies:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+  client:
+    insecure_skip_verify: false
+    credentials_path: /etc/crowdsec/local_api_credentials.yaml
+
+# Prometheus metrics scraping
+prometheus:
+  enabled: true
+  listen_addr: 0.0.0.0
+  listen_port: 6060
+  level: full
+
+# Central API (CrowdSec cloud threat intelligence)
+capi_whitelists: /etc/crowdsec/capi-whitelists.yaml
+
+db_config:
+  type: postgresql
+  db_name: crowdsec
+  host: postgres
+  port: 5432
+  sslmode: require
+  flush:
+    max_items: 5000
+    max_age: 7d

@@ -1,0 +1,61 @@
+# CrowdSec scenario — payment endpoint brute-force
+# Detects repeated failed payment attempts from a single IP,
+# a classic signal for carding / credential stuffing on checkout.
+#
+# Trigger: >= 10 payment_declined events in 5 minutes from the same IP.
+
+type: leaky
+name: custom/payment-brute-force
+description: Detect brute-force card testing on payment endpoints
+author: gantmane
+
+# Leaky bucket parameters
+capacity: 10
+leakspeed: 10s
+duration: 5m
+
+# Only fire on payment failure events parsed by custom-payment-logs-parser
+filter: >
+  evt.Meta.log_type == 'payment-app'
+  and evt.Meta.payment_event in [
+    'payment_declined',
+    'payment_failed',
+    'card_invalid',
+    'authentication_failed'
+  ]
+
+# Bucket key — one bucket per source IP
+groupby: evt.Meta.source_ip
+
+# Remediation — request a ban decision
+blackhole: 2m
+reprocess: true
+
+labels:
+  service: payment
+  confidence: high
+  spoofable: false
+  classification:
+    - attack.credential_access
+    - attack.t1110
+
+# Enrich the alert with context
+overflows:
+  - filter: true
+    statics:
+      - meta: alert_context
+        value: "Payment brute-force: repeated card declines"
+      - meta: remediation
+        value: "true"
+
+# Whitelists — internal subnets and test harness IPs
+whitelist:
+  reason: Internal networks and test payment systems
+  ip:
+    - "127.0.0.1"
+  cidr:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  expression:
+    - "evt.Meta.decline_reason == 'test_mode'"

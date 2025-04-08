@@ -1,0 +1,74 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+  annotations:
+    description: "Requires Kubernetes resources to carry specified labels."
+    cis.benchmark.control: "5.2.1"
+    cis.benchmark.title: "Ensure that Kubernetes resources are labeled appropriately for workload identification and cost attribution."
+    policy.gatekeeper.sh/version: "v1.0.0"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: "Custom message to include in violation output."
+            labels:
+              type: array
+              description: "List of label keys that must be present on matching resources."
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  allowedRegex:
+                    type: string
+                    description: "Optional regex that the label value must match."
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        violation contains msg if {
+          some label in input.parameters.labels
+          provided := {k | input.review.object.metadata.labels[k]}
+          not label.key in provided
+          msg := sprintf(
+            "%v: Resource <%v/%v> is missing required label '%v'. %v",
+            [
+              input.parameters.message,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              label.key,
+              "Add the label before deploying.",
+            ],
+          )
+        }
+
+        violation contains msg if {
+          some label in input.parameters.labels
+          label.allowedRegex != ""
+          value := input.review.object.metadata.labels[label.key]
+          not regex.match(label.allowedRegex, value)
+          msg := sprintf(
+            "%v: Resource <%v/%v> label '%v' value '%v' does not match required pattern '%v'.",
+            [
+              input.parameters.message,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              label.key,
+              value,
+              label.allowedRegex,
+            ],
+          )
+        }

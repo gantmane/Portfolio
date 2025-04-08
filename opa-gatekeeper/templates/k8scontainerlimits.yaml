@@ -1,0 +1,107 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainerlimits
+  annotations:
+    description: "Requires all containers to define CPU and memory resource limits."
+    cis.benchmark.control: "5.2.5"
+    cis.benchmark.title: "Ensure that resource limits are set for all containers to prevent resource exhaustion attacks."
+    policy.gatekeeper.sh/version: "v1.0.0"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerLimits
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            exemptImages:
+              type: array
+              description: "List of image prefixes exempt from this policy."
+              items:
+                type: string
+            maxMemory:
+              type: string
+              description: "Maximum allowed memory limit (e.g. 2Gi). Empty means no upper bound check."
+            maxCPU:
+              type: string
+              description: "Maximum allowed CPU limit (e.g. 2000m). Empty means no upper bound check."
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainerlimits
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        # Collect all containers across init and regular containers.
+        all_containers contains container if {
+          some container in input.review.object.spec.containers
+        }
+
+        all_containers contains container if {
+          some container in input.review.object.spec.initContainers
+        }
+
+        # Check whether an image is exempt.
+        is_exempt(image) if {
+          some prefix in input.parameters.exemptImages
+          startswith(image, prefix)
+        }
+
+        # Violation: missing limits block entirely.
+        violation contains msg if {
+          some container in all_containers
+          not is_exempt(container.image)
+          not container.resources.limits
+          msg := sprintf(
+            "Container <%v> in <%v/%v> has no resource limits defined. Set resources.limits.cpu and resources.limits.memory.",
+            [container.name, input.review.object.kind, input.review.object.metadata.name],
+          )
+        }
+
+        # Violation: limits block present but memory limit missing.
+        violation contains msg if {
+          some container in all_containers
+          not is_exempt(container.image)
+          container.resources.limits
+          not container.resources.limits.memory
+          msg := sprintf(
+            "Container <%v> in <%v/%v> is missing resources.limits.memory.",
+            [container.name, input.review.object.kind, input.review.object.metadata.name],
+          )
+        }
+
+        # Violation: limits block present but CPU limit missing.
+        violation contains msg if {
+          some container in all_containers
+          not is_exempt(container.image)
+          container.resources.limits
+          not container.resources.limits.cpu
+          msg := sprintf(
+            "Container <%v> in <%v/%v> is missing resources.limits.cpu.",
+            [container.name, input.review.object.kind, input.review.object.metadata.name],
+          )
+        }
+
+        # Violation: memory limit exceeds configured maximum.
+        violation contains msg if {
+          input.parameters.maxMemory != ""
+          some container in all_containers
+          not is_exempt(container.image)
+          memory_bytes := units.parse_bytes(container.resources.limits.memory)
+          max_bytes := units.parse_bytes(input.parameters.maxMemory)
+          memory_bytes > max_bytes
+          msg := sprintf(
+            "Container <%v> in <%v/%v> memory limit <%v> exceeds maximum allowed <%v>.",
+            [
+              container.name,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              container.resources.limits.memory,
+              input.parameters.maxMemory,
+            ],
+          )
+        }

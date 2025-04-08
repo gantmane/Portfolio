@@ -1,0 +1,92 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sallowedrepos
+  annotations:
+    description: "Restricts container images to an approved registry allowlist, preventing pull from untrusted sources."
+    cis.benchmark.control: "5.5.1"
+    cis.benchmark.title: "Ensure that image provenance is established and only images from trusted registries are admitted."
+    policy.gatekeeper.sh/version: "v1.0.0"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sAllowedRepos
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            repos:
+              type: array
+              description: "Allowlisted registry prefixes. Images must start with one of these values."
+              items:
+                type: string
+            blockLatest:
+              type: boolean
+              description: "When true, reject images tagged :latest (unpinned)."
+              default: true
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sallowedrepos
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        all_containers contains container if {
+          some container in input.review.object.spec.containers
+        }
+
+        all_containers contains container if {
+          some container in input.review.object.spec.initContainers
+        }
+
+        all_containers contains container if {
+          some container in input.review.object.spec.ephemeralContainers
+        }
+
+        # Returns true when at least one allowlisted prefix matches the image.
+        image_allowed(image) if {
+          some prefix in input.parameters.repos
+          startswith(image, prefix)
+        }
+
+        # Parse the tag portion of an image reference.
+        image_tag(image) := tag if {
+          parts := split(image, ":")
+          count(parts) >= 2
+          tag := parts[count(parts) - 1]
+        }
+
+        image_tag(image) := "latest" if {
+          not contains(image, ":")
+        }
+
+        # Violation: image not from an allowed registry.
+        violation contains msg if {
+          some container in all_containers
+          not image_allowed(container.image)
+          msg := sprintf(
+            "Container <%v> in <%v/%v> uses image <%v> from a disallowed registry. Allowed prefixes: %v",
+            [
+              container.name,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              container.image,
+              input.parameters.repos,
+            ],
+          )
+        }
+
+        # Violation: :latest tag used when blockLatest is enabled.
+        violation contains msg if {
+          input.parameters.blockLatest == true
+          some container in all_containers
+          image_allowed(container.image)
+          image_tag(container.image) == "latest"
+          msg := sprintf(
+            "Container <%v> in <%v/%v> uses the ':latest' tag which is not allowed in this environment. Pin to a specific digest or version tag.",
+            [container.name, input.review.object.kind, input.review.object.metadata.name],
+          )
+        }

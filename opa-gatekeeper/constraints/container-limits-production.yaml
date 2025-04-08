@@ -1,0 +1,38 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerLimits
+metadata:
+  name: container-limits-production
+  annotations:
+    description: "All containers in production must declare CPU and memory limits. Memory cap is 4Gi to prevent noisy-neighbour scenarios."
+    cis.benchmark.control: "5.2.5"
+    policy.owner: "platform-engineering"
+spec:
+  enforcementAction: deny
+  match:
+    namespaces:
+      - production
+    kinds:
+      - apiGroups:
+          - apps
+        kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - ReplicaSet
+      - apiGroups:
+          - ""
+        kinds:
+          - Pod
+      - apiGroups:
+          - batch
+        kinds:
+          - Job
+          - CronJob
+  parameters:
+    # Images that self-manage their resource footprint and are pre-approved.
+    exemptImages:
+      - "registry.internal.example.com/infra/fluentd:"
+      - "registry.internal.example.com/infra/node-exporter:"
+    # Hard ceiling enforced by policy; LimitRange provides defaults.
+    maxMemory: "4Gi"
+    maxCPU: ""

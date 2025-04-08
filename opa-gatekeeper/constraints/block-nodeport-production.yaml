@@ -1,0 +1,21 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sBlockNodePort
+metadata:
+  name: block-nodeport-production
+  annotations:
+    description: "NodePort services are blocked in production. All external traffic must flow through the Ingress controller or a LoadBalancer with security group controls."
+    cis.benchmark.control: "5.3.2"
+    policy.owner: "platform-engineering"
+spec:
+  enforcementAction: deny
+  match:
+    namespaces:
+      - production
+    kinds:
+      - apiGroups:
+          - ""
+        kinds:
+          - Service
+  parameters:
+    # No namespaces are exempt in production. Add staging/monitoring here if needed.
+    allowedNamespaces: []

@@ -1,0 +1,38 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: require-team-labels-production
+  annotations:
+    description: "Enforce team, environment, and cost-center labels on all workloads in the production namespace."
+    cis.benchmark.control: "5.2.1"
+    policy.owner: "platform-engineering"
+spec:
+  # Warn rather than deny during rollout; switch to Deny once adoption is measured.
+  enforcementAction: deny
+  match:
+    namespaces:
+      - production
+    kinds:
+      - apiGroups:
+          - apps
+        kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+      - apiGroups:
+          - batch
+        kinds:
+          - CronJob
+          - Job
+  parameters:
+    message: "Missing required organizational label"
+    labels:
+      - key: team
+        # Must be a slug: lowercase letters, digits, hyphens.
+        allowedRegex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+      - key: environment
+        # Only these four values are valid in production.
+        allowedRegex: "^(production|prod|staging|canary)$"
+      - key: cost-center
+        # Finance cost-center codes follow CC-NNNN format.
+        allowedRegex: "^CC-[0-9]{4}$"

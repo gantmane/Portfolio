@@ -1,0 +1,33 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireProbes
+metadata:
+  name: require-probes-production
+  annotations:
+    description: "All application containers in production must configure livenessProbe and readinessProbe to enable Kubernetes self-healing and safe rolling deployments."
+    cis.benchmark.control: "5.4.1"
+    policy.owner: "platform-engineering"
+spec:
+  enforcementAction: deny
+  match:
+    namespaces:
+      - production
+    kinds:
+      - apiGroups:
+          - apps
+        kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+      - apiGroups:
+          - ""
+        kinds:
+          - Pod
+  parameters:
+    probes:
+      - livenessProbe
+      - readinessProbe
+    exemptImages:
+      # Short-lived one-shot containers managed by the migration operator.
+      - "registry.internal.example.com/infra/db-migrator:"
+      # Pause containers injected by the kubelet.
+      - "registry.k8s.io/pause:"

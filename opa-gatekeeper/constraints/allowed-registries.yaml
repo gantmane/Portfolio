@@ -1,0 +1,41 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sAllowedRepos
+metadata:
+  name: allowed-registries-production
+  annotations:
+    description: "Only images from approved internal and curated public registries may run in production. The :latest tag is blocked."
+    cis.benchmark.control: "5.5.1"
+    policy.owner: "platform-engineering"
+spec:
+  enforcementAction: deny
+  match:
+    namespaces:
+      - production
+    kinds:
+      - apiGroups:
+          - apps
+        kinds:
+          - Deployment
+          - StatefulSet
+          - DaemonSet
+          - ReplicaSet
+      - apiGroups:
+          - ""
+        kinds:
+          - Pod
+      - apiGroups:
+          - batch
+        kinds:
+          - Job
+          - CronJob
+  parameters:
+    blockLatest: true
+    repos:
+      # Internal Harbor registry — all internally built images.
+      - "registry.internal.example.com/"
+      # AWS ECR private registry for this account.
+      - "123456789012.dkr.ecr.eu-west-1.amazonaws.com/"
+      # Curated mirror of Docker Hub maintained by platform team.
+      - "mirror.internal.example.com/library/"
+      # Distroless base images used by build pipeline.
+      - "gcr.io/distroless/"

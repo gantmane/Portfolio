@@ -1,0 +1,101 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireprobes
+  annotations:
+    description: "Requires containers to define liveness and readiness probes to enable Kubernetes self-healing and safe traffic routing."
+    cis.benchmark.control: "5.4.1"
+    cis.benchmark.title: "Ensure that liveness and readiness probes are configured for all workload containers to support availability and safe rollouts."
+    policy.gatekeeper.sh/version: "v1.0.0"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireProbes
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            probes:
+              type: array
+              description: "List of probe types to require. Valid values: livenessProbe, readinessProbe, startupProbe."
+              items:
+                type: string
+            exemptImages:
+              type: array
+              description: "Image prefixes exempt from probe requirements (e.g. short-lived init containers)."
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireprobes
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        # Only regular containers need probes; init containers are excluded.
+        app_containers contains container if {
+          some container in input.review.object.spec.containers
+        }
+
+        is_exempt(image) if {
+          some prefix in input.parameters.exemptImages
+          startswith(image, prefix)
+        }
+
+        # Validate that a probe is structurally non-empty.
+        # A probe must have at least one handler: exec, httpGet, or tcpSocket.
+        probe_valid(probe) if {
+          probe.exec.command
+          count(probe.exec.command) > 0
+        }
+
+        probe_valid(probe) if {
+          probe.httpGet.path
+        }
+
+        probe_valid(probe) if {
+          probe.tcpSocket.port
+        }
+
+        probe_valid(probe) if {
+          probe.grpc.port
+        }
+
+        # Violation: required probe is absent.
+        violation contains msg if {
+          some probe_name in input.parameters.probes
+          some container in app_containers
+          not is_exempt(container.image)
+          not container[probe_name]
+          msg := sprintf(
+            "Container <%v> in <%v/%v> is missing '%v'. Configure the probe to enable Kubernetes health management.",
+            [
+              container.name,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              probe_name,
+            ],
+          )
+        }
+
+        # Violation: probe field exists but has no valid handler configured.
+        violation contains msg if {
+          some probe_name in input.parameters.probes
+          some container in app_containers
+          not is_exempt(container.image)
+          probe := container[probe_name]
+          probe
+          not probe_valid(probe)
+          msg := sprintf(
+            "Container <%v> in <%v/%v> has '%v' defined but no handler (exec, httpGet, tcpSocket, or grpc) is configured. The probe will never execute.",
+            [
+              container.name,
+              input.review.object.kind,
+              input.review.object.metadata.name,
+              probe_name,
+            ],
+          )
+        }

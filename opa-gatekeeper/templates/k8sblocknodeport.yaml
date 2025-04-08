@@ -1,0 +1,77 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sblocknodeport
+  annotations:
+    description: "Blocks creation of Services of type NodePort, which expose workloads on every node's public interface."
+    cis.benchmark.control: "5.3.2"
+    cis.benchmark.title: "Ensure that Services do not use type NodePort, which bypasses network policies and exposes ports on all cluster nodes."
+    policy.gatekeeper.sh/version: "v1.0.0"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sBlockNodePort
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedNamespaces:
+              type: array
+              description: "Namespaces exempt from this restriction (e.g. monitoring tooling that legitimately needs NodePort)."
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sblocknodeport
+
+        import future.keywords.contains
+        import future.keywords.if
+        import future.keywords.in
+
+        # Only evaluate Service objects.
+        is_service if {
+          input.review.object.kind == "Service"
+        }
+
+        # Check whether the current namespace is exempt.
+        namespace_exempt if {
+          ns := input.review.object.metadata.namespace
+          some allowed in input.parameters.allowedNamespaces
+          ns == allowed
+        }
+
+        # Violation: Service type is NodePort and namespace is not exempt.
+        violation contains msg if {
+          is_service
+          not namespace_exempt
+          input.review.object.spec.type == "NodePort"
+          msg := sprintf(
+            "Service <%v> in namespace <%v> uses type NodePort. NodePort services expose the application on all node IPs and bypass NetworkPolicy. Use type ClusterIP with an Ingress controller instead.",
+            [
+              input.review.object.metadata.name,
+              input.review.object.metadata.namespace,
+            ],
+          )
+        }
+
+        # Violation: Service has explicit nodePort values on ports even when type is not NodePort.
+        # Some operators set nodePort integers on ClusterIP services accidentally.
+        violation contains msg if {
+          is_service
+          not namespace_exempt
+          input.review.object.spec.type != "NodePort"
+          some port in input.review.object.spec.ports
+          port.nodePort
+          port.nodePort > 0
+          msg := sprintf(
+            "Service <%v> in namespace <%v> has nodePort <%v> explicitly set on port <%v>. Remove nodePort field when not using type NodePort.",
+            [
+              input.review.object.metadata.name,
+              input.review.object.metadata.namespace,
+              port.nodePort,
+              port.port,
+            ],
+          )
+        }

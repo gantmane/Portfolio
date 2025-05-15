@@ -1,0 +1,212 @@
+---
+# Istio PeerAuthentication: Enforce STRICT mTLS Cluster-Wide
+# Author: Evgeniy Gantman
+# Purpose: Require mutual TLS for all service-to-service communication in the mesh
+#
+# Compliance:
+#   - PCI DSS 4.2.1 — Strong cryptography for transmission of CHD over open networks
+#   - PCI DSS 4.2.1.1 — Inventory of trusted certificates
+#   - CIS Kubernetes Benchmark 5.2 — Restrict network communications
+#   - NIST SP 800-204A — Building Secure Microservices-based Applications
+#
+# How mTLS Works in Istio:
+#   Without mTLS: Service A → plain HTTP → Service B (network sniffing possible)
+#   With STRICT mTLS: Service A ←[TLS handshake + cert verification]→ Service B
+#
+#   Istio injects an Envoy sidecar into every pod. The sidecar:
+#   1. Intercepts all inbound/outbound traffic transparently
+#   2. Performs TLS termination and mutual certificate verification
+#   3. Uses SPIFFE X.509 identities (SVID) issued by Istiod's built-in CA
+#   4. Certificate format: spiffe://cluster.local/ns/NAMESPACE/sa/SERVICE_ACCOUNT
+#
+# Modes:
+#   STRICT  — All traffic must use mTLS. Non-mTLS traffic is rejected.
+#   PERMISSIVE — Accept both mTLS and plain text (use during migration only)
+#   DISABLE — Disable mTLS (never use in production)
+
+# ============================================================================
+# Cluster-Wide Default: STRICT mTLS for All Namespaces
+# Applied to the root namespace (istio-system) — inherits to all namespaces
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  # Applying to istio-system sets the mesh-wide default
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/compliance: pci-dss
+    security.io/control: mtls
+  annotations:
+    description: "Mesh-wide STRICT mTLS — all inter-service traffic requires mutual TLS"
+    security.io/pci-dss: "4.2.1"
+    security.io/rationale: >
+      STRICT mode ensures all communication between Envoy sidecars uses mTLS.
+      This prevents plaintext eavesdropping even within the cluster network,
+      satisfies PCI DSS 4.2.1 for transmission of cardholder data, and
+      provides cryptographic identity verification for every service.
+spec:
+  selector:
+    matchLabels: {}  # Empty selector = applies to all workloads in namespace
+  mtls:
+    mode: STRICT
+
+---
+# ============================================================================
+# Payment Namespace: STRICT mTLS with Additional Port-Level Controls
+# More restrictive than the mesh default for CDE workloads
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: payment-strict-mtls
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/compliance: pci-dss
+    security.io/pci-scope: "true"
+    security.io/control: mtls
+  annotations:
+    description: "Payment namespace STRICT mTLS with per-port configuration"
+    security.io/pci-dss: "4.2.1,4.2.1.1"
+spec:
+  selector:
+    matchLabels: {}
+  mtls:
+    # STRICT at namespace level applies to all ports by default
+    mode: STRICT
+  # Port-level overrides: explicitly declare each port is STRICT
+  # This makes intent clear and prevents accidental PERMISSIVE overrides
+  portLevelMtls:
+    8080:
+      mode: STRICT  # HTTP API port
+    8443:
+      mode: STRICT  # HTTPS port
+    9090:
+      mode: STRICT  # gRPC port
+    9091:
+      mode: STRICT  # Internal metrics — STRICT prevents metrics scraping without cert
+
+---
+# ============================================================================
+# Production Namespace: STRICT mTLS
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: production-strict-mtls
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/compliance: pci-dss
+    security.io/control: mtls
+  annotations:
+    description: "Production namespace STRICT mTLS"
+spec:
+  selector:
+    matchLabels: {}
+  mtls:
+    mode: STRICT
+
+---
+# ============================================================================
+# Monitoring Namespace: STRICT mTLS
+# Prometheus scraping uses mTLS — requires Prometheus configured with client certs
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: monitoring-strict-mtls
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/control: mtls
+  annotations:
+    description: "Monitoring namespace STRICT mTLS"
+    security.io/note: >
+      Prometheus must be configured with client certificates for mTLS scraping.
+      Use PodMonitor resources with tlsConfig to provide certificates.
+      Alternatively, exclude port 15090 (Envoy admin) if using Istio scraping.
+spec:
+  selector:
+    matchLabels: {}
+  mtls:
+    mode: STRICT
+
+---
+# ============================================================================
+# Exception: Prometheus Scraping Port (if not using Istio-native metrics)
+# If Prometheus is not mesh-enrolled, allow PERMISSIVE on metrics ports only
+# Remove this once Prometheus is configured for mTLS scraping
+# ============================================================================
+# TEMPORARY — Remove after Prometheus mTLS configuration is complete
+# apiVersion: security.istio.io/v1beta1
+# kind: PeerAuthentication
+# metadata:
+#   name: allow-prometheus-scrape-permissive
+#   namespace: production
+# spec:
+#   selector:
+#     matchLabels:
+#       monitoring.io/scrape: "true"
+#   mtls:
+#     mode: STRICT
+#   portLevelMtls:
+#     9090:
+#       mode: PERMISSIVE  # Only for legacy non-mTLS Prometheus
+
+---
+# ============================================================================
+# DestinationRule: Enforce mTLS on the CLIENT side
+# PeerAuthentication controls SERVER side acceptance.
+# DestinationRule controls CLIENT side — must be set to ensure clients use mTLS.
+# ============================================================================
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mtls-all-services-production
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/control: mtls
+  annotations:
+    description: "Client-side mTLS: all services in production use ISTIO_MUTUAL"
+    security.io/rationale: >
+      ISTIO_MUTUAL uses Istio's automatically issued certificates (SPIFFE SVIDs).
+      This ensures that even if a pod's service account is compromised,
+      the attacker cannot impersonate another service without its private key.
+spec:
+  # Apply to all hosts in the cluster (wildcard)
+  host: "*.production.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      # ISTIO_MUTUAL: Istio manages certs automatically via workload identity
+      # Alternative: MUTUAL (if using custom certs via Secret)
+      mode: ISTIO_MUTUAL
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mtls-all-services-payment
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/control: mtls
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Client-side mTLS for all payment namespace services"
+spec:
+  host: "*.payment.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    # Additional: connection pool settings prevent connection exhaustion attacks
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30ms
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10

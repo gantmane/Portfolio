@@ -1,0 +1,315 @@
+---
+# Istio AuthorizationPolicy: Service-to-Service Access Control
+# Author: Evgeniy Gantman
+# Purpose: Enforce RBAC for service-to-service communication within the Istio mesh
+#          using verified SPIFFE cryptographic identities
+#
+# Compliance:
+#   - PCI DSS 7.2 — Restrict access to system components to least privilege
+#   - PCI DSS 7.3.1 — All access by system accounts is managed via access control system
+#   - NIST SP 800-204A — Building Secure Microservices-based Applications
+#   - CIS Kubernetes Benchmark 5.2 — Apply security context at pod level
+#
+# How AuthorizationPolicy Works:
+#   Istio's Envoy sidecars enforce authorization at the receiving end.
+#   Identity is derived from the X.509 certificate presented during mTLS:
+#
+#     SPIFFE ID: spiffe://cluster.local/ns/NAMESPACE/sa/SERVICE_ACCOUNT
+#
+#   AuthorizationPolicy allows or denies requests based on:
+#     - source.principal (SPIFFE identity of caller)
+#     - source.namespace (caller's namespace)
+#     - HTTP method, path, headers (L7 control)
+#     - JWT claims (when RequestAuthentication is present)
+#
+#   Evaluation order: CUSTOM → DENY → ALLOW
+#   If no ALLOW policy matches: request is denied by default.
+
+# ============================================================================
+# Deny-All Default: All namespaces deny unless explicitly allowed
+# This + subsequent ALLOW policies = least-privilege access control
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all-default
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: deny-all
+    security.io/compliance: pci-dss
+  annotations:
+    description: >
+      Deny all traffic to production namespace by default.
+      Subsequent ALLOW policies grant specific access paths.
+      Mirrors the NetworkPolicy default-deny approach at L7.
+spec:
+  # Empty spec = deny all
+  {}
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all-default
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: deny-all
+    security.io/pci-scope: "true"
+spec:
+  {}
+
+---
+# ============================================================================
+# Allow: API Gateway → Payment API
+# Only the api-gateway service account may call payment-api
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-to-payment-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow API Gateway (service account) to call Payment API on specific paths"
+    security.io/pci-dss: "7.2,7.3.1"
+spec:
+  # Target: payment-api workload
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            # Verify via SPIFFE identity from mTLS certificate
+            principals:
+              - "cluster.local/ns/production/sa/api-gateway"
+      to:
+        - operation:
+            # Restrict to specific HTTP methods and paths
+            methods: ["GET", "POST"]
+            paths:
+              - "/api/v1/payments/*"
+              - "/api/v1/refunds/*"
+              - "/health"
+              - "/metrics"
+
+---
+# ============================================================================
+# Allow: API Gateway → Order API
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-to-order-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/production/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE"]
+            paths:
+              - "/api/v1/orders/*"
+              - "/health"
+              - "/metrics"
+
+---
+# ============================================================================
+# Allow: Order API → Payment API (order initiates payment)
+# L7: Only POST to /payments endpoint (not GET — order cannot read payment records)
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-order-to-payment-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow Order API to initiate payments — POST only, no read access"
+    security.io/rationale: >
+      Order service needs to create payments (POST) but must not be able to
+      list/read payment records (GET). L7 method restriction enforces this.
+      GET access to payment data is restricted to the API Gateway only.
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/production/sa/order-api"
+      to:
+        - operation:
+            # POST only — order service cannot read or delete payment records
+            methods: ["POST"]
+            paths:
+              - "/api/v1/payments"
+              - "/api/v1/payments/*/capture"
+              - "/api/v1/payments/*/void"
+
+---
+# ============================================================================
+# Allow: Payment Namespace Internal Communication
+# payment-api, card-processor, and transaction-service may call each other
+# All must use service accounts within the payment namespace
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-payment-internal
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Allow payment microservices to communicate with each other"
+    security.io/pci-dss: "7.2"
+spec:
+  selector:
+    matchLabels:
+      security.io/pci-scope: "true"
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            # All service accounts in the payment namespace
+            namespaces: ["payment"]
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+
+---
+# ============================================================================
+# Allow: Prometheus → All Services (metrics scraping)
+# Prometheus must scrape /metrics from all pods
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow Prometheus to scrape /metrics endpoints from all production pods"
+spec:
+  # Applies to all pods with metrics label
+  selector:
+    matchLabels:
+      monitoring.io/scrape: "true"
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/monitoring/sa/prometheus"
+      to:
+        - operation:
+            methods: ["GET"]
+            paths:
+              - "/metrics"
+              - "/actuator/prometheus"  # Spring Boot Actuator
+              - "/q/metrics"            # Quarkus
+
+---
+# ============================================================================
+# Deny: Block All Access to Admin Endpoints from Non-Admin Sources
+# DENY policies are evaluated before ALLOW — they override any ALLOW match
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-admin-access
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: deny-specific
+  annotations:
+    description: >
+      Explicitly deny access to admin, debug, and actuator endpoints
+      from all sources except the approved admin service account.
+      DENY action is evaluated before ALLOW — blocks even explicitly allowed principals.
+spec:
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            # Block access to administrative paths cluster-wide
+            paths:
+              - "/admin/*"
+              - "/actuator/env"     # Spring Boot env vars (may expose secrets)
+              - "/actuator/heapdump"  # Java heap dump (memory extraction)
+              - "/actuator/threaddump"
+              - "/debug/*"
+              - "/**/swagger-ui.html"  # Block Swagger UI in production
+              - "/**/api-docs"         # Block raw OpenAPI spec
+      from:
+        # Deny from any source EXCEPT the admin principal
+        - source:
+            notPrincipals:
+              - "cluster.local/ns/operations/sa/admin-api"
+
+---
+# ============================================================================
+# Allow: Vault Agent Sidecar Communication
+# Vault agent sidecar calls the Vault server to renew leases
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-vault-agent
+  namespace: vault
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: allow-specific
+  annotations:
+    description: "Allow Vault agents from production/payment to reach Vault server"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            # Vault agents injected into production and payment namespaces
+            namespaces:
+              - production
+              - payment
+            principals:
+              # Service accounts that have vault-agent annotation
+              - "cluster.local/ns/production/sa/payment-api"
+              - "cluster.local/ns/production/sa/order-api"
+              - "cluster.local/ns/payment/sa/payment-processor"
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT"]
+            paths:
+              - "/v1/auth/*"      # Vault auth endpoints
+              - "/v1/secret/*"    # KV secrets
+              - "/v1/pki/*"       # PKI certificate issuance
+              - "/v1/sys/renew/*" # Lease renewal
+              - "/v1/sys/health"  # Health check

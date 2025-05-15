@@ -1,0 +1,263 @@
+---
+# Istio RequestAuthentication: JWT Validation at Service Mesh
+# Author: Evgeniy Gantman
+# Purpose: Validate JWT tokens at the Envoy sidecar before requests reach services,
+#          offloading auth from each service to the mesh infrastructure
+#
+# Compliance:
+#   - PCI DSS 8.2.1 — All users assigned a unique ID before allowing system access
+#   - PCI DSS 8.6.1 — All user accounts authenticated before access
+#   - NIST SP 800-204A — Authentication at the microservice boundary
+#   - OAuth 2.0 / OIDC — RFC 6749, RFC 7519 (JWT)
+#
+# Architecture:
+#   Client → [Bearer JWT] → API Gateway (validates JWT, enriches headers)
+#                         → Envoy sidecar (validates JWT again at mesh boundary)
+#                         → Service (trusts X-User-Id header from sidecar)
+#
+#   Defense in depth: JWT validated at:
+#   1. API Gateway (external boundary)
+#   2. Istio sidecar (internal mesh boundary)
+#   This prevents a compromised internal service from calling other services
+#   without a valid JWT, even with a valid mTLS certificate.
+#
+#   RequestAuthentication alone does NOT block requests without JWT.
+#   Pair with AuthorizationPolicy condition (notRequestPrincipals: ["*"])
+#   to block unauthenticated requests.
+
+# ============================================================================
+# JWT Validation for Production API Services
+# Validates tokens issued by the internal OIDC provider
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: jwt-production-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/compliance: pci-dss
+    security.io/control: jwt-auth
+  annotations:
+    description: "Validate JWT tokens from internal OIDC provider for all production API services"
+    security.io/pci-dss: "8.2.1,8.6.1"
+spec:
+  # Apply to all workloads with API label
+  selector:
+    matchLabels:
+      tier: application
+  jwtRules:
+    # -------------------------------------------------------------------------
+    # Internal OIDC Provider (Keycloak / Dex / Auth0)
+    # Tokens issued after successful user authentication
+    # -------------------------------------------------------------------------
+    - issuer: "https://auth.internal.example.com"
+      # JWKS endpoint — Istio fetches public keys for signature verification
+      jwksUri: "https://auth.internal.example.com/.well-known/jwks.json"
+      # Audience must match — prevents token reuse across environments
+      audiences:
+        - "api.internal.example.com"
+        - "payment-api"
+      # Extract JWT from Authorization header Bearer token
+      # Istio checks this header by default
+      fromHeaders:
+        - name: Authorization
+          prefix: "Bearer "
+      # Also accept JWT from cookie for browser clients
+      fromCookies:
+        - session_token
+      # Forward validated claims to upstream service as headers
+      # Service can trust these headers without re-validating JWT
+      forwardOriginalToken: true
+      # Output claims to X-JWT-* headers for use by upstream services
+      outputClaimToHeaders:
+        - header: "x-jwt-sub"
+          claim: "sub"         # User subject (unique user ID)
+        - header: "x-jwt-email"
+          claim: "email"       # User email address
+        - header: "x-jwt-roles"
+          claim: "roles"       # User role assignments
+        - header: "x-jwt-scope"
+          claim: "scope"       # OAuth scopes granted
+
+    # -------------------------------------------------------------------------
+    # Service Account Tokens (M2M)
+    # Machine-to-machine tokens for batch jobs and internal services
+    # -------------------------------------------------------------------------
+    - issuer: "https://auth.internal.example.com/m2m"
+      jwksUri: "https://auth.internal.example.com/m2m/.well-known/jwks.json"
+      audiences:
+        - "internal-services"
+      fromHeaders:
+        - name: Authorization
+          prefix: "Bearer "
+      outputClaimToHeaders:
+        - header: "x-service-id"
+          claim: "client_id"
+        - header: "x-service-scope"
+          claim: "scope"
+
+---
+# ============================================================================
+# JWT Validation for Payment API (Stricter Rules)
+# Additional audience and scope validation for PCI-scope services
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: jwt-payment-api
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/compliance: pci-dss
+    security.io/pci-scope: "true"
+    security.io/control: jwt-auth
+  annotations:
+    description: "Strict JWT validation for payment API — requires payment-scoped tokens"
+    security.io/pci-dss: "8.2.1,8.6.1"
+    security.io/rationale: >
+      Payment endpoints require tokens with the 'payments:write' scope explicitly
+      granted. A valid access token for other services cannot be reused for
+      payment operations. This prevents privilege escalation via token misuse.
+spec:
+  selector:
+    matchLabels:
+      security.io/pci-scope: "true"
+  jwtRules:
+    - issuer: "https://auth.internal.example.com"
+      jwksUri: "https://auth.internal.example.com/.well-known/jwks.json"
+      # Payment API only accepts tokens with payment-specific audience
+      audiences:
+        - "payment-api.internal.example.com"
+      fromHeaders:
+        - name: Authorization
+          prefix: "Bearer "
+      forwardOriginalToken: true
+      outputClaimToHeaders:
+        - header: "x-jwt-sub"
+          claim: "sub"
+        - header: "x-jwt-roles"
+          claim: "roles"
+        - header: "x-payment-scope"
+          claim: "scope"  # Must contain "payments:write" for write operations
+
+---
+# ============================================================================
+# AuthorizationPolicy: Block Requests Without Valid JWT
+# RequestAuthentication alone doesn't block missing JWTs — it only validates.
+# This AuthorizationPolicy denies requests where no JWT principal is present.
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: require-jwt-for-api
+  namespace: production
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: require-auth
+  annotations:
+    description: >
+      Deny all requests that do not carry a valid JWT (no request principal).
+      Must be paired with RequestAuthentication — if JWT is invalid,
+      RequestAuthentication rejects it; if missing, this policy blocks it.
+spec:
+  selector:
+    matchLabels:
+      tier: application
+  action: DENY
+  rules:
+    - from:
+        - source:
+            # notRequestPrincipals: ["*"] matches requests with NO valid JWT
+            # Combined with RequestAuthentication, this blocks:
+            #   1. No JWT provided → blocked by this policy
+            #   2. Invalid/expired JWT → blocked by RequestAuthentication (401)
+            notRequestPrincipals: ["*"]
+      to:
+        # Block JWT-less requests to all API paths
+        # Exemptions: health checks and Prometheus metrics (no auth needed)
+        - operation:
+            notPaths:
+              - "/health"
+              - "/healthz"
+              - "/readyz"
+              - "/metrics"
+              - "/actuator/health"
+
+---
+# ============================================================================
+# AuthorizationPolicy: Require Specific JWT Scope for Payment Write Operations
+# Validates that the token contains required OAuth scope claim
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: require-payment-scope
+  namespace: payment
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/policy-type: require-scope
+    security.io/pci-scope: "true"
+  annotations:
+    description: "Require 'payments:write' scope for payment mutation endpoints"
+    security.io/pci-dss: "7.2,8.6.1"
+    security.io/rationale: >
+      Even with a valid JWT, callers must have the 'payments:write' scope
+      to create or modify payments. Read-only tokens (scope: 'payments:read')
+      cannot trigger financial transactions.
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-api
+  action: DENY
+  rules:
+    - to:
+        # Mutation endpoints require payments:write scope
+        - operation:
+            methods: ["POST", "PUT", "PATCH", "DELETE"]
+            paths:
+              - "/api/v1/payments/*"
+              - "/api/v1/refunds/*"
+      when:
+        # Deny if scope claim does not contain payments:write
+        - key: request.auth.claims[scope]
+          notValues: ["payments:write", "payments:admin"]
+
+---
+# ============================================================================
+# JWT Validation for Ingress Gateway (External Traffic Entry Point)
+# Validates tokens from external clients before allowing into the mesh
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: jwt-ingress-gateway
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    security.io/control: jwt-auth
+  annotations:
+    description: "Validate JWT at the Istio Ingress Gateway for external clients"
+    security.io/rationale: >
+      Validating JWT at the ingress gateway provides an early rejection point
+      for requests with missing or invalid tokens, reducing load on upstream
+      services from unauthenticated requests. Internal service-to-service calls
+      bypass the ingress gateway and are controlled by PeerAuthentication.
+spec:
+  # Apply to the Istio ingress gateway pods
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+    - issuer: "https://auth.internal.example.com"
+      jwksUri: "https://auth.internal.example.com/.well-known/jwks.json"
+      audiences:
+        - "api.internal.example.com"
+        - "payment-api.internal.example.com"
+      fromHeaders:
+        - name: Authorization
+          prefix: "Bearer "
+      # Cache JWKS for 10 minutes to reduce load on auth server
+      # Istio default is 20 minutes; reduce for tighter key rotation
+      # jwksUri refresh controlled by Istio pilot configuration
+      forwardOriginalToken: true

@@ -1,0 +1,93 @@
+kind: role
+version: v7
+metadata:
+  name: admin
+  description: "Full administrative access with MFA enforcement and session recording"
+spec:
+  options:
+    # MFA required for all administrative sessions
+    require_session_mfa: yes
+    # Max session TTL
+    max_session_ttl: 8h
+    # Session recording
+    record_session:
+      desktop: true
+      ssh: true
+    # Idle timeout
+    client_idle_timeout: 30m
+    disconnect_expired_cert: yes
+    # Enforce MFA for privileged access
+    create_host_user: false
+    pin_source_ip: true
+    forward_agent: true
+    port_forwarding: true
+
+  allow:
+    # SSH access — all nodes
+    node_labels:
+      "*": "*"
+    logins:
+      - root
+      - "{{internal.logins}}"
+    # Host groups
+    host_groups:
+      - "*"
+    host_sudoers:
+      - "ALL=(ALL) ALL"
+
+    # Kubernetes — full cluster access
+    kubernetes_groups:
+      - system:masters
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]
+      - kind: "*"
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]
+
+    # Database access — all databases
+    db_labels:
+      "*": "*"
+    db_names:
+      - "*"
+    db_users:
+      - root
+      - postgres
+      - admin
+      - "{{internal.db_users}}"
+
+    # App access
+    app_labels:
+      "*": "*"
+
+    # Rules — full admin API access
+    rules:
+      - resources:
+          - "*"
+        verbs:
+          - "*"
+
+    # Review session recordings and audit logs
+    review_requests:
+      roles: ["*"]
+      where: ""
+
+    # Join running sessions
+    join_sessions:
+      - name: Join any SSH session
+        roles: ["*"]
+        kinds: ["ssh"]
+        modes: ["moderator", "observer", "peer"]
+      - name: Join any K8s session
+        roles: ["*"]
+        kinds: ["k8s"]
+        modes: ["moderator", "observer"]
+
+  deny:
+    # No explicit denials — admin has full access
+    logins: []

@@ -1,0 +1,123 @@
+kind: role
+version: v7
+metadata:
+  name: readonly
+  description: "Read-only audit observer — SSH view, audit logs, no shell execution"
+spec:
+  options:
+    # MFA not required for view-only, but still enforced by connector policy
+    require_session_mfa: no
+    max_session_ttl: 4h
+    record_session:
+      desktop: false
+      ssh: false
+    client_idle_timeout: 15m
+    disconnect_expired_cert: yes
+    create_host_user: false
+    pin_source_ip: false
+    forward_agent: false
+    # No port forwarding for readonly
+    port_forwarding: false
+    # Prevent SSH exec — observer mode only
+    ssh_file_copy: false
+
+  allow:
+    # SSH — observer join only (no interactive shell start)
+    node_labels:
+      "*": "*"
+    # No logins — cannot initiate SSH sessions
+    logins: []
+
+    # Join existing sessions as observer only
+    join_sessions:
+      - name: Observe any SSH session
+        roles: ["*"]
+        kinds: ["ssh", "k8s"]
+        modes: ["observer"]
+
+    # Kubernetes — read-only cluster-wide
+    kubernetes_groups:
+      - view
+    kubernetes_labels:
+      "*": "*"
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: pod/log
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list"]
+      - kind: deployment
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: service
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: node
+        namespace: ""
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: namespace
+        namespace: ""
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: event
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+
+    # Audit log access — core compliance use case
+    rules:
+      - resources: ["event"]
+        verbs: ["list", "read"]
+      - resources: ["session"]
+        verbs: ["list", "read"]
+      - resources: ["session_recording"]
+        verbs: ["read", "list"]
+      - resources: ["audit_query"]
+        verbs: ["create", "read", "list"]
+      - resources: ["security_report"]
+        verbs: ["list", "read"]
+      - resources: ["user"]
+        verbs: ["list", "read"]
+      - resources: ["role"]
+        verbs: ["list", "read"]
+      - resources: ["node"]
+        verbs: ["list", "read"]
+      - resources: ["db_server"]
+        verbs: ["list", "read"]
+      - resources: ["app_server"]
+        verbs: ["list", "read"]
+      - resources: ["kube_server"]
+        verbs: ["list", "read"]
+      - resources: ["access_request"]
+        verbs: ["list", "read"]
+
+  deny:
+    # No shell execution — enforce observer-only
+    logins:
+      - root
+      - ubuntu
+      - ec2-user
+      - app
+      - "{{internal.logins}}"
+    # No database access
+    db_labels:
+      "*": "*"
+    # No app modification
+    app_labels:
+      "*": "*"
+    # No K8s mutations
+    kubernetes_resources:
+      - kind: "*"
+        namespace: "*"
+        name: "*"
+        verbs: ["create", "update", "patch", "delete", "deletecollection"]
+      - kind: secret
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]

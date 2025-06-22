@@ -1,0 +1,94 @@
+version: v3
+teleport:
+  nodename: teleport.example.com
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: json
+  ca_pin: ""
+  diag_addr: "127.0.0.1:3000"
+
+auth_service:
+  enabled: true
+  cluster_name: teleport.example.com
+  listen_addr: 0.0.0.0:3025
+  public_addr: teleport.example.com:3025
+  tokens:
+    - "proxy,node,app,db,kube:${TELEPORT_JOIN_TOKEN}"
+
+  authentication:
+    type: oidc
+    second_factor: webauthn
+    webauthn:
+      rp_id: teleport.example.com
+    connector_name: keycloak
+    require_session_mfa: yes
+    local_auth: false
+
+  session_recording:
+    mode: node
+    proxy_checks_host_keys: yes
+
+  client_idle_timeout: 15m
+  disconnect_expired_cert: yes
+
+  audit_events_uri:
+    - "dynamodb://teleport-audit-events"
+    - "file:///var/lib/teleport/audit/events"
+
+  audit_sessions_uri: "s3://teleport-session-recordings/sessions?region=us-east-1&sse=aws:kms"
+
+proxy_service:
+  enabled: true
+  public_addr: teleport.example.com:443
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:3024
+  web_listen_addr: 0.0.0.0:3080
+  https_cert_file: /var/lib/teleport/certs/tls.crt
+  https_key_file: /var/lib/teleport/certs/tls.key
+  kube_listen_addr: 0.0.0.0:3026
+  kube_public_addr: teleport.example.com:3026
+  mysql_listen_addr: 0.0.0.0:3036
+  postgres_listen_addr: 0.0.0.0:5432
+
+ssh_service:
+  enabled: false
+
+kubernetes_service:
+  enabled: false
+
+db_service:
+  enabled: false
+
+---
+# OIDC Connector — apply with: tctl create -f keycloak-oidc.yaml
+kind: oidc
+version: v2
+metadata:
+  name: keycloak
+spec:
+  issuer_url: "https://keycloak.example.com/realms/teleport"
+  client_id: "${KEYCLOAK_CLIENT_ID}"
+  client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+  redirect_url: "https://teleport.example.com/v1/webapi/oidc/callback"
+  display: "Keycloak SSO"
+  scope:
+    - openid
+    - profile
+    - email
+    - roles
+  claims_to_roles:
+    - claim: groups
+      value: "teleport-admins"
+      roles: ["admin"]
+    - claim: groups
+      value: "teleport-developers"
+      roles: ["developer"]
+    - claim: groups
+      value: "teleport-readonly"
+      roles: ["readonly"]
+  username_claim: email
+  google_admin_email: ""
+  acr_values: ""

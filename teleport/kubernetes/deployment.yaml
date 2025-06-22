@@ -1,0 +1,495 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: teleport
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+    app.kubernetes.io/component: auth
+  annotations:
+    # AWS IRSA — bind to IAM role for S3/DynamoDB access
+    eks.amazonaws.com/role-arn: "${TELEPORT_IAM_ROLE_ARN}"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teleport-config
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+data:
+  teleport.yaml: |
+    version: v3
+    teleport:
+      nodename: teleport.example.com
+      data_dir: /var/lib/teleport
+      log:
+        output: stderr
+        severity: INFO
+        format:
+          output: json
+    auth_service:
+      enabled: true
+      cluster_name: teleport.example.com
+      listen_addr: 0.0.0.0:3025
+      public_addr: teleport.example.com:3025
+      authentication:
+        type: oidc
+        second_factor: webauthn
+        webauthn:
+          rp_id: teleport.example.com
+        connector_name: keycloak
+        require_session_mfa: yes
+        local_auth: false
+      session_recording:
+        mode: node
+      audit_events_uri:
+        - "dynamodb://teleport-audit-events"
+      audit_sessions_uri: "s3://teleport-session-recordings/sessions?region=us-east-1&sse=aws:kms"
+      client_idle_timeout: 15m
+      disconnect_expired_cert: yes
+    proxy_service:
+      enabled: true
+      public_addr: teleport.example.com:443
+      listen_addr: 0.0.0.0:3023
+      tunnel_listen_addr: 0.0.0.0:3024
+      web_listen_addr: 0.0.0.0:3080
+      kube_listen_addr: 0.0.0.0:3026
+      mysql_listen_addr: 0.0.0.0:3036
+      postgres_listen_addr: 0.0.0.0:5432
+    ssh_service:
+      enabled: false
+    kubernetes_service:
+      enabled: true
+      listen_addr: 0.0.0.0:3027
+      kube_cluster_name: prod-cluster
+    db_service:
+      enabled: false
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: teleport-secrets
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+type: Opaque
+# Populate via external-secrets or sealed-secrets — do NOT hardcode values
+# kubectl create secret generic teleport-secrets \
+#   --from-literal=keycloak-client-id="${KEYCLOAK_CLIENT_ID}" \
+#   --from-literal=keycloak-client-secret="${KEYCLOAK_CLIENT_SECRET}" \
+#   --from-literal=join-token="${TELEPORT_JOIN_TOKEN}" \
+#   --namespace=teleport
+stringData: {}
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: teleport
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+    app.kubernetes.io/component: auth-proxy
+    app.kubernetes.io/version: "15.0.0"
+  annotations:
+    # Force rollout on config change
+    checksum/config: "${CONFIG_CHECKSUM}"
+spec:
+  serviceName: teleport-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: teleport
+      app.kubernetes.io/component: auth-proxy
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: teleport
+        app.kubernetes.io/component: auth-proxy
+        app.kubernetes.io/version: "15.0.0"
+    spec:
+      serviceAccountName: teleport
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 60
+
+      # Security context — restricted pod security standard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: teleport
+              topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: teleport
+
+      initContainers:
+        - name: teleport-init
+          image: public.ecr.aws/gravitational/teleport-distroless:15.0.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              tctl status || echo "Auth not ready — first boot"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/teleport
+
+      containers:
+        - name: teleport
+          image: public.ecr.aws/gravitational/teleport-distroless:15.0.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config=/etc/teleport/teleport.yaml"
+            - "--diag-addr=0.0.0.0:3000"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+
+          env:
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: teleport-secrets
+                  key: keycloak-client-id
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: teleport-secrets
+                  key: keycloak-client-secret
+            - name: TELEPORT_JOIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: teleport-secrets
+                  key: join-token
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+          ports:
+            - name: auth
+              containerPort: 3025
+              protocol: TCP
+            - name: proxy-ssh
+              containerPort: 3023
+              protocol: TCP
+            - name: proxy-tunnel
+              containerPort: 3024
+              protocol: TCP
+            - name: web
+              containerPort: 3080
+              protocol: TCP
+            - name: kube
+              containerPort: 3026
+              protocol: TCP
+            - name: kube-svc
+              containerPort: 3027
+              protocol: TCP
+            - name: mysql
+              containerPort: 3036
+              protocol: TCP
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+            - name: diag
+              containerPort: 3000
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: diag
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: diag
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 3
+
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: diag
+            failureThreshold: 30
+            periodSeconds: 10
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/teleport
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: config
+          configMap:
+            name: teleport-config
+            defaultMode: 0440
+        - name: tmp
+          emptyDir: {}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/name: teleport
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: gp3-encrypted
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+  annotations:
+    # AWS NLB for low-latency SSH/proxy traffic
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "${ACM_CERT_ARN}"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: teleport
+    app.kubernetes.io/component: auth-proxy
+  ports:
+    - name: https
+      port: 443
+      targetPort: web
+      protocol: TCP
+    - name: proxy-ssh
+      port: 3023
+      targetPort: proxy-ssh
+      protocol: TCP
+    - name: proxy-tunnel
+      port: 3024
+      targetPort: proxy-tunnel
+      protocol: TCP
+    - name: auth
+      port: 3025
+      targetPort: auth
+      protocol: TCP
+    - name: kube
+      port: 3026
+      targetPort: kube
+      protocol: TCP
+    - name: mysql
+      port: 3036
+      targetPort: mysql
+      protocol: TCP
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+  sessionAffinity: None
+  externalTrafficPolicy: Local
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport-headless
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: teleport
+    app.kubernetes.io/component: auth-proxy
+  ports:
+    - name: auth
+      port: 3025
+      targetPort: auth
+    - name: web
+      port: 3080
+      targetPort: web
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: teleport-pdb
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: teleport
+      app.kubernetes.io/component: auth-proxy
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: teleport-network-policy
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: teleport
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow all Teleport protocol ports from any source (NLB terminates)
+    - ports:
+        - port: 3023
+        - port: 3024
+        - port: 3025
+        - port: 3026
+        - port: 3027
+        - port: 3036
+        - port: 3080
+        - port: 5432
+    # Allow health checks from kubelet and LB
+    - ports:
+        - port: 3000
+  egress:
+    # Allow DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow HTTPS for Keycloak OIDC, DynamoDB, S3
+    - ports:
+        - port: 443
+    # Allow internal cluster communication
+    - ports:
+        - port: 3025
+    # Allow node SSH access
+    - ports:
+        - port: 3022
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: teleport-hpa
+  namespace: teleport
+  labels:
+    app.kubernetes.io/name: teleport
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: teleport
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

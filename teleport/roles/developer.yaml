@@ -1,0 +1,129 @@
+kind: role
+version: v7
+metadata:
+  name: developer
+  description: "Developer access — dev/staging SSH, non-prod K8s namespaces, no DB"
+spec:
+  options:
+    # MFA required for SSH
+    require_session_mfa: yes
+    max_session_ttl: 10h
+    record_session:
+      desktop: false
+      ssh: true
+    client_idle_timeout: 20m
+    disconnect_expired_cert: yes
+    # Prevent privilege escalation
+    create_host_user: false
+    pin_source_ip: false
+    forward_agent: false
+    port_forwarding: true
+
+  allow:
+    # SSH — dev and staging environments only
+    node_labels:
+      environment:
+        - dev
+        - staging
+    logins:
+      - "{{internal.logins}}"
+      - ubuntu
+      - ec2-user
+      - app
+    host_groups: []
+    host_sudoers:
+      - "app ALL=(app) NOPASSWD: /usr/bin/systemctl status *"
+
+    # Kubernetes — non-production namespaces only
+    kubernetes_groups:
+      - developers
+      - view
+    kubernetes_labels:
+      environment:
+        - dev
+        - staging
+    kubernetes_resources:
+      - kind: pod
+        namespace: "dev"
+        name: "*"
+        verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+      - kind: pod
+        namespace: "staging"
+        name: "*"
+        verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+      - kind: pod
+        namespace: "default"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: pod/log
+        namespace: "*"
+        name: "*"
+        verbs: ["get", "list"]
+      - kind: deployment
+        namespace: "dev"
+        name: "*"
+        verbs: ["get", "list", "watch", "update", "patch"]
+      - kind: deployment
+        namespace: "staging"
+        name: "*"
+        verbs: ["get", "list", "watch", "update", "patch"]
+      - kind: service
+        namespace: "dev"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: service
+        namespace: "staging"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+      - kind: configmap
+        namespace: "dev"
+        name: "*"
+        verbs: ["get", "list", "watch", "update", "patch"]
+      - kind: configmap
+        namespace: "staging"
+        name: "*"
+        verbs: ["get", "list", "watch"]
+
+    # App access — dev/staging apps only
+    app_labels:
+      environment:
+        - dev
+        - staging
+
+    # Audit self — read own sessions
+    rules:
+      - resources: ["session"]
+        verbs: ["list", "read"]
+      - resources: ["event"]
+        verbs: ["list"]
+
+  deny:
+    # Explicitly block production SSH
+    node_labels:
+      environment:
+        - prod
+        - production
+    # Block all DB access
+    db_labels:
+      "*": "*"
+    # Block production K8s
+    kubernetes_labels:
+      environment:
+        - prod
+        - production
+    kubernetes_resources:
+      - kind: secret
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]
+      - kind: pod
+        namespace: "prod"
+        name: "*"
+        verbs: ["*"]
+      - kind: pod
+        namespace: "kube-system"
+        name: "*"
+        verbs: ["*"]
+    # Block admin logins
+    logins:
+      - root

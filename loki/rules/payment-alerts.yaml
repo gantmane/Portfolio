@@ -1,0 +1,103 @@
+groups:
+  - name: payment_errors
+    interval: 1m
+    rules:
+      - alert: PaymentTransactionErrorRateHigh
+        expr: |
+          (
+            sum(rate({app="payment-service", status="error"}[5m])) by (namespace, app)
+            /
+            sum(rate({app="payment-service"}[5m])) by (namespace, app)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: payments
+          runbook: https://wiki.internal/runbooks/payment-error-rate
+        annotations:
+          summary: "Payment transaction error rate above 5%"
+          description: "Error rate for {{ $labels.app }} in {{ $labels.namespace }} is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: PaymentTransactionErrorSpike
+        expr: |
+          sum(count_over_time({app="payment-service"} |= "ERROR" [1m])) by (namespace) > 50
+        for: 1m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Payment error log spike detected"
+          description: "More than 50 ERROR log lines per minute in payment-service ({{ $labels.namespace }})."
+
+      - alert: PaymentGatewayTimeout
+        expr: |
+          count_over_time({app="payment-gateway"} |= "timeout" [5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+          team: payments
+          runbook: https://wiki.internal/runbooks/payment-gateway-timeout
+        annotations:
+          summary: "Payment gateway timeout errors"
+          description: "More than 10 timeout errors in payment-gateway over 5 minutes."
+
+      - alert: PaymentDeclineRateHigh
+        expr: |
+          (
+            sum(count_over_time({app="payment-service"} | json | status="declined" [5m])) by (currency)
+            /
+            sum(count_over_time({app="payment-service"} [5m])) by (currency)
+          ) > 0.15
+        for: 3m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "High payment decline rate for {{ $labels.currency }}"
+          description: "Payment decline rate is {{ $value | humanizePercentage }} for currency {{ $labels.currency }}."
+
+  - name: payment_latency
+    interval: 1m
+    rules:
+      - alert: PaymentProcessingLatencyP99High
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate({app="payment-service"} | json | unwrap latency_ms [5m])) by (le, namespace)
+          ) > 3000
+        for: 5m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Payment processing P99 latency above 3s"
+          description: "P99 latency for payment-service in {{ $labels.namespace }} is above 3000ms."
+
+      - alert: PaymentProcessingLatencyP99Critical
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate({app="payment-service"} | json | unwrap latency_ms [5m])) by (le, namespace)
+          ) > 10000
+        for: 2m
+        labels:
+          severity: critical
+          team: payments
+          runbook: https://wiki.internal/runbooks/payment-latency-critical
+        annotations:
+          summary: "Payment processing P99 latency above 10s - CRITICAL"
+          description: "P99 latency for payment-service in {{ $labels.namespace }} exceeds 10000ms. Possible downstream failure."
+
+      - alert: PaymentLogVolumeAnomaly
+        expr: |
+          (
+            sum(rate({app="payment-service"} [5m])) by (namespace)
+            /
+            sum(rate({app="payment-service"} [1h] offset 1h)) by (namespace)
+          ) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: payments
+          runbook: https://wiki.internal/runbooks/payment-log-silence
+        annotations:
+          summary: "Payment service log volume dropped by 90%"
+          description: "Log throughput for payment-service has dropped significantly — possible service failure or log pipeline issue."

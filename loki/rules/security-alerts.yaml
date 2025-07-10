@@ -1,0 +1,122 @@
+groups:
+  - name: auth_failures
+    interval: 1m
+    rules:
+      - alert: BruteForceLoginDetected
+        expr: |
+          sum(count_over_time({job=~".*"} |= "authentication failed" [5m])) by (namespace, pod) > 20
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre: T1110
+          runbook: https://wiki.internal/runbooks/brute-force-detected
+        annotations:
+          summary: "Brute force login attempt detected"
+          description: "More than 20 authentication failures in 5 minutes on {{ $labels.pod }} ({{ $labels.namespace }})."
+
+      - alert: AuthFailureSpike
+        expr: |
+          sum(rate({job=~".*"} |~ "(?i)(auth.fail|login.fail|invalid.credential|unauthorized)" [10m])) by (namespace) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+          mitre: T1078
+        annotations:
+          summary: "Authentication failure rate spike"
+          description: "Auth failure rate in {{ $labels.namespace }} exceeded 0.5/s over 10 minutes — possible credential stuffing."
+
+      - alert: PrivilegeEscalationAttempt
+        expr: |
+          count_over_time({job=~".*"} |~ "(?i)(sudo|privilege.escalat|permission.denied|access.denied)" [5m]) > 15
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          mitre: T1548
+          runbook: https://wiki.internal/runbooks/privilege-escalation
+        annotations:
+          summary: "Possible privilege escalation attempt"
+          description: "Multiple privilege escalation indicators detected in logs over 5 minutes."
+
+      - alert: AdminAccountUsageOffHours
+        expr: |
+          count_over_time({job=~".*"} |~ "(?i)(admin|root|superuser)" |= "login" [5m]) > 0
+          and hour() >= 22 or hour() <= 6
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+          mitre: T1078.002
+        annotations:
+          summary: "Admin account login outside business hours"
+          description: "Admin account activity detected at {{ $value }} events during off-hours."
+
+  - name: suspicious_patterns
+    interval: 1m
+    rules:
+      - alert: SQLInjectionAttempt
+        expr: |
+          count_over_time({job=~".*"} |~ "(?i)(union.select|drop.table|insert.into|xp_cmdshell|exec\\(|1=1|or.1=1)" [5m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+          mitre: T1190
+          owasp: A03
+          runbook: https://wiki.internal/runbooks/sql-injection
+        annotations:
+          summary: "SQL injection pattern detected in logs"
+          description: "SQL injection signatures found in application logs — immediate investigation required."
+
+      - alert: PathTraversalAttempt
+        expr: |
+          count_over_time({job=~".*"} |~ "(?i)(\\.\\.[\\/]|%2e%2e[\\/]|\\.\\.\\\\" [5m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+          mitre: T1083
+          owasp: A01
+        annotations:
+          summary: "Path traversal attempt detected"
+          description: "Directory traversal patterns detected in log stream — possible LFI/RFI attempt."
+
+      - alert: SensitiveDataLeakInLogs
+        expr: |
+          count_over_time({job=~".*"} |~ "(?i)(card.number|cvv|ssn|social.security|password=|passwd=)" [5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+          team_secondary: compliance
+          runbook: https://wiki.internal/runbooks/pii-leak-detected
+        annotations:
+          summary: "PII/sensitive data detected unredacted in logs"
+          description: "Unredacted sensitive data patterns found in log stream — PII redaction pipeline may have failed."
+
+      - alert: ExcessiveAPIErrors
+        expr: |
+          sum(count_over_time({app=~".*-api"} |= "429" [5m])) by (app, namespace) > 100
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+          mitre: T1498
+        annotations:
+          summary: "Excessive rate-limit hits on API {{ $labels.app }}"
+          description: "More than 100 HTTP 429 responses in 5 minutes on {{ $labels.app }} ({{ $labels.namespace }}) — possible DoS or scraping."
+
+      - alert: ContainerEscapeIndicator
+        expr: |
+          count_over_time({job="systemd-journal"} |~ "(?i)(container.escape|nsenter|chroot|unshare.*--pid|cap_sys_admin)" [10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+          mitre: T1611
+          runbook: https://wiki.internal/runbooks/container-escape
+        annotations:
+          summary: "Container escape attempt indicator in system logs"
+          description: "System journal contains patterns associated with container escape techniques — escalate immediately."

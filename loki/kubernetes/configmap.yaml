@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: logging
+  labels:
+    app: loki
+    component: log-aggregation
+data:
+  loki-config.yaml: |
+    auth_enabled: true
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+      log_level: info
+
+    common:
+      path_prefix: /loki
+      replication_factor: 3
+      ring:
+        instance_addr: 0.0.0.0
+        kvstore:
+          store: memberlist
+
+    memberlist:
+      join_members:
+        - loki-memberlist.logging.svc.cluster.local:7946
+      bind_port: 7946
+      dead_node_reclaim_time: 30s
+      gossip_interval: 5s
+      gossip_nodes: 3
+
+    schema_config:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+    storage_config:
+      tsdb_shipper:
+        active_index_directory: /loki/tsdb-index
+        cache_location: /loki/tsdb-cache
+        cache_ttl: 24h
+      aws:
+        s3: s3://loki-chunks
+        region: ${AWS_REGION}
+        endpoint: ${S3_ENDPOINT}
+        access_key_id: ${AWS_ACCESS_KEY_ID}
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        s3forcepathstyle: true
+        sse_encryption: true
+
+    compactor:
+      working_directory: /loki/compactor
+      compaction_interval: 10m
+      retention_enabled: true
+      retention_delete_delay: 2h
+      retention_delete_worker_count: 150
+      delete_request_store: s3
+
+    limits_config:
+      retention_period: 2160h
+      ingestion_rate_mb: 64
+      ingestion_burst_size_mb: 128
+      per_stream_rate_limit: 10MB
+      per_stream_rate_limit_burst: 20MB
+      max_streams_per_user: 100000
+      max_line_size: 256kb
+      max_entries_limit_per_query: 50000
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    ruler:
+      alertmanager_url: http://alertmanager.monitoring.svc.cluster.local:9093
+      storage:
+        type: s3
+        s3:
+          bucketnames: loki-rules
+          region: ${AWS_REGION}
+          endpoint: ${S3_ENDPOINT}
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          s3forcepathstyle: true
+      rule_path: /tmp/rules
+      enable_api: true
+      enable_alertmanager_v2: true
+
+    ingester:
+      lifecycler:
+        ring:
+          kvstore:
+            store: memberlist
+          replication_factor: 3
+        final_sleep: 0s
+      chunk_idle_period: 1h
+      max_chunk_age: 2h
+      chunk_target_size: 1572864
+      chunk_retain_period: 30s
+      wal:
+        enabled: true
+        dir: /loki/wal
+        flush_on_shutdown: true
+
+    query_range:
+      results_cache:
+        cache:
+          embedded_cache:
+            enabled: true
+            max_size_mb: 256
+            ttl: 24h
+      cache_results: true
+
+    analytics:
+      reporting_enabled: false

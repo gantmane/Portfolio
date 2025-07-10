@@ -1,0 +1,137 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki.logging.svc.cluster.local:3100/loki/api/v1/push
+    tenant_id: ${TENANT_ID}
+    batchwait: 1s
+    batchsize: 1048576
+    timeout: 10s
+    backoff_config:
+      min_period: 500ms
+      max_period: 5m
+      max_retries: 10
+
+scrape_configs:
+
+  # Kubernetes pod logs
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    pipeline_stages:
+      - cri: {}
+      - match:
+          selector: '{app="payment-service"}'
+          stages:
+            - regex:
+                expression: '(?P<level>INFO|WARN|ERROR|DEBUG)\s+(?P<msg>.*)'
+            - labels:
+                level:
+            - replace:
+                expression: '(?i)(card_number|pan|cvv|cvc)\s*[=:]\s*[\d\-*]{12,19}'
+                replace: '${1}=REDACTED'
+            - replace:
+                expression: '(?i)(account_number|iban)\s*[=:]\s*[A-Z0-9]{10,34}'
+                replace: '${1}=REDACTED'
+            - replace:
+                expression: '\b[0-9]{13,16}\b'
+                replace: '[CARD-REDACTED]'
+      - match:
+          selector: '{namespace!=""}'
+          stages:
+            - replace:
+                expression: '(?i)(password|passwd|secret|token|api_key|apikey)\s*[=:]\s*\S+'
+                replace: '${1}=REDACTED'
+            - replace:
+                expression: '\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'
+                replace: '[EMAIL-REDACTED]'
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        action: replace
+        target_label: node
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        action: replace
+        target_label: container
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: replace
+        target_label: app
+      - source_labels: [__meta_kubernetes_pod_label_version]
+        action: replace
+        target_label: version
+      - action: replace
+        replacement: /var/log/pods/*$1/*.log
+        separator: /
+        source_labels:
+          - __meta_kubernetes_pod_uid
+          - __meta_kubernetes_pod_container_name
+        target_label: __path__
+
+  # Systemd journal logs
+  - job_name: journal
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+    pipeline_stages:
+      - match:
+          selector: '{job="systemd-journal"}'
+          stages:
+            - replace:
+                expression: '(?i)(password|passwd|secret|token)\s*[=:]\s*\S+'
+                replace: '${1}=REDACTED'
+    relabel_configs:
+      - source_labels: [__journal__systemd_unit]
+        target_label: unit
+      - source_labels: [__journal__hostname]
+        target_label: host
+      - source_labels: [__journal_priority_keyword]
+        target_label: level
+
+  # Payment service custom log path
+  - job_name: payment-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: payment-service
+          env: production
+          app: payment-gateway
+          __path__: /var/log/payment/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            transaction_id: transaction_id
+            amount: amount
+            currency: currency
+            status: status
+            latency_ms: latency_ms
+      - labels:
+          level:
+          status:
+          currency:
+      - replace:
+          expression: '(?i)(card_number|pan)\s*[":]\s*"?([\d\-]{12,19})"?'
+          replace: '${1}":"[CARD-REDACTED]"'
+      - replace:
+          expression: '(?i)(cvv|cvc)\s*[":]\s*"?(\d{3,4})"?'
+          replace: '${1}":"[CVV-REDACTED]"'
+      - metrics:
+          payment_log_lines_total:
+            type: Counter
+            description: Total payment log lines
+            prefix: promtail_
+            source: status
+            config:
+              action: inc

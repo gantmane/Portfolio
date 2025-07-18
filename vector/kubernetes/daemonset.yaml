@@ -1,0 +1,254 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/version: "0.36.1"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vector
+        app.kubernetes.io/component: logging
+        app.kubernetes.io/version: "0.36.1"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        checksum/config: '{{ include "vector.configHash" . }}'
+    spec:
+      serviceAccountName: vector
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: false   # Vector needs root to read /var/log/pods
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vector
+          image: timberio/vector:0.36.1-debian
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config-dir
+            - /etc/vector/
+          env:
+            - name: VECTOR_SELF_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: VECTOR_SELF_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VECTOR_SELF_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vector-cluster-info
+                  key: cluster_name
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: vector-cluster-info
+                  key: environment
+            - name: LOKI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: loki_endpoint
+            - name: S3_COMPLIANCE_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: s3_compliance_bucket
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: aws_region
+            - name: KMS_KEY_ARN
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: kms_key_arn
+            - name: PROMETHEUS_REMOTE_WRITE_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: prometheus_remote_write_endpoint
+            - name: AWS_ROLE_ARN
+              valueFrom:
+                secretKeyRef:
+                  name: vector-secrets
+                  key: aws_role_arn
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+          ports:
+            - name: api
+              containerPort: 8686
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8686
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8686
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - DAC_READ_SEARCH   # read /var/log/pods owned by other users
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/vector
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: var-lib-docker-containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: run-log-journal
+              mountPath: /run/log/journal
+              readOnly: true
+            - name: etc-machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: aws-iam-token
+              mountPath: /var/run/secrets/eks.amazonaws.com/serviceaccount
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: vector-config
+        - name: data
+          hostPath:
+            path: /var/lib/vector
+            type: DirectoryOrCreate
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: var-lib-docker-containers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: run-log-journal
+          hostPath:
+            path: /run/log/journal
+        - name: etc-machine-id
+          hostPath:
+            path: /etc/machine-id
+        - name: tmp
+          emptyDir: {}
+        - name: aws-iam-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 86400
+                  audience: sts.amazonaws.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: vector
+  annotations:
+    eks.amazonaws.com/role-arn: "${AWS_ROLE_ARN}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector
+  labels:
+    app.kubernetes.io/name: vector
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - nodes
+      - pods
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector
+  labels:
+    app.kubernetes.io/name: vector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector
+subjects:
+  - kind: ServiceAccount
+    name: vector
+    namespace: logging
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-metrics
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: vector
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: vector
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP

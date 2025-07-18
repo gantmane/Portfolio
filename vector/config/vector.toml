@@ -1,0 +1,221 @@
+# Vector 0.36+ Production Configuration
+# Kubernetes logging pipeline: parse → redact → Loki + S3 + Prometheus
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+# ─────────────────────────────────────────
+# SOURCES
+# ─────────────────────────────────────────
+
+[sources.kubernetes_logs]
+type = "kubernetes_logs"
+self_node_name = "${VECTOR_SELF_NODE_NAME}"
+auto_partial_merge = true
+exclude_paths_glob_patterns = [
+  "/var/log/pods/kube-system_*/**",
+]
+extra_label_selector = ""
+extra_namespace_label_selector = ""
+
+[sources.host_metrics]
+type = "host_metrics"
+collectors = ["cpu", "memory", "disk", "network", "filesystem"]
+scrape_interval_secs = 15
+
+# ─────────────────────────────────────────
+# TRANSFORMS
+# ─────────────────────────────────────────
+
+[transforms.parse_json]
+type = "remap"
+inputs = ["kubernetes_logs"]
+source = '''
+. = merge(., parse_json!(.message) ?? {})
+.parsed_at = now()
+if .level == null {
+  .level = "info"
+}
+.level = downcase(string!(.level))
+'''
+
+[transforms.enrich_k8s_metadata]
+type = "remap"
+inputs = ["parse_json"]
+source = '''
+.cluster = get_env_var!("CLUSTER_NAME")
+.environment = get_env_var!("ENVIRONMENT")
+.node = .kubernetes.pod_node_name
+.namespace = .kubernetes.pod_namespace
+.pod = .kubernetes.pod_name
+.container = .kubernetes.container_name
+.stream = .kubernetes.stream ?? "stdout"
+del(.kubernetes)
+'''
+
+[transforms.redact_pii]
+type = "remap"
+inputs = ["enrich_k8s_metadata"]
+source = '''
+# ── Card number masking (Luhn-pattern, 13-19 digits) ──────────────────────
+.message = replace(
+  string!(.message),
+  r'(?i)\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b',
+  "****-****-****-REDACTED"
+)
+
+# ── Generic 12-19 digit PAN fallback ──────────────────────────────────────
+.message = replace(
+  string!(.message),
+  r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{1,7}\b',
+  "[CARD_REDACTED]"
+)
+
+# ── Email redaction ────────────────────────────────────────────────────────
+.message = replace(
+  string!(.message),
+  r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b',
+  "[EMAIL_REDACTED]"
+)
+
+# ── IPv4 anonymization (last octet zeroed) ────────────────────────────────
+.message = replace(
+  string!(.message),
+  r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}\b',
+  "${1}0"
+)
+
+# ── IPv6 anonymization (last 64 bits zeroed) ──────────────────────────────
+.message = replace(
+  string!(.message),
+  r'(?i)((?:[0-9a-f]{1,4}:){4})[0-9a-f:]{1,19}\b',
+  "${1}0:0:0:0"
+)
+
+# ── SSN / NIN patterns ────────────────────────────────────────────────────
+.message = replace(
+  string!(.message),
+  r'\b\d{3}-\d{2}-\d{4}\b',
+  "[SSN_REDACTED]"
+)
+
+# ── Phone numbers ─────────────────────────────────────────────────────────
+.message = replace(
+  string!(.message),
+  r'(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}',
+  "[PHONE_REDACTED]"
+)
+
+# Tag event as PII-processed
+.pii_redacted = true
+.pii_redacted_at = now()
+'''
+
+[transforms.filter_errors]
+type = "filter"
+inputs = ["redact_pii"]
+condition = '.level != "debug" || .environment != "production"'
+
+[transforms.route_by_level]
+type = "route"
+inputs = ["redact_pii"]
+
+  [transforms.route_by_level.route]
+  errors = '.level == "error" || .level == "fatal" || .level == "critical"'
+  warnings = '.level == "warn" || .level == "warning"'
+  info = '.level == "info" || .level == "debug"'
+
+# ─────────────────────────────────────────
+# SINKS
+# ─────────────────────────────────────────
+
+[sinks.loki]
+type = "loki"
+inputs = ["redact_pii"]
+endpoint = "${LOKI_ENDPOINT}"
+encoding.codec = "json"
+compression = "snappy"
+out_of_order_action = "rewrite_timestamp"
+
+  [sinks.loki.labels]
+  job = "vector"
+  cluster = "{{ cluster }}"
+  environment = "{{ environment }}"
+  namespace = "{{ namespace }}"
+  pod = "{{ pod }}"
+  container = "{{ container }}"
+  level = "{{ level }}"
+  stream = "{{ stream }}"
+
+  [sinks.loki.batch]
+  max_bytes = 1048576
+  timeout_secs = 5
+
+  [sinks.loki.buffer]
+  type = "disk"
+  max_size = 536870912
+  when_full = "block"
+
+  [sinks.loki.request]
+  retry_attempts = 5
+  retry_initial_backoff_secs = 1
+  retry_max_duration_secs = 30
+
+  [sinks.loki.tls]
+  verify_certificate = true
+
+[sinks.s3_compliance]
+type = "aws_s3"
+inputs = ["redact_pii"]
+bucket = "${S3_COMPLIANCE_BUCKET}"
+region = "${AWS_REGION}"
+key_prefix = "logs/{{ environment }}/{{ cluster }}/{{ namespace }}/{{ `now()` | format_timestamp!(\"%Y/%m/%d\") }}/"
+compression = "gzip"
+encoding.codec = "ndjson"
+acl = "private"
+server_side_encryption = "aws:kms"
+ssekms_key_id = "${KMS_KEY_ARN}"
+storage_class = "STANDARD_IA"
+tags.Team = "platform"
+tags.Environment = "${ENVIRONMENT}"
+tags.Compliance = "pci-dss"
+
+  [sinks.s3_compliance.batch]
+  max_bytes = 10485760
+  timeout_secs = 300
+
+  [sinks.s3_compliance.buffer]
+  type = "disk"
+  max_size = 1073741824
+  when_full = "block"
+
+  [sinks.s3_compliance.request]
+  retry_attempts = 10
+  retry_initial_backoff_secs = 2
+  retry_max_duration_secs = 60
+  concurrency = 5
+
+  [sinks.s3_compliance.lifecycle_rules]
+  # Lifecycle managed via S3 bucket policy / Terraform — 7-year retention for PCI
+
+[sinks.prometheus_exporter]
+type = "prometheus_exporter"
+inputs = ["host_metrics"]
+address = "0.0.0.0:9090"
+default_namespace = "vector"
+flush_period_secs = 30
+
+  [[sinks.prometheus_exporter.buckets]]
+  field = "component_received_bytes_total"
+
+[sinks.prometheus_remote_write]
+type = "prometheus_remote_write"
+inputs = ["host_metrics"]
+endpoint = "${PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+
+  [sinks.prometheus_remote_write.tls]
+  verify_certificate = true
+
+  [sinks.prometheus_remote_write.request]
+  retry_attempts = 5

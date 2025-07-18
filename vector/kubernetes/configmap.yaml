@@ -1,0 +1,229 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: logging
+data:
+  vector.toml: |
+    [api]
+    enabled = true
+    address = "0.0.0.0:8686"
+
+    # ─────────────────────────────────────────
+    # SOURCES
+    # ─────────────────────────────────────────
+
+    [sources.kubernetes_logs]
+    type = "kubernetes_logs"
+    self_node_name = "${VECTOR_SELF_NODE_NAME}"
+    auto_partial_merge = true
+    exclude_paths_glob_patterns = [
+      "/var/log/pods/kube-system_*/**",
+    ]
+
+    [sources.host_metrics]
+    type = "host_metrics"
+    collectors = ["cpu", "memory", "disk", "network", "filesystem"]
+    scrape_interval_secs = 15
+
+    # ─────────────────────────────────────────
+    # TRANSFORMS
+    # ─────────────────────────────────────────
+
+    [transforms.parse_json]
+    type = "remap"
+    inputs = ["kubernetes_logs"]
+    source = '''
+    . = merge(., parse_json!(.message) ?? {})
+    .parsed_at = now()
+    if .level == null {
+      .level = "info"
+    }
+    .level = downcase(string!(.level))
+    '''
+
+    [transforms.enrich_k8s_metadata]
+    type = "remap"
+    inputs = ["parse_json"]
+    source = '''
+    .cluster = get_env_var!("CLUSTER_NAME")
+    .environment = get_env_var!("ENVIRONMENT")
+    .node = .kubernetes.pod_node_name
+    .namespace = .kubernetes.pod_namespace
+    .pod = .kubernetes.pod_name
+    .container = .kubernetes.container_name
+    .stream = .kubernetes.stream ?? "stdout"
+    del(.kubernetes)
+    '''
+
+    [transforms.redact_pii]
+    type = "remap"
+    inputs = ["enrich_k8s_metadata"]
+    drop_on_error = false
+    source = '''
+    # Card number masking
+    .message = replace(
+      string!(.message),
+      r'(?i)\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b',
+      "****-****-****-REDACTED"
+    )
+
+    # Generic PAN fallback
+    .message = replace(
+      string!(.message),
+      r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{1,7}\b',
+      "[CARD_REDACTED]"
+    )
+
+    # CVV/CVC
+    .message = replace(
+      string!(.message),
+      r'(?i)(cvv|cvc|security.?code)[=:\s"\']+\d{3,4}\b',
+      "${1}=[CVV_REDACTED]"
+    )
+
+    # Email redaction
+    .message = replace(
+      string!(.message),
+      r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b',
+      "[EMAIL_REDACTED]"
+    )
+
+    # IPv4 anonymization (last octet)
+    .message = replace(
+      string!(.message),
+      r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.)\d{1,3}\b',
+      "${1}0"
+    )
+
+    # IPv6 anonymization (last 64 bits)
+    .message = replace(
+      string!(.message),
+      r'(?i)\b((?:[0-9a-f]{1,4}:){4})[0-9a-f:]{1,19}\b',
+      "${1}0:0:0:0"
+    )
+
+    # SSN
+    .message = replace(
+      string!(.message),
+      r'\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b',
+      "[SSN_REDACTED]"
+    )
+
+    # Phone numbers
+    .message = replace(
+      string!(.message),
+      r'(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}',
+      "[PHONE_REDACTED]"
+    )
+
+    # Bearer tokens / API keys
+    .message = replace(
+      string!(.message),
+      r'(?i)(authorization|bearer|token|api.?key)[=:\s"\']+[A-Za-z0-9\-_.~+/=]{20,}',
+      "${1}=[TOKEN_REDACTED]"
+    )
+
+    # AWS Access Key IDs
+    .message = replace(
+      string!(.message),
+      r'\b(?:AKIA|ASIA|AROA|AIDA|ANPA|ANVA|APKA)[0-9A-Z]{16}\b',
+      "[AWS_KEY_REDACTED]"
+    )
+
+    .pii_redacted = true
+    .pii_redacted_at = format_timestamp!(now(), format: "%+")
+    '''
+
+    # ─────────────────────────────────────────
+    # SINKS
+    # ─────────────────────────────────────────
+
+    [sinks.loki]
+    type = "loki"
+    inputs = ["redact_pii"]
+    endpoint = "${LOKI_ENDPOINT}"
+    encoding.codec = "json"
+    compression = "snappy"
+    out_of_order_action = "rewrite_timestamp"
+
+      [sinks.loki.labels]
+      job = "vector"
+      cluster = "{{ cluster }}"
+      environment = "{{ environment }}"
+      namespace = "{{ namespace }}"
+      pod = "{{ pod }}"
+      container = "{{ container }}"
+      level = "{{ level }}"
+
+      [sinks.loki.batch]
+      max_bytes = 1048576
+      timeout_secs = 5
+
+      [sinks.loki.buffer]
+      type = "disk"
+      max_size = 536870912
+      when_full = "block"
+
+      [sinks.loki.request]
+      retry_attempts = 5
+      retry_initial_backoff_secs = 1
+      retry_max_duration_secs = 30
+
+    [sinks.s3_compliance]
+    type = "aws_s3"
+    inputs = ["redact_pii"]
+    bucket = "${S3_COMPLIANCE_BUCKET}"
+    region = "${AWS_REGION}"
+    key_prefix = "logs/{{ environment }}/{{ cluster }}/{{ namespace }}/{{ `now()` | format_timestamp!(\"%Y/%m/%d\") }}/"
+    compression = "gzip"
+    encoding.codec = "ndjson"
+    acl = "private"
+    server_side_encryption = "aws:kms"
+    ssekms_key_id = "${KMS_KEY_ARN}"
+    storage_class = "STANDARD_IA"
+
+      [sinks.s3_compliance.batch]
+      max_bytes = 10485760
+      timeout_secs = 300
+
+      [sinks.s3_compliance.buffer]
+      type = "disk"
+      max_size = 1073741824
+      when_full = "block"
+
+      [sinks.s3_compliance.request]
+      retry_attempts = 10
+      retry_initial_backoff_secs = 2
+      retry_max_duration_secs = 60
+      concurrency = 5
+
+    [sinks.prometheus_exporter]
+    type = "prometheus_exporter"
+    inputs = ["host_metrics"]
+    address = "0.0.0.0:9090"
+    default_namespace = "vector"
+    flush_period_secs = 30
+
+    [sinks.prometheus_remote_write]
+    type = "prometheus_remote_write"
+    inputs = ["host_metrics"]
+    endpoint = "${PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+
+      [sinks.prometheus_remote_write.request]
+      retry_attempts = 5
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-cluster-info
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: vector
+data:
+  cluster_name: "production-k8s"
+  environment: "production"

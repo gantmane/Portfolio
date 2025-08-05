@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patroni-config
+  namespace: postgres
+  labels:
+    app: patroni
+    component: postgresql
+data:
+  patroni.yml: |
+    scope: pg-ha-cluster
+    namespace: /patroni/
+    name: ${HOSTNAME}
+
+    restapi:
+      listen: 0.0.0.0:8008
+      connect_address: ${POD_IP}:8008
+      authentication:
+        username: patroni
+        password: ${PATRONI_REST_PASSWORD}
+
+    etcd3:
+      hosts:
+        - etcd-0.etcd.postgres.svc.cluster.local:2379
+        - etcd-1.etcd.postgres.svc.cluster.local:2379
+        - etcd-2.etcd.postgres.svc.cluster.local:2379
+      username: patroni
+      password: ${ETCD_PASSWORD}
+      protocol: https
+      cacert: /etc/etcd/ca.crt
+      cert: /etc/etcd/client.crt
+      key: /etc/etcd/client.key
+
+    bootstrap:
+      dcs:
+        ttl: 30
+        loop_wait: 10
+        retry_timeout: 30
+        maximum_lag_on_failover: 1048576
+        synchronous_mode: true
+        synchronous_mode_strict: false
+        postgresql:
+          use_pg_rewind: true
+          use_slots: true
+          parameters:
+            max_connections: 200
+            shared_buffers: 512MB
+            effective_cache_size: 1536MB
+            wal_level: replica
+            wal_log_hints: "on"
+            max_wal_senders: 10
+            max_replication_slots: 10
+            hot_standby: "on"
+            archive_mode: "on"
+            archive_command: >-
+              aws s3 cp %p s3://${WALARCHIVE_BUCKET}/wal/%f
+              --endpoint-url=${MINIO_ENDPOINT} --no-progress
+            archive_timeout: 60
+
+      initdb:
+        - encoding: UTF8
+        - data-checksums
+
+      pg_hba:
+        - host replication replicator 0.0.0.0/0 scram-sha-256
+        - host all all 0.0.0.0/0 scram-sha-256
+
+      users:
+        admin:
+          password: ${PATRONI_SUPERUSER_PASSWORD}
+          options: [createrole, createdb]
+        replicator:
+          password: ${PATRONI_REPLICATION_PASSWORD}
+          options: [replication]
+
+    postgresql:
+      listen: 0.0.0.0:5432
+      connect_address: ${POD_IP}:5432
+      config_dir: /data/patroni
+      data_dir: /data/patroni/pgdata
+      bin_dir: /usr/lib/postgresql/15/bin
+      authentication:
+        replication:
+          username: replicator
+          password: ${PATRONI_REPLICATION_PASSWORD}
+        superuser:
+          username: postgres
+          password: ${PATRONI_SUPERUSER_PASSWORD}
+        rewind:
+          username: rewind_user
+          password: ${PATRONI_REWIND_PASSWORD}
+      parameters:
+        unix_socket_directories: /var/run/postgresql
+      callbacks:
+        on_role_change: /scripts/failover-callback.sh role_change
+      recovery_conf:
+        recovery_target_timeline: latest
+
+    tags:
+      nofailover: false
+      noloadbalance: false
+      clonefrom: false
+      nosync: false

@@ -1,0 +1,145 @@
+---
+# Patroni 3.x — PostgreSQL 15 HA configuration
+# 3-node cluster with etcd DCS, synchronous replication, WAL archiving to S3/MinIO
+
+scope: pg-ha-cluster
+namespace: /patroni/
+name: ${HOSTNAME}  # Each node reads its own hostname
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: ${POD_IP}:8008
+  authentication:
+    username: patroni
+    password: ${PATRONI_REST_PASSWORD}
+
+etcd3:
+  hosts:
+    - etcd-0.etcd.postgres.svc.cluster.local:2379
+    - etcd-1.etcd.postgres.svc.cluster.local:2379
+    - etcd-2.etcd.postgres.svc.cluster.local:2379
+  username: patroni
+  password: ${ETCD_PASSWORD}
+  protocol: https
+  cacert: /etc/etcd/ca.crt
+  cert: /etc/etcd/client.crt
+  key: /etc/etcd/client.key
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 30
+    maximum_lag_on_failover: 1048576  # 1 MB — tighten for stricter RPO
+    master_start_timeout: 300
+    synchronous_mode: true
+    synchronous_mode_strict: false    # allow async if no sync replica available
+
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        max_connections: 200
+        shared_buffers: 512MB
+        effective_cache_size: 1536MB
+        maintenance_work_mem: 128MB
+        checkpoint_completion_target: 0.9
+        wal_buffers: 16MB
+        default_statistics_target: 100
+        random_page_cost: 1.1
+        effective_io_concurrency: 200
+        work_mem: 2621kB
+        min_wal_size: 1GB
+        max_wal_size: 4GB
+        max_worker_processes: 8
+        max_parallel_workers_per_gather: 2
+        max_parallel_workers: 8
+        max_parallel_maintenance_workers: 2
+        wal_level: replica
+        wal_log_hints: "on"
+        max_wal_senders: 10
+        max_replication_slots: 10
+        hot_standby: "on"
+        hot_standby_feedback: "on"
+        wal_compression: "on"
+        log_min_duration_statement: 1000
+        log_checkpoints: "on"
+        log_connections: "on"
+        log_disconnections: "on"
+        log_lock_waits: "on"
+        log_temp_files: 0
+        log_autovacuum_min_duration: 0
+        log_line_prefix: "%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h "
+        archive_mode: "on"
+        archive_command: >-
+          aws s3 cp %p s3://${WALARCHIVE_BUCKET}/wal/%f
+          --endpoint-url=${MINIO_ENDPOINT}
+          --no-progress
+        archive_timeout: 60
+        restore_command: >-
+          aws s3 cp s3://${WALARCHIVE_BUCKET}/wal/%f %p
+          --endpoint-url=${MINIO_ENDPOINT}
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+    - auth-local: scram-sha-256
+    - auth-host: scram-sha-256
+
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 scram-sha-256
+    - host all all 0.0.0.0/0 scram-sha-256
+
+  users:
+    admin:
+      password: ${PATRONI_SUPERUSER_PASSWORD}
+      options:
+        - createrole
+        - createdb
+    replicator:
+      password: ${PATRONI_REPLICATION_PASSWORD}
+      options:
+        - replication
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: ${POD_IP}:5432
+  config_dir: /data/patroni
+  data_dir: /data/patroni/pgdata
+  bin_dir: /usr/lib/postgresql/15/bin
+
+  authentication:
+    replication:
+      username: replicator
+      password: ${PATRONI_REPLICATION_PASSWORD}
+    superuser:
+      username: postgres
+      password: ${PATRONI_SUPERUSER_PASSWORD}
+    rewind:
+      username: rewind_user
+      password: ${PATRONI_REWIND_PASSWORD}
+
+  parameters:
+    unix_socket_directories: /var/run/postgresql
+
+  create_replica_methods:
+    - basebackup
+
+  basebackup:
+    - checkpoint: fast
+    - max-rate: 100M
+
+  callbacks:
+    on_start: /scripts/failover-callback.sh start
+    on_stop: /scripts/failover-callback.sh stop
+    on_role_change: /scripts/failover-callback.sh role_change
+    on_reload: /scripts/failover-callback.sh reload
+
+  recovery_conf:
+    recovery_target_timeline: latest
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

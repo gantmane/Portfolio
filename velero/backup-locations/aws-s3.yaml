@@ -1,0 +1,42 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: aws-s3
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    storage-provider: aws
+spec:
+  provider: aws
+
+  objectStorage:
+    bucket: velero-backups
+    # Logical prefix — separate clusters in one bucket
+    prefix: production-cluster
+
+  # AWS credentials stored in a Kubernetes Secret
+  # kubectl create secret generic velero-credentials \
+  #   --namespace velero \
+  #   --from-file=cloud=credentials-velero
+  credential:
+    name: velero-credentials
+    key: cloud
+
+  config:
+    region: us-east-1
+    # Enable server-side encryption with KMS
+    kmsKeyId: ""              # arn:aws:kms:us-east-1:ACCOUNT_ID:key/KEY_ID
+    serverSideEncryption: aws:kms
+    # S3 path-style access (false = virtual-hosted style, recommended for AWS)
+    s3ForcePathStyle: "false"
+    # Transfer acceleration (set to true if cross-region)
+    s3Url: ""                 # leave blank for standard AWS S3
+
+  # Validate connection on startup
+  validationFrequency: 1m
+
+  # Set as the default storage location
+  default: true
+
+  # Access mode — ReadWrite allows both backup and restore
+  accessMode: ReadWrite

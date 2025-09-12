@@ -1,0 +1,55 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: hourly-pvc-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    backup-type: pvc-only
+spec:
+  # Top of every hour
+  schedule: "0 * * * *"
+
+  template:
+    labels:
+      backup-type: hourly-pvc
+      managed-by: velero-schedule
+
+    storageLocation: default
+
+    # 7-day retention
+    ttl: 168h0m0s
+
+    # Namespaces that own stateful workloads
+    includedNamespaces:
+      - production
+      - staging
+      - databases
+      - monitoring
+    excludedNamespaces: []
+
+    # PVCs and their bindings only
+    includedResources:
+      - persistentvolumeclaims
+      - persistentvolumes
+      - volumesnapshots
+      - volumesnapshotcontents
+    excludedResources: []
+
+    # Skip cluster-scoped resources — PVC backup only
+    includeClusterResources: false
+
+    # Use CSI snapshots for fast, consistent PVC backup
+    snapshotVolumes: true
+    csiSnapshotTimeout: 15m
+
+    # Label selector — only back up PVCs with this label
+    # Remove selector to back up all PVCs in the listed namespaces
+    labelSelector:
+      matchLabels:
+        velero.io/backup: "true"
+
+    # Fall back to file-system backup if CSI is unavailable
+    defaultVolumesToFsBackup: false
+
+  paused: false

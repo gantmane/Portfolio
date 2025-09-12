@@ -1,0 +1,57 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-cluster-backup
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    backup-type: full-cluster
+spec:
+  # 02:00 UTC every day
+  schedule: "0 2 * * *"
+
+  template:
+    # Metadata
+    labels:
+      backup-type: daily
+      managed-by: velero-schedule
+
+    # Storage location (matches values.yaml backupStorageLocation name)
+    storageLocation: default
+
+    # 30-day retention
+    ttl: 720h0m0s
+
+    # Include all namespaces except ephemeral/tooling ones
+    includedNamespaces:
+      - "*"
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - velero
+      - cert-manager
+      - monitoring
+
+    # Include all resource types
+    includedResources:
+      - "*"
+    excludedResources:
+      - events
+      - events.events.k8s.io
+
+    # Back up cluster-scoped resources (nodes, PVs, CRDs, ClusterRoles)
+    includeClusterResources: true
+
+    # Use CSI volume snapshots for PVCs
+    snapshotVolumes: true
+    csiSnapshotTimeout: 30m
+
+    # Hooks — quiesce databases before snapshot
+    hooks: {}
+
+    # Wait for cluster to be ready before labeling complete
+    defaultVolumesToFsBackup: false
+
+  # Pausing — set to true to disable without deleting
+  paused: false

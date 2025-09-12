@@ -1,0 +1,39 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: minio
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    storage-provider: minio
+spec:
+  provider: aws   # MinIO uses the AWS S3-compatible plugin
+
+  objectStorage:
+    bucket: velero-backups
+    prefix: homelab-cluster
+
+  # MinIO credentials (same secret structure as AWS)
+  # credentials-velero format:
+  #   [default]
+  #   aws_access_key_id=<MINIO_ACCESS_KEY>
+  #   aws_secret_access_key=<MINIO_SECRET_KEY>
+  credential:
+    name: velero-credentials-minio
+    key: cloud
+
+  config:
+    # Internal MinIO endpoint (adjust to your service/IP)
+    s3Url: http://minio.minio.svc.cluster.local:9000
+    region: minio               # arbitrary string — MinIO ignores region
+    s3ForcePathStyle: "true"    # required for MinIO path-style URLs
+    insecureSkipTLSVerify: "false"
+    # TLS CA bundle if MinIO uses self-signed cert
+    # caCert: /etc/ssl/certs/minio-ca.crt
+
+  validationFrequency: 1m
+
+  # Non-default — used as secondary/DR location
+  default: false
+
+  accessMode: ReadWrite

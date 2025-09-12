@@ -1,0 +1,52 @@
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  # Rename: restore-<backup-name>-YYYYMMDD
+  name: restore-CHANGEME
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    restore-type: dr
+spec:
+  # Name of the Backup object to restore from
+  # List available: velero backup get
+  backupName: BACKUP_NAME_HERE
+
+  # Namespace remapping for DR (source → destination)
+  # Leave empty to restore into original namespaces
+  namespaceMapping:
+    production: production-dr
+    databases: databases-dr
+    monitoring: monitoring-dr
+
+  # Namespaces to restore (omit to restore all from backup)
+  includedNamespaces:
+    - production
+    - databases
+  excludedNamespaces:
+    - kube-system
+    - velero
+
+  # Resources to restore
+  includedResources:
+    - "*"
+  excludedResources:
+    - nodes
+    - events
+    - events.events.k8s.io
+
+  # Restore PV data (CSI snapshots)
+  restorePVs: true
+
+  # Do not overwrite existing resources; set to true for force-replace
+  existingResourcePolicy: none
+
+  # Preserve node ports if restoring Services
+  preserveNodePorts: false
+
+# Monitor restore:
+#   velero restore describe restore-CHANGEME --details
+#   velero restore logs restore-CHANGEME
+#
+# Verify pods are running after restore:
+#   kubectl get pods -n production-dr

@@ -1,0 +1,65 @@
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  # Rename before applying: pre-upgrade-YYYYMMDD-HHMM
+  name: pre-upgrade-CHANGEME
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    backup-type: pre-upgrade
+    triggered-by: manual
+  annotations:
+    # Document what upgrade this guards
+    upgrade-target: ""
+    upgrade-version: ""
+    ticket: ""
+spec:
+  # Storage location
+  storageLocation: default
+
+  # 90-day retention for pre-upgrade snapshots
+  ttl: 2160h0m0s
+
+  # Full cluster scope
+  includedNamespaces:
+    - "*"
+  excludedNamespaces:
+    - kube-node-lease
+
+  includedResources:
+    - "*"
+  excludedResources:
+    - events
+    - events.events.k8s.io
+
+  includeClusterResources: true
+
+  # Capture PVC snapshots
+  snapshotVolumes: true
+  csiSnapshotTimeout: 60m
+
+  # File-system fallback for PVCs without CSI driver
+  defaultVolumesToFsBackup: false
+
+  # Hooks — add pre/post commands to quiesce stateful apps
+  hooks:
+    resources: []
+    # Example: quiesce PostgreSQL before snapshot
+    # - name: pg-quiesce
+    #   includedNamespaces:
+    #     - databases
+    #   labelSelector:
+    #     matchLabels:
+    #       app: postgresql
+    #   pre:
+    #     - exec:
+    #         container: postgresql
+    #         command: ["/bin/bash", "-c", "psql -c 'CHECKPOINT;'"]
+    #         onError: Fail
+    #         timeout: 30s
+
+# Apply with:
+#   kubectl apply -f pre-upgrade-backup.yaml
+# Monitor with:
+#   velero backup describe pre-upgrade-CHANGEME --details
+#   velero backup logs pre-upgrade-CHANGEME

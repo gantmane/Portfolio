@@ -1,0 +1,70 @@
+---
+directory: "cloud-security/aws/kms-encryption"
+owner: "Evgeniy Gantman"
+purpose: "AWS KMS Customer Managed Keys and encryption patterns for data protection"
+category: "cloud-security"
+subcategory: "aws"
+tags:
+  - aws
+  - kms
+  - encryption
+  - data-protection
+  - pci-dss
+  - cloudhsm
+  - key-rotation
+  - envelope-encryption
+resume_alignment:
+  - "AWS KMS CMKs with 90-day automatic rotation"
+  - "100% encryption coverage for all services"
+  - "PCI DSS Requirement 3 compliance (Protect Stored Cardholder Data)"
+  - "CloudHSM integration for CDE highest security"
+  - "Zero data breaches - encryption at rest for all sensitive data"
+dependencies:
+  - "terraform >= 1.5.0"
+  - "aws-cli >= 2.0"
+  - "python >= 3.9"
+  - "boto3 >= 1.28"
+  - "cryptography >= 41.0"
+related_directories:
+  - "cloud-security/aws/multi-account-setup"
+  - "data-protection/encryption-at-rest"
+  - "data-protection/encryption-in-transit"
+  - "compliance/pci-dss-4.0/requirement-03-data-protection"
+  - "siem-soc/wazuh-deployment"
+compliance_frameworks:
+  pci_dss:
+    - "Requirement 3.4: Render PAN unreadable (AES-256 encryption)"
+    - "Requirement 3.5: Protect cryptographic keys"
+    - "Requirement 3.6: Key management procedures"
+    - "Requirement 3.7: Ensure cryptographic architecture supports PCI DSS"
+    - "Requirement 10.3: Audit logs for cryptographic key access"
+  soc2:
+    - "CC6.1: Logical and physical access controls"
+    - "CC6.7: Information asset protection"
+  iso27001:
+    - "A.10.1: Cryptographic controls"
+    - "A.18.1.5: Regulation of cryptographic controls"
+  nist:
+    - "NIST SP 800-57: Key Management"
+    - "NIST SP 800-175B: Cryptographic Algorithm Validation"
+key_metrics:
+  - "100% encryption coverage"
+  - "90-day automatic key rotation"
+  - "15+ service-specific CMKs"
+  - "CloudHSM for FIPS 140-2 Level 3 compliance"
+  - "Zero key compromise incidents"
+  - "90% reduction in KMS API costs via envelope encryption"
+technical_stack:
+  - "AWS KMS"
+  - "AWS CloudHSM"
+  - "Terraform"
+  - "Python/Boto3"
+  - "AES-256-GCM encryption"
+encryption_standards:
+  - "AES-256-GCM (Galois/Counter Mode)"
+  - "RSA-2048+ for key wrapping"
+  - "FIPS 140-2 Level 3 (CloudHSM)"
+  - "Automatic 90-day rotation"
+estimated_implementation_hours: 32
+last_updated: "2025-12"
+version: "1.0.0"

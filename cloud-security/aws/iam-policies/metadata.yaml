@@ -1,0 +1,61 @@
+---
+directory: "cloud-security/aws/iam-policies"
+owner: "Evgeniy Gantman"
+purpose: "Least-privilege IAM policies and Identity Center configurations"
+category: "cloud-security"
+subcategory: "aws"
+tags:
+  - aws
+  - iam
+  - identity-center
+  - sso
+  - least-privilege
+  - pci-dss
+  - access-control
+  - irsa
+resume_alignment:
+  - "IAM Identity Center (SSO) for centralized identity management"
+  - "Least-privilege IAM policies across 15+ accounts"
+  - "PCI DSS Requirement 7 & 8 compliance (Access Control & Authentication)"
+  - "Zero unauthorized access incidents"
+dependencies:
+  - "terraform >= 1.5.0"
+  - "aws-cli >= 2.0"
+  - "python >= 3.9"
+  - "boto3 >= 1.28"
+related_directories:
+  - "cloud-security/aws/multi-account-setup"
+  - "cloud-security/aws/security-hub-configs"
+  - "compliance/pci-dss-4.0/requirement-07-access-control"
+  - "compliance/pci-dss-4.0/requirement-08-authentication"
+  - "kubernetes-security/eks-hardening"
+compliance_frameworks:
+  pci_dss:
+    - "Requirement 7.1: Limit access to system components"
+    - "Requirement 7.2: Establish access control systems"
+    - "Requirement 8.2: Ensure proper user authentication"
+    - "Requirement 8.3: Secure all individual non-consumer users with MFA"
+    - "Requirement 8.4: Multi-factor authentication"
+  soc2:
+    - "CC6.1: Logical and physical access controls"
+    - "CC6.2: System access is provisioned, removed, and reviewed"
+    - "CC6.3: Access credentials are protected"
+  iso27001:
+    - "A.9.1: Business requirements for access control"
+    - "A.9.2: User access management"
+    - "A.9.4: System and application access control"
+key_metrics:
+  - "15+ AWS accounts with centralized IAM"
+  - "10 role-based policies"
+  - "5 IRSA policies for EKS"
+  - "Zero unauthorized access incidents"
+  - "100% MFA enforcement for human access"
+technical_stack:
+  - "AWS IAM"
+  - "IAM Identity Center (SSO)"
+  - "IRSA (IAM Roles for Service Accounts)"
+  - "Terraform"
+  - "Python/Boto3"
+estimated_implementation_hours: 24
+last_updated: "2025-12"
+version: "1.0.0"

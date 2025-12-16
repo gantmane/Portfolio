@@ -1,0 +1,61 @@
+---
+directory: "cloud-security/aws/multi-account-setup"
+owner: "Evgeniy Gantman"
+purpose: "AWS Organizations and Control Tower landing zone configuration"
+category: "cloud-security"
+subcategory: "aws"
+tags:
+  - aws
+  - organizations
+  - control-tower
+  - landing-zone
+  - multi-account
+  - pci-dss
+  - security-baseline
+  - governance
+resume_alignment:
+  - "Architected AWS multi-account landing zone with 15+ accounts"
+  - "PCI DSS Level 1 compliance with zero audit findings"
+  - "Centralized identity management with IAM Identity Center"
+  - "Service Control Policies for security guardrails"
+dependencies:
+  - "terraform >= 1.5.0"
+  - "aws-cli >= 2.0"
+  - "python >= 3.9"
+  - "boto3 >= 1.28"
+related_directories:
+  - "cloud-security/aws/iam-policies"
+  - "cloud-security/aws/security-hub-configs"
+  - "infrastructure-as-code/terraform-modules"
+  - "compliance/pci-dss-4.0/requirement-01-network-security"
+  - "compliance/pci-dss-4.0/requirement-07-access-control"
+compliance_frameworks:
+  pci_dss:
+    - "Requirement 1: Network Segmentation (CDE account isolation)"
+    - "Requirement 2: Secure Configuration (Control Tower baseline)"
+    - "Requirement 7: Access Control (Cross-account roles, IAM Identity Center)"
+    - "Requirement 10: Logging (Centralized CloudTrail)"
+    - "Requirement 12: Security Policy (SCPs)"
+  soc2:
+    - "CC6.1: Logical Access Controls"
+    - "CC6.6: Logical Access Credentials Management"
+    - "CC7.2: System Monitoring"
+  iso27001:
+    - "A.9.2: User Access Management"
+    - "A.12.4: Logging and Monitoring"
+    - "A.18.1: Compliance with Legal Requirements"
+key_metrics:
+  - "15+ AWS accounts"
+  - "10+ Service Control Policies"
+  - "4 Organizational Units"
+  - "Zero audit findings"
+  - "100% automated account provisioning"
+technical_stack:
+  - "Terraform"
+  - "AWS Organizations"
+  - "AWS Control Tower"
+  - "AWS IAM Identity Center"
+  - "Python/Boto3"
+estimated_implementation_hours: 40
+last_updated: "2025-12"
+version: "1.0.0"

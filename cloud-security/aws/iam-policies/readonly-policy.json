@@ -1,0 +1,129 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnlyAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "eks:Describe*",
+        "eks:List*",
+        "rds:Describe*",
+        "s3:List*",
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:GetBucketLocation",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketLogging",
+        "s3:GetBucketEncryption",
+        "dynamodb:Describe*",
+        "dynamodb:List*",
+        "lambda:Get*",
+        "lambda:List*",
+        "cloudwatch:Describe*",
+        "cloudwatch:Get*",
+        "cloudwatch:List*",
+        "logs:Describe*",
+        "logs:Get*",
+        "logs:FilterLogEvents",
+        "cloudtrail:Describe*",
+        "cloudtrail:Get*",
+        "cloudtrail:List*",
+        "cloudtrail:LookupEvents",
+        "config:Describe*",
+        "config:Get*",
+        "config:List*",
+        "guardduty:Get*",
+        "guardduty:List*",
+        "securityhub:Describe*",
+        "securityhub:Get*",
+        "securityhub:List*",
+        "iam:Get*",
+        "iam:List*",
+        "iam:GenerateCredentialReport",
+        "iam:GenerateServiceLastAccessedDetails",
+        "kms:Describe*",
+        "kms:Get*",
+        "kms:List*",
+        "vpc:Describe*",
+        "route53:Get*",
+        "route53:List*",
+        "elasticloadbalancing:Describe*",
+        "autoscaling:Describe*",
+        "sns:Get*",
+        "sns:List*",
+        "sqs:Get*",
+        "sqs:List*",
+        "elasticache:Describe*",
+        "ecr:Describe*",
+        "ecr:Get*",
+        "ecr:List*",
+        "ecs:Describe*",
+        "ecs:List*",
+        "organizations:Describe*",
+        "organizations:List*",
+        "backup:Describe*",
+        "backup:List*",
+        "glacier:Describe*",
+        "glacier:List*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOnlyCostExplorer",
+      "Effect": "Allow",
+      "Action": [
+        "ce:Get*",
+        "ce:Describe*",
+        "cur:Describe*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadOnlyTrustedAdvisor",
+      "Effect": "Allow",
+      "Action": [
+        "support:DescribeTrustedAdvisorChecks",
+        "support:DescribeTrustedAdvisorCheckResult",
+        "support:DescribeTrustedAdvisorCheckRefreshStatuses"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyWriteActions",
+      "Effect": "Deny",
+      "Action": [
+        "*:Create*",
+        "*:Delete*",
+        "*:Update*",
+        "*:Put*",
+        "*:Modify*",
+        "*:Attach*",
+        "*:Detach*",
+        "*:Associate*",
+        "*:Disassociate*",
+        "*:Enable*",
+        "*:Disable*",
+        "*:Register*",
+        "*:Deregister*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RequireMFA",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:GetUser",
+        "iam:ListMFADevices",
+        "sts:GetSessionToken"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    }
+  ]
+}

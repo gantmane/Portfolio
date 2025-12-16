@@ -1,0 +1,160 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CDEAdminFullAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:*",
+        "eks:*",
+        "rds:*",
+        "s3:*",
+        "kms:*",
+        "cloudwatch:*",
+        "logs:*",
+        "elasticloadbalancing:*",
+        "autoscaling:*",
+        "lambda:*",
+        "dynamodb:*",
+        "secretsmanager:*",
+        "ssm:*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": "444455556666"
+        },
+        "IpAddress": {
+          "aws:SourceIp": [
+            "10.0.0.0/8",
+            "192.0.2.0/24"
+          ]
+        },
+        "Bool": {
+          "aws:MultiFactorAuthPresent": "true"
+        },
+        "NumericLessThan": {
+          "aws:MultiFactorAuthAge": "900"
+        }
+      }
+    },
+    {
+      "Sid": "CDEReadAccessOtherAccounts",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "eks:Describe*",
+        "rds:Describe*",
+        "s3:List*",
+        "s3:GetObject",
+        "cloudwatch:Get*",
+        "cloudwatch:List*",
+        "logs:Get*",
+        "logs:Describe*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:ResourceAccount": "444455556666"
+        }
+      }
+    },
+    {
+      "Sid": "DenySecurityServiceChanges",
+      "Effect": "Deny",
+      "Action": [
+        "cloudtrail:StopLogging",
+        "cloudtrail:DeleteTrail",
+        "cloudtrail:UpdateTrail",
+        "config:DeleteConfigurationRecorder",
+        "config:DeleteDeliveryChannel",
+        "config:StopConfigurationRecorder",
+        "guardduty:DeleteDetector",
+        "guardduty:DeleteMembers",
+        "guardduty:DisassociateFromMasterAccount",
+        "securityhub:DisableSecurityHub",
+        "securityhub:DeleteMembers",
+        "securityhub:DisassociateFromMasterAccount"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyRootUserActions",
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "aws:PrincipalArn": "arn:aws:iam::*:root"
+        }
+      }
+    },
+    {
+      "Sid": "EnforceEncryption",
+      "Effect": "Deny",
+      "Action": [
+        "s3:PutObject",
+        "ec2:RunInstances",
+        "rds:CreateDBInstance",
+        "rds:CreateDBCluster"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "s3:x-amz-server-side-encryption": "aws:kms"
+        },
+        "Bool": {
+          "ec2:Encrypted": "false",
+          "rds:StorageEncrypted": "false"
+        }
+      }
+    },
+    {
+      "Sid": "RequireStrictMFA",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:CreateVirtualMFADevice",
+        "iam:EnableMFADevice",
+        "iam:GetUser",
+        "iam:ListMFADevices",
+        "iam:ListVirtualMFADevices",
+        "iam:ResyncMFADevice",
+        "sts:GetSessionToken"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    },
+    {
+      "Sid": "DenyAccessOutsideCorporateNetwork",
+      "Effect": "Deny",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "NotIpAddress": {
+          "aws:SourceIp": [
+            "10.0.0.0/8",
+            "192.0.2.0/24"
+          ]
+        },
+        "StringNotEquals": {
+          "aws:ViaAWSService": "true"
+        }
+      }
+    },
+    {
+      "Sid": "SessionDurationLimit",
+      "Effect": "Deny",
+      "Action": "sts:AssumeRole",
+      "Resource": "*",
+      "Condition": {
+        "NumericGreaterThan": {
+          "sts:DurationSeconds": "14400"
+        }
+      }
+    }
+  ]
+}

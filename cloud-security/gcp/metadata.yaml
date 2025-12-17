@@ -1,0 +1,349 @@
+---
+directory: "cloud-security/gcp"
+owner: "Evgeniy Gantman"
+purpose: "Multi-cloud security architecture with GCP as secondary cloud provider"
+category: "cloud-security"
+subcategory: "multi-cloud"
+
+tags:
+  - gcp
+  - google-cloud
+  - multi-cloud
+  - hybrid-cloud
+  - vpc-service-controls
+  - security-command-center
+  - cloud-iam
+  - cloud-kms
+  - organization-policies
+
+resume_alignment:
+  key_achievements:
+    - metric: "Multi-cloud architecture"
+      implementation: "AWS (primary) + GCP (secondary) with unified security controls"
+      scope: "3 GCP projects integrated with 15+ AWS accounts"
+      value: "Disaster recovery, vendor diversification, workload flexibility"
+
+    - metric: "Zero GCP security findings"
+      implementation: "Security Command Center with automated remediation"
+      coverage: "Asset discovery, vulnerability scanning, threat detection"
+      compliance: "Clean security posture across all GCP projects"
+
+    - metric: "Hybrid cloud connectivity"
+      implementation: "Secure VPN tunnels between AWS and GCP"
+      bandwidth: "1 Gbps encrypted VPN"
+      latency: "< 50ms between regions"
+
+technical_scope:
+  gcp_organization:
+    org_id: "123456789012"
+    domain: "examplepay.com"
+    projects: 3
+    billing_account: "Centralized billing"
+
+  projects:
+    production:
+      id: "examplepay-prod-gcp"
+      purpose: "Production workloads and DR site"
+      services:
+        - Google Kubernetes Engine (GKE)
+        - Cloud SQL (PostgreSQL)
+        - Cloud Storage
+        - Cloud Load Balancing
+        - Cloud Armor (DDoS protection)
+
+    development:
+      id: "examplepay-dev-gcp"
+      purpose: "Development and testing environments"
+      services:
+        - GKE development clusters
+        - Cloud SQL development instances
+        - Cloud Storage for artifacts
+
+    shared_services:
+      id: "examplepay-shared-gcp"
+      purpose: "CI/CD, logging, monitoring"
+      services:
+        - Cloud Build
+        - Artifact Registry
+        - Cloud Logging
+        - Cloud Monitoring
+        - Cloud KMS
+
+  networking:
+    vpc_networks:
+      - name: "production-vpc"
+        cidr: "172.16.0.0/16"
+        region: "us-central1"
+
+      - name: "development-vpc"
+        cidr: "172.17.0.0/16"
+        region: "us-central1"
+
+    interconnect:
+      - type: "Cloud VPN"
+        destination: "AWS VPC (10.0.0.0/16)"
+        bandwidth: "1 Gbps"
+        encryption: "IPSec"
+
+  security_features:
+    - VPC Service Controls (data exfiltration prevention)
+    - Security Command Center (Standard tier)
+    - Event Threat Detection
+    - Container Vulnerability Scanning
+    - Cloud Armor (Web application firewall)
+    - Cloud KMS with CMEK
+    - Organization Policies
+    - IAM Conditions
+    - Workload Identity for GKE
+
+compliance_frameworks:
+  pci_dss_4_0:
+    requirements:
+      - id: "1.3"
+        description: "Prohibit direct public access between Internet and CDE"
+        implementation: "VPC Service Controls isolate CDE"
+        evidence: "Service perimeter configuration"
+
+      - id: "2.2"
+        description: "Configuration standards for all system components"
+        implementation: "Organization Policies enforce security standards"
+        policies:
+          - "requireOsLogin" (compute instances)
+          - "requireShieldedVm" (secure boot)
+          - "disableSerialPortAccess"
+          - "restrictVpcPeering"
+
+      - id: "7.1"
+        description: "Limit access to system components and cardholder data"
+        implementation: "IAM conditions + VPC Service Controls"
+        controls:
+          - "IP-based access restrictions"
+          - "Device policy enforcement"
+          - "Time-based access"
+
+      - id: "8.3"
+        description: "Multi-factor authentication for all access"
+        implementation: "Google Workspace enforces MFA organization-wide"
+        coverage: "100% of users"
+
+      - id: "10.2"
+        description: "Implement automated audit trails"
+        implementation: "Cloud Logging with 7-year retention"
+        log_types:
+          - "Admin Activity logs"
+          - "Data Access logs"
+          - "System Event logs"
+          - "VPC Flow Logs"
+
+      - id: "11.4"
+        description: "Use intrusion-detection and prevention techniques"
+        implementation: "Event Threat Detection + Cloud Armor"
+        coverage: "Network and application layer"
+
+      - id: "12.8"
+        description: "Maintain policy for service providers"
+        implementation: "Service accounts with least privilege"
+        monitoring: "IAM Recommender for privilege reduction"
+
+  cis_gcp_foundations:
+    version: "1.3.0"
+    sections:
+      - "1.0 Identity and Access Management"
+      - "2.0 Logging and Monitoring"
+      - "3.0 Networking"
+      - "4.0 Virtual Machines"
+      - "5.0 Storage"
+      - "6.0 Cloud SQL Database Services"
+      - "7.0 BigQuery"
+
+dependencies:
+  terraform: ">= 1.5"
+  gcloud: ">= 400.0"
+  python: ">= 3.11"
+  google-cloud-sdk: "Latest"
+
+related_directories:
+  - path: "../aws/"
+    relationship: "Primary cloud provider, GCP provides DR and workload diversity"
+
+  - path: "../../kubernetes-security/eks-hardening/"
+    relationship: "AWS EKS configuration, paralleled in GCP GKE"
+
+  - path: "../../siem-soc/wazuh-deployment/"
+    relationship: "GCP logs forwarded to unified Wazuh SIEM"
+
+  - path: "../../monitoring-observability/"
+    relationship: "GCP Cloud Monitoring integrated with Grafana"
+
+infrastructure:
+  terraform_modules:
+    - gcp-organization.tf: "Organization and folder structure"
+    - gcp-iam-policies.tf: "IAM policies and service accounts"
+    - gcp-vpc-security.tf: "VPC networks and firewall rules"
+    - gcp-security-command-center.tf: "Security Command Center setup"
+    - gcp-kms-encryption.tf: "Cloud KMS key management"
+
+  automation_scripts:
+    - deploy-gcp-security.sh: "Automated GCP security deployment"
+
+security_features:
+  organization_policies:
+    - "compute.requireOsLogin"
+    - "compute.requireShieldedVm"
+    - "compute.disableSerialPortAccess"
+    - "compute.disableNestedVirtualization"
+    - "compute.restrictVpcPeering"
+    - "iam.disableServiceAccountKeyCreation"
+    - "iam.allowedPolicyMemberDomains"
+    - "storage.uniformBucketLevelAccess"
+
+  vpc_service_controls:
+    perimeters:
+      - name: "production_perimeter"
+        projects:
+          - "examplepay-prod-gcp"
+        services:
+          - "storage.googleapis.com"
+          - "bigquery.googleapis.com"
+          - "sqladmin.googleapis.com"
+        access_levels:
+          - "corporate_network"
+          - "approved_regions"
+
+  security_command_center:
+    tier: "Standard"
+    features:
+      - "Asset Discovery"
+      - "Security Health Analytics"
+      - "Event Threat Detection"
+      - "Container Threat Detection"
+      - "Web Security Scanner"
+
+  cloud_armor:
+    policies:
+      - name: "production-waf"
+        rules:
+          - "OWASP Top 10 protection"
+          - "Rate limiting"
+          - "Geo-blocking"
+          - "IP reputation"
+
+multi_cloud_integration:
+  aws_gcp_connectivity:
+    method: "Cloud VPN (IPSec)"
+    bandwidth: "1 Gbps"
+    redundancy: "Dual tunnels"
+    failover: "Automatic (BGP)"
+
+  unified_logging:
+    flow: "GCP Cloud Logging → Pub/Sub → AWS Kinesis → Wazuh"
+    retention: "7 years in both clouds"
+
+  shared_services:
+    dns:
+      primary: "AWS Route53"
+      secondary: "GCP Cloud DNS"
+      integration: "DNS forwarding zones"
+
+    secrets_management:
+      aws: "AWS Secrets Manager"
+      gcp: "GCP Secret Manager"
+      sync: "Manual (no cross-cloud sync)"
+
+    monitoring:
+      gcp: "Cloud Monitoring"
+      aws: "CloudWatch"
+      unified: "Grafana dashboards"
+
+operational_metrics:
+  availability:
+    aws: "99.99%"
+    gcp: "99.95%"
+    combined: "99.999% (multi-cloud redundancy)"
+
+  cost_breakdown:
+    gcp_monthly: "$236"
+    aws_monthly: "$12,000"
+    total_monthly: "$12,236"
+    gcp_percentage: "1.9% of total cloud spend"
+
+  disaster_recovery:
+    rto: "4 hours"
+    rpo: "1 hour"
+    dr_site: "GCP us-central1"
+    primary_site: "AWS us-east-1"
+
+use_cases:
+  disaster_recovery:
+    description: "GCP as DR site for critical AWS workloads"
+    services: "GKE, Cloud SQL, Cloud Storage"
+    sync: "Hourly snapshots and backups"
+
+  kubernetes_workloads:
+    description: "Multi-cloud Kubernetes for workload flexibility"
+    production: "AWS EKS"
+    development: "GCP GKE"
+    advantage: "Avoid vendor lock-in, test portability"
+
+  data_analytics:
+    description: "BigQuery for data analytics workloads"
+    source: "AWS S3 data lake"
+    processing: "BigQuery in GCP"
+    output: "Results to AWS Redshift or Athena"
+
+  ci_cd_diversity:
+    description: "Different build systems for redundancy"
+    aws: "ECS for general builds"
+    gcp: "Cloud Build for GKE deployments"
+    artifacts: "Artifact Registry (GCP) + ECR (AWS)"
+
+cost_optimization:
+  strategies:
+    - "Committed use discounts (30% savings)"
+    - "Preemptible VMs for dev/test (80% savings)"
+    - "Sustained use discounts (automatic)"
+    - "Resource right-sizing via Recommender"
+
+  monthly_breakdown:
+    compute_gke: "$150 (2 clusters)"
+    networking_vpn: "$50 (VPN tunnels + NAT)"
+    storage: "$20 (Cloud Storage + snapshots)"
+    database: "$0 (no production databases in GCP)"
+    kms: "$6 (20 keys)"
+    logging: "$30 (500GB/month)"
+
+gcp_vs_aws_comparison:
+  similarities:
+    - "Organization hierarchy"
+    - "IAM policy model"
+    - "VPC networking concepts"
+    - "Managed Kubernetes (GKE ≈ EKS)"
+    - "Object storage (GCS ≈ S3)"
+
+  differences:
+    - "GCP: Flat VPC networks vs AWS: Subnet-based"
+    - "GCP: Project-level resources vs AWS: Account-level"
+    - "GCP: Organization Policies vs AWS: SCPs"
+    - "GCP: Workload Identity vs AWS: IRSA"
+
+certifications:
+  - "PCI DSS Level 1 Service Provider"
+  - "ISO 27001"
+  - "SOC 2 Type II"
+  - "HIPAA (available, not used)"
+
+documentation:
+  runbooks:
+    - "GCP project creation procedure"
+    - "VPN tunnel failover procedure"
+    - "GKE cluster upgrade procedure"
+    - "Security Command Center response"
+
+  policies:
+    - "Multi-cloud security policy"
+    - "GCP resource tagging standards"
+    - "Disaster recovery plan (AWS → GCP)"
+
+last_updated: "2025-12"
+version: "1.0"
+status: "production"

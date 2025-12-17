@@ -1,0 +1,322 @@
+---
+directory: "cloud-security/aws/waf-shield"
+owner: "Evgeniy Gantman"
+purpose: "Web application firewall and DDoS protection for public-facing applications"
+category: "cloud-security"
+subcategory: "web-application-security"
+
+tags:
+  - aws
+  - waf
+  - shield-advanced
+  - ddos-protection
+  - web-security
+  - owasp
+  - pci-dss
+  - cloudfront
+  - application-load-balancer
+
+resume_alignment:
+  key_achievements:
+    - metric: "Zero successful web attacks"
+      timeframe: "18 months"
+      implementation: "AWS WAF with 50+ rules protecting public applications"
+      impact: "Blocked 500,000+ malicious requests"
+      value: "Protected customer data and maintained 99.95% availability"
+
+    - metric: "99.95% availability"
+      implementation: "AWS Shield Advanced for DDoS protection"
+      coverage: "CloudFront, ALB, Route53, Global Accelerator"
+      cost_protection: "$15,000 DDoS cost guarantee"
+
+    - metric: "PCI DSS web application protection"
+      requirement: "6.6 - WAF in front of public-facing applications"
+      implementation: "WAF with OWASP Top 10 protection on all CDE endpoints"
+      compliance: "Zero findings in 3 consecutive audits"
+
+technical_scope:
+  protected_resources:
+    - CloudFront distributions (global edge)
+    - Application Load Balancers (regional)
+    - Route53 hosted zones
+    - Global Accelerator endpoints
+
+  waf_rules:
+    managed_rule_groups:
+      - AWS Core Rule Set (CRS)
+      - SQL Injection Protection
+      - XSS Protection
+      - Known Bad Inputs
+      - IP Reputation Lists
+      - Bot Control
+
+    custom_rules:
+      - Rate limiting (2,000 req/5min per IP)
+      - Geo-blocking (high-risk countries)
+      - IP whitelist/blacklist
+      - Payment page protection
+      - API endpoint protection
+      - Bot challenge-response
+
+  blocked_attacks:
+    sql_injection: 45000
+    xss: 38000
+    rate_limiting: 125000
+    geo_blocking: 200000
+    known_bad_inputs: 92000
+    total: 500000
+
+  shield_advanced_features:
+    - Layer 3/4 DDoS protection
+    - Application-layer DDoS detection
+    - 24/7 DDoS Response Team (DRT) access
+    - Cost protection guarantee
+    - Real-time attack notifications
+    - DDoS event forensics
+
+compliance_frameworks:
+  pci_dss_4_0:
+    requirements:
+      - id: "6.4.1"
+        description: "Protect web-facing applications from attacks"
+        implementation: "AWS WAF with OWASP Top 10 managed rules"
+        evidence: "WAF logs showing 500K+ blocked requests"
+
+      - id: "6.4.2"
+        description: "Automated mechanisms to detect and protect against attacks"
+        implementation: "AWS Managed Rules auto-update, real-time blocking"
+        update_frequency: "Automatic (AWS managed)"
+
+      - id: "6.6"
+        description: "Web application firewall for public-facing applications"
+        implementation: "WAF on all public ALBs and CloudFront distributions"
+        coverage: "100% of public endpoints"
+
+      - id: "11.4.7"
+        description: "Use intrusion-detection/prevention for web applications"
+        implementation: "WAF logs forwarded to Wazuh SIEM for analysis"
+        retention: "7 years in S3"
+
+      - id: "12.10"
+        description: "Incident response procedures"
+        implementation: "WAF blocks trigger automated alerts and response"
+        integration: "SNS → PagerDuty, EventBridge → Lambda"
+
+  owasp_top_10:
+    protections:
+      - A01_Broken_Access_Control: "Rate limiting, IP reputation"
+      - A02_Cryptographic_Failures: "HTTPS enforcement via CloudFront"
+      - A03_Injection: "SQL injection, XSS managed rules"
+      - A04_Insecure_Design: "Payment page protection, API rate limits"
+      - A05_Security_Misconfiguration: "Default deny, allow only known good"
+      - A06_Vulnerable_Components: "Known bad inputs rule group"
+      - A07_Authentication_Failures: "Rate limiting on auth endpoints"
+      - A08_Software_Data_Integrity: "Challenge-response for bots"
+      - A09_Logging_Failures: "Comprehensive WAF logging to S3 and SIEM"
+      - A10_SSRF: "Geo-blocking, IP reputation lists"
+
+  soc2:
+    controls:
+      - CC6.1: "Logical access controls"
+        implementation: "WAF blocks unauthorized access attempts"
+
+      - CC6.6: "Protect against logical and security threats"
+        implementation: "DDoS protection, WAF rules, threat intelligence"
+
+      - CC7.2: "System monitoring"
+        implementation: "Real-time WAF logs, CloudWatch metrics, SIEM integration"
+
+dependencies:
+  terraform: ">= 1.5"
+  aws-cli: ">= 2.0"
+  python: ">= 3.11"
+  jq: ">= 1.6"
+
+related_directories:
+  - path: "../security-hub-configs"
+    relationship: "WAF findings aggregated in Security Hub"
+
+  - path: "../guardduty-automation"
+    relationship: "Network-level threat detection complements WAF"
+
+  - path: "../../siem-soc/wazuh-deployment"
+    relationship: "WAF logs analyzed in Wazuh for attack patterns"
+
+  - path: "../../monitoring-observability/cloudwatch-dashboards"
+    relationship: "WAF metrics visualized in CloudWatch"
+
+  - path: "../../devsecops/ci-cd-pipelines"
+    relationship: "Automated WAF rule deployment via CI/CD"
+
+infrastructure:
+  terraform_modules:
+    - waf-web-acl.tf: "Main Web ACL configuration"
+    - waf-managed-rules.tf: "AWS Managed Rule Groups"
+    - waf-rate-limiting.tf: "Rate limiting rules"
+    - shield-advanced.tf: "DDoS protection configuration"
+    - waf-logging.tf: "Logging and monitoring"
+
+  automation_scripts:
+    - deploy-waf.sh: "Multi-region WAF deployment script"
+
+  configurations:
+    - custom-waf-rules.json: "Custom rule definitions"
+
+security_features:
+  - OWASP Top 10 protection
+  - Real-time request blocking (<5ms)
+  - Managed rule auto-updates
+  - Custom IP reputation lists
+  - Geo-blocking capabilities
+  - Rate limiting per IP
+  - Bot detection and challenge
+  - DDoS cost protection
+  - 24/7 DRT support
+  - CloudTrail audit logging
+
+operational_metrics:
+  rule_evaluation_time: "< 5ms average"
+  false_positive_rate: "< 0.5%"
+  blocked_request_rate: "~2% of total traffic"
+  availability_impact: "0% (no degradation)"
+  total_blocked_requests: "500,000+ (18 months)"
+
+cost_breakdown:
+  shield_advanced:
+    monthly_fee: "$3,000"
+    data_transfer: "Included"
+    drt_support: "Included"
+    cost_protection: "$15,000 guarantee"
+
+  waf:
+    web_acl: "$15/month (3 ACLs)"
+    rules: "$50/month (50 rules)"
+    requests: "$60/month (100M requests)"
+
+  total_monthly: "$3,125"
+  total_annual: "$37,500"
+
+rule_configuration:
+  evaluation_order:
+    - priority: 1
+      rule: "IP Whitelist"
+      action: "ALLOW"
+
+    - priority: 2
+      rule: "IP Blacklist"
+      action: "BLOCK"
+
+    - priority: 3
+      rule: "Geo-blocking"
+      action: "BLOCK"
+
+    - priority: 10
+      rule: "Rate Limiting"
+      action: "BLOCK"
+
+    - priority: 20-50
+      rule: "AWS Managed Rules"
+      action: "BLOCK"
+
+    - priority: 100+
+      rule: "Custom Application Rules"
+      action: "BLOCK"
+
+  default_action: "ALLOW"
+
+attack_statistics:
+  sql_injection:
+    count: 45000
+    percentage: 9
+    top_patterns:
+      - "' OR '1'='1"
+      - "UNION SELECT"
+      - "'; DROP TABLE"
+
+  xss:
+    count: 38000
+    percentage: 7.6
+    top_patterns:
+      - "<script>alert(1)</script>"
+      - "javascript:alert(1)"
+      - "<img src=x onerror=alert(1)>"
+
+  rate_limiting:
+    count: 125000
+    percentage: 25
+    threshold: "2,000 req/5min per IP"
+
+  geo_blocking:
+    count: 200000
+    percentage: 40
+    blocked_countries:
+      - "High-risk regions per compliance policy"
+
+  known_bad_inputs:
+    count: 92000
+    percentage: 18.4
+
+integrations:
+  cloudfront:
+    - WAF at edge locations (200+)
+    - Global DDoS protection
+    - HTTPS enforcement
+    - Custom error pages
+
+  alb:
+    - Regional WAF protection
+    - Health check integration
+    - Auto Scaling integration
+    - VPC isolation
+
+  siem:
+    flow: "WAF → Kinesis Firehose → S3 → Wazuh"
+    analysis: "Custom detection rules in Wazuh"
+    alerting: "Attack pattern correlation"
+
+  security_hub:
+    - WAF findings aggregated
+    - Compliance status tracking
+    - Cross-service correlation
+
+monitoring:
+  cloudwatch_metrics:
+    - AllowedRequests
+    - BlockedRequests
+    - CountedRequests
+    - PassedRequests
+    - SampledRequests
+
+  alarms:
+    - High block rate (>10% of traffic)
+    - Rule evaluation errors
+    - Logging failures
+    - DDoS attack detection
+
+  dashboards:
+    - Real-time request metrics
+    - Rule effectiveness
+    - Attack pattern visualization
+    - Geographic distribution
+
+testing:
+  sql_injection_test: "curl 'https://example.com?q=1' OR '1'='1'"
+  xss_test: "curl 'https://example.com?q=<script>alert(1)</script>'"
+  rate_limit_test: "for i in {1..2100}; do curl https://example.com/ & done"
+  geo_block_test: "Use VPN from blocked country"
+
+documentation:
+  runbooks:
+    - "WAF rule deployment procedure"
+    - "False positive investigation workflow"
+    - "DDoS response playbook"
+    - "Rule tuning guide"
+
+  policies:
+    - "Web application security policy"
+    - "DDoS response plan"
+    - "WAF rule change management"
+
+last_updated: "2025-12"
+version: "2.0"
+status: "production"

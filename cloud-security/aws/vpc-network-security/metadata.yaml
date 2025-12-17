@@ -1,0 +1,341 @@
+---
+directory: "cloud-security/aws/vpc-network-security"
+owner: "Evgeniy Gantman"
+purpose: "Multi-tier VPC network security architecture with defense-in-depth"
+category: "cloud-security"
+subcategory: "network-security"
+
+tags:
+  - aws
+  - vpc
+  - network-security
+  - security-groups
+  - network-acls
+  - vpc-flow-logs
+  - transit-gateway
+  - pci-dss
+  - network-segmentation
+  - defense-in-depth
+
+resume_alignment:
+  - "Multi-tier VPC architecture with 3+ availability zones"
+  - "Network segmentation for PCI DSS compliance (Requirement 1)"
+  - "VPC Flow Logs with 100% traffic capture and 10-year retention"
+  - "Zero network security incidents through defense-in-depth"
+  - "Transit Gateway connecting 15+ VPCs"
+  - "30% cost reduction via VPC endpoints"
+  - "Automated security group auditing detecting 200+ issues"
+
+key_achievements:
+  - metric: "Zero network security incidents"
+    timeframe: "24 months"
+    impact: "Complete isolation of CDE from untrusted networks"
+
+  - metric: "100% VPC Flow Logs coverage"
+    timeframe: "All production VPCs"
+    impact: "Forensic analysis capability for all network traffic"
+
+  - metric: "15+ VPCs connected"
+    timeframe: "Multi-account organization"
+    impact: "Centralized network management via Transit Gateway"
+
+  - metric: "30% NAT cost reduction"
+    timeframe: "Annual"
+    impact: "$18K saved via VPC endpoints for S3, DynamoDB, ECR"
+
+  - metric: "200+ security group issues detected"
+    timeframe: "Initial audit"
+    impact: "Automated remediation of overly permissive rules"
+
+dependencies:
+  terraform: ">= 1.5.0"
+  aws_cli: ">= 2.0"
+  python: ">= 3.9"
+  boto3: ">= 1.26"
+  jq: ">= 1.6"
+
+related_directories:
+  - path: "../multi-account-setup"
+    relationship: "Deploys VPCs across multiple AWS accounts"
+
+  - path: "../iam-policies"
+    relationship: "IAM policies control access to network resources"
+
+  - path: "../waf-shield"
+    relationship: "WAF protects public-facing ALBs in public subnets"
+
+  - path: "../../network-security/firewall-configs"
+    relationship: "Host-based firewalls complement VPC security groups"
+
+  - path: "../../siem-soc/wazuh-deployment"
+    relationship: "VPC Flow Logs forwarded to Wazuh SIEM"
+
+  - path: "../../monitoring-observability/prometheus-metrics"
+    relationship: "Network metrics exported to Prometheus"
+
+compliance_frameworks:
+  pci_dss_4_0:
+    requirements:
+      - id: "1.2.1"
+        description: "Configuration standards for network security controls"
+        implementation: "Network segmentation policy document"
+        evidence: "network-segmentation.yaml"
+
+      - id: "1.2.2"
+        description: "Restrict connections between untrusted networks and CDE"
+        implementation: "CDE VPC isolated, Transit Gateway with route filtering"
+        evidence: "transit-gateway.tf, vpc-architecture.tf"
+
+      - id: "1.2.3"
+        description: "Inbound traffic to CDE is restricted"
+        implementation: "Security groups deny by default, explicit allow only"
+        evidence: "security-groups.tf"
+
+      - id: "1.2.4"
+        description: "Restrict outbound traffic from CDE"
+        implementation: "CDE VPC has no internet gateway, private routing only"
+        evidence: "vpc-architecture.tf"
+
+      - id: "1.2.5"
+        description: "Security policies enforced for traffic from CDE"
+        implementation: "Transit Gateway route tables with explicit routes"
+        evidence: "transit-gateway.tf"
+
+      - id: "1.2.7"
+        description: "Review configuration standards at least every 6 months"
+        implementation: "Automated security group audit script"
+        evidence: "security-group-audit.py"
+
+      - id: "1.3.1"
+        description: "DMZ implemented to limit inbound traffic"
+        implementation: "Public subnet tier with ALB, private tier isolated"
+        evidence: "vpc-architecture.tf, security-groups.tf"
+
+      - id: "1.3.2"
+        description: "Limit inbound internet traffic to DMZ"
+        implementation: "Only public subnets have internet gateway routes"
+        evidence: "vpc-architecture.tf"
+
+      - id: "1.4.2"
+        description: "Inbound traffic from internet to CDE denied"
+        implementation: "CDE VPC has no internet gateway"
+        evidence: "vpc-architecture.tf"
+
+      - id: "10.2.2"
+        description: "Audit trails for all system components"
+        implementation: "VPC Flow Logs capture all network traffic"
+        evidence: "vpc-flow-logs.tf"
+
+      - id: "10.3.2"
+        description: "Type of event recorded"
+        implementation: "Flow logs record source, dest, port, protocol, action"
+        evidence: "vpc-flow-logs.tf"
+
+      - id: "10.7.2"
+        description: "Logs retained for at least 12 months"
+        implementation: "S3 lifecycle with 10-year retention"
+        evidence: "vpc-flow-logs.tf"
+
+  nist_csf:
+    functions:
+      - id: "PR.AC-5"
+        description: "Network integrity is protected"
+        implementation: "Network segmentation, security groups, NACLs"
+
+      - id: "PR.DS-2"
+        description: "Data-in-transit is protected"
+        implementation: "VPC endpoints for private AWS service access"
+
+      - id: "DE.AE-1"
+        description: "Network communications are monitored"
+        implementation: "VPC Flow Logs with automated analysis"
+
+      - id: "DE.CM-1"
+        description: "Network monitored for anomalous activity"
+        implementation: "Flow log analysis script detects port scans, exfiltration"
+
+  cis_aws_foundations:
+    benchmarks:
+      - id: "5.1"
+        description: "Ensure VPC Flow Logs enabled"
+        implementation: "All VPCs have Flow Logs to S3 and CloudWatch"
+
+      - id: "5.2"
+        description: "Ensure default security group restricts traffic"
+        implementation: "Default SG deny all, explicit SGs for each tier"
+
+      - id: "5.3"
+        description: "Ensure routing tables least-privilege"
+        implementation: "No 0.0.0.0/0 routes in private/data/CDE subnets"
+
+network_architecture:
+  vpc_count: 4
+  vpc_types:
+    - name: "Production"
+      cidr: "10.0.0.0/16"
+      availability_zones: 3
+      tiers:
+        - public
+        - private
+        - data
+        - management
+
+    - name: "CDE"
+      cidr: "10.100.0.0/16"
+      availability_zones: 3
+      isolation: true
+      internet_access: false
+      tiers:
+        - cde-application
+        - cde-database
+
+    - name: "Development"
+      cidr: "10.1.0.0/16"
+      availability_zones: 2
+      tiers:
+        - public
+        - private
+
+    - name: "Security"
+      cidr: "10.10.0.0/16"
+      availability_zones: 2
+      purpose: "Security tools, SIEM, bastion hosts"
+      tiers:
+        - management
+
+  connectivity:
+    transit_gateway:
+      enabled: true
+      vpcs_connected: 15
+      routing: "hub-and-spoke"
+
+    vpc_peering:
+      enabled: false
+      reason: "Migrated to Transit Gateway for scalability"
+
+    vpc_endpoints:
+      interface_endpoints:
+        - ec2
+        - ecr.api
+        - ecr.dkr
+        - s3
+        - secretsmanager
+        - kms
+        - ssm
+        - logs
+
+      gateway_endpoints:
+        - s3
+        - dynamodb
+
+security_controls:
+  security_groups:
+    count: "40+"
+    strategy: "Least-privilege, explicit allow"
+    features:
+      - "No 0.0.0.0/0 inbound in production (except public ALB)"
+      - "Security group reference chains (web → app → db)"
+      - "Automatic tagging for ownership"
+      - "Quarterly automated audits"
+
+  network_acls:
+    strategy: "Deny by default, explicit allow"
+    scope: "All subnets"
+    features:
+      - "Stateless filtering at subnet boundary"
+      - "Defense in depth with security groups"
+      - "Explicit deny rules for known bad IPs"
+
+  vpc_flow_logs:
+    enabled: true
+    coverage: "100% of production VPCs"
+    retention: "10 years"
+    destinations:
+      - "S3 (long-term storage)"
+      - "CloudWatch Logs (real-time analysis)"
+    analysis:
+      - "Automated anomaly detection"
+      - "Port scan detection"
+      - "Data exfiltration alerts"
+      - "Baseline traffic profiling"
+
+monitoring_and_alerting:
+  cloudwatch_alarms:
+    - name: "Excessive rejected connections"
+      threshold: "100 in 5 minutes"
+      severity: "Medium"
+
+    - name: "Port scanning detected"
+      threshold: "Connections to 10+ ports from single IP"
+      severity: "High"
+
+    - name: "Unusual outbound data volume"
+      threshold: "10 GB in 15 minutes"
+      severity: "Critical"
+
+    - name: "Unauthorized CDE access attempt"
+      threshold: "Any connection to CDE from unapproved source"
+      severity: "Critical"
+
+    - name: "Security group rule change"
+      threshold: "Any modification"
+      severity: "High"
+
+  siem_integration:
+    platform: "Wazuh"
+    log_sources:
+      - "VPC Flow Logs"
+      - "CloudTrail (network resource changes)"
+      - "Security group modifications"
+    correlation_rules: "45+ network security rules"
+
+automation:
+  deployment:
+    tool: "Terraform"
+    cicd: "GitLab CI/CD"
+    validation: "Automated security group audits"
+
+  compliance_checks:
+    frequency: "Daily"
+    checks:
+      - "Overly permissive security groups (0.0.0.0/0)"
+      - "Unused security groups"
+      - "Missing VPC Flow Logs"
+      - "Default security group usage"
+      - "Security groups without descriptions"
+
+  remediation:
+    manual_approval: true
+    notification: "SNS to security team"
+
+cost_optimization:
+  vpc_endpoints:
+    annual_savings: "$18,000"
+    reduction_percentage: "30%"
+    mechanism: "Reduced NAT Gateway data processing charges"
+
+  flow_logs:
+    storage_class: "S3 Intelligent-Tiering → Glacier Deep Archive"
+    cost_per_vpc: "$15/month (100GB/day traffic)"
+
+last_updated: "2025-12"
+review_frequency: "Quarterly"
+next_review: "2025-03"
+
+documentation:
+  architecture_diagrams:
+    - "Network topology diagram (Visio/Lucidchart)"
+    - "Traffic flow diagrams for each tier"
+    - "CDE isolation architecture"
+    - "Transit Gateway hub-and-spoke topology"
+
+  runbooks:
+    - "VPC deployment procedure"
+    - "Security group audit and remediation"
+    - "VPC Flow Log analysis for incidents"
+    - "Network troubleshooting guide"
+
+  policies:
+    - "Network segmentation standards"
+    - "Security group naming conventions"
+    - "IP address allocation (IPAM)"

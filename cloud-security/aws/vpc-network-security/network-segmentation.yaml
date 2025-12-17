@@ -1,0 +1,465 @@
+---
+# Network Segmentation Policy
+# Author: Evgeniy Gantman
+# Purpose: Define network segmentation standards and requirements
+# PCI DSS: Requirement 1.2.1 (Configuration standards for network security controls)
+
+policy_name: "AWS Network Segmentation Standards"
+version: "2.1"
+effective_date: "2025-01-01"
+last_review: "2024-12-15"
+next_review: "2025-06-15"  # Semi-annual review per PCI DSS 1.2.7
+owner: "Security Team"
+approvers:
+  - "CISO"
+  - "VP Engineering"
+  - "Compliance Officer"
+
+# ===========================
+# Network Tiers
+# ===========================
+
+network_tiers:
+  - name: "public"
+    description: "Internet-facing tier (DMZ)"
+    purpose: "Public-facing load balancers, bastion hosts"
+    cidr_range: "10.0.0.0/20"
+    internet_access: "direct"
+    pci_scope: "out-of-scope"
+
+    allowed_services:
+      - "Application Load Balancer"
+      - "Network Load Balancer"
+      - "NAT Gateway"
+      - "Bastion hosts (with MFA)"
+      - "CloudFront origin servers"
+
+    security_controls:
+      - "Security groups allow HTTP/HTTPS from 0.0.0.0/0"
+      - "DDoS protection via AWS Shield Standard/Advanced"
+      - "WAF attached to all public ALBs"
+      - "No direct database or application server placement"
+
+    data_classification: "public"
+
+  - name: "private"
+    description: "Application tier"
+    purpose: "Application servers, EKS worker nodes, microservices"
+    cidr_range: "10.0.16.0/20"
+    internet_access: "via-nat-gateway"
+    pci_scope: "out-of-scope"
+
+    allowed_services:
+      - "EC2 application servers"
+      - "EKS worker nodes"
+      - "Container workloads"
+      - "Lambda functions (VPC-attached)"
+      - "Internal microservices"
+
+    security_controls:
+      - "No direct internet ingress"
+      - "Security groups deny by default"
+      - "Egress to data tier only on approved ports"
+      - "VPC endpoints for AWS services"
+      - "TLS 1.2+ for all internal communication"
+
+    data_classification: "confidential"
+
+  - name: "data"
+    description: "Database and data storage tier"
+    purpose: "RDS, ElastiCache, internal data stores"
+    cidr_range: "10.0.32.0/20"
+    internet_access: "none"
+    pci_scope: "out-of-scope"
+
+    allowed_services:
+      - "RDS databases"
+      - "ElastiCache (Redis/Memcached)"
+      - "DocumentDB"
+      - "Neptune"
+      - "Amazon MQ"
+
+    security_controls:
+      - "No internet access (no NAT gateway route)"
+      - "Ingress only from application tier"
+      - "Encryption at rest mandatory (KMS)"
+      - "Encryption in transit mandatory (TLS)"
+      - "Automated backups with 90-day retention"
+      - "No egress rules (databases don't initiate connections)"
+
+    data_classification: "confidential"
+
+  - name: "cde"
+    description: "Cardholder Data Environment (PCI DSS)"
+    purpose: "Systems that store, process, or transmit cardholder data"
+    cidr_range: "10.100.0.0/16"  # Separate VPC
+    internet_access: "none"
+    pci_scope: "in-scope"
+
+    allowed_services:
+      - "Payment processing application servers"
+      - "CDE databases (tokenization, PAN storage)"
+      - "HSM-integrated encryption services"
+
+    security_controls:
+      - "Isolated VPC with no internet gateway"
+      - "Connectivity only via Transit Gateway with strict routing"
+      - "CloudHSM for key management"
+      - "All traffic logged (VPC Flow Logs)"
+      - "File integrity monitoring (FIM) on all systems"
+      - "Quarterly vulnerability scans"
+      - "Annual penetration testing"
+      - "Real-time alerting to SIEM"
+
+    data_classification: "cardholder-data"
+
+  - name: "management"
+    description: "Administrative and security tools"
+    purpose: "Bastion hosts, monitoring, security tools"
+    cidr_range: "10.0.48.0/24"
+    internet_access: "via-nat-gateway"
+    pci_scope: "out-of-scope"
+
+    allowed_services:
+      - "Bastion hosts (jump boxes)"
+      - "Systems Manager Session Manager"
+      - "Security scanning tools"
+      - "Configuration management"
+
+    security_controls:
+      - "MFA required for all access"
+      - "Source IP restrictions (corporate network only)"
+      - "Session recording enabled"
+      - "Privileged access audit logs"
+      - "Just-in-time (JIT) access"
+
+    data_classification: "internal"
+
+# ===========================
+# Traffic Flow Rules
+# ===========================
+
+traffic_flow_rules:
+  - from: "internet"
+    to: "public"
+    allowed: true
+    protocols:
+      - "TCP/80 (HTTP)"
+      - "TCP/443 (HTTPS)"
+    security_controls:
+      - "AWS WAF inspection"
+      - "Rate limiting"
+      - "Geographic restrictions"
+    notes: "Public ALB only, no direct EC2 access"
+
+  - from: "public"
+    to: "private"
+    allowed: true
+    protocols:
+      - "TCP/8080 (application)"
+    security_controls:
+      - "Security group references"
+      - "TLS 1.2+ encryption"
+    notes: "ALB to application servers"
+
+  - from: "private"
+    to: "data"
+    allowed: true
+    protocols:
+      - "TCP/5432 (PostgreSQL)"
+      - "TCP/6379 (Redis)"
+    security_controls:
+      - "Security group references only"
+      - "TLS encryption mandatory"
+      - "IAM database authentication"
+    notes: "Application to database connections"
+
+  - from: "private"
+    to: "internet"
+    allowed: true
+    protocols:
+      - "TCP/443 (HTTPS)"
+    security_controls:
+      - "NAT Gateway required"
+      - "VPC Flow Logs monitoring"
+      - "Data exfiltration detection"
+    notes: "For external API calls, software updates"
+
+  - from: "private"
+    to: "cde"
+    allowed: false
+    protocols: []
+    security_controls: []
+    notes: "No direct connectivity between production and CDE"
+
+  - from: "internet"
+    to: "cde"
+    allowed: false
+    protocols: []
+    security_controls: []
+    notes: "CDE has no internet access (PCI DSS Req 1.2.4)"
+
+  - from: "cde"
+    to: "internet"
+    allowed: false
+    protocols: []
+    security_controls: []
+    notes: "CDE VPC has no internet gateway"
+
+  - from: "cde"
+    to: "security-vpc-siem"
+    allowed: true
+    protocols:
+      - "TCP/1514 (Wazuh agent)"
+      - "TCP/1515 (Wazuh registration)"
+    security_controls:
+      - "Transit Gateway with explicit routes"
+      - "Source/destination validation"
+      - "TLS 1.3 encryption"
+    notes: "CDE can only reach SIEM for log forwarding"
+
+  - from: "data"
+    to: "internet"
+    allowed: false
+    protocols: []
+    security_controls: []
+    notes: "Databases should not initiate outbound connections"
+
+  - from: "management"
+    to: "private"
+    allowed: true
+    protocols:
+      - "TCP/22 (SSH)"
+    security_controls:
+      - "MFA required"
+      - "Source IP restrictions"
+      - "Session recording"
+    notes: "Administrative access via bastion"
+
+# ===========================
+# Security Controls
+# ===========================
+
+security_controls:
+  vpc_level:
+    - control: "VPC Flow Logs"
+      status: "required"
+      scope: "all VPCs"
+      retention: "10 years (S3 Glacier Deep Archive)"
+      monitoring: "Real-time analysis for anomalies"
+
+    - control: "DNS query logging"
+      status: "required"
+      scope: "all VPCs"
+      purpose: "Detect DNS tunneling, C2 communication"
+
+    - control: "VPC endpoints"
+      status: "required"
+      scope: "S3, DynamoDB, ECR, Secrets Manager, KMS, SSM"
+      purpose: "Private AWS service access, cost optimization"
+
+  subnet_level:
+    - control: "Network ACLs"
+      status: "required"
+      strategy: "Deny by default, explicit allow"
+      purpose: "Stateless filtering at subnet boundary"
+
+    - control: "Route table least-privilege"
+      status: "required"
+      rules:
+        - "No 0.0.0.0/0 routes in data tier"
+        - "CDE has no default routes"
+        - "Explicit routes for all traffic"
+
+  instance_level:
+    - control: "Security groups"
+      status: "required"
+      strategy: "Deny by default, explicit allow"
+      rules:
+        - "No 0.0.0.0/0 inbound (except public ALB)"
+        - "Descriptive names and documentation"
+        - "Use security group references over IP ranges"
+
+    - control: "Host-based firewall"
+      status: "required"
+      scope: "All EC2 instances"
+      tools: "iptables, nftables, or firewalld"
+
+  encryption:
+    - control: "Encryption in transit"
+      status: "mandatory"
+      protocols: "TLS 1.2+ for all internal communication"
+      exceptions: "None"
+
+    - control: "Encryption at rest"
+      status: "mandatory"
+      scope: "All data stores (RDS, EBS, S3)"
+      key_management: "KMS CMK with 90-day rotation"
+
+# ===========================
+# Compliance Requirements
+# ===========================
+
+compliance_requirements:
+  pci_dss_4_0:
+    - requirement: "1.2.1"
+      description: "Configuration standards for network security controls"
+      implementation: "This policy document"
+
+    - requirement: "1.2.2"
+      description: "Restrict connections between untrusted networks and CDE"
+      implementation: "CDE in isolated VPC, Transit Gateway with route filtering"
+
+    - requirement: "1.2.3"
+      description: "Inbound traffic to CDE is restricted"
+      implementation: "Security groups deny by default, explicit allow only"
+
+    - requirement: "1.2.4"
+      description: "Restrict outbound traffic from CDE"
+      implementation: "CDE has no internet gateway, only SIEM connectivity"
+
+    - requirement: "1.2.5"
+      description: "Security policies enforced for all traffic"
+      implementation: "Defense-in-depth: NACLs + Security Groups + Host Firewalls"
+
+    - requirement: "1.2.7"
+      description: "Review configuration standards at least every 6 months"
+      implementation: "Semi-annual policy review, quarterly security group audits"
+
+    - requirement: "1.3.1"
+      description: "DMZ implemented to limit inbound traffic"
+      implementation: "Public subnet tier with ALBs, private subnets isolated"
+
+    - requirement: "1.3.2"
+      description: "Limit inbound internet traffic to DMZ"
+      implementation: "Internet gateway only in public subnets"
+
+    - requirement: "1.4.2"
+      description: "Inbound traffic from internet to CDE denied"
+      implementation: "CDE VPC has no internet gateway"
+
+# ===========================
+# Monitoring and Auditing
+# ===========================
+
+monitoring:
+  continuous_monitoring:
+    - metric: "VPC Flow Logs analysis"
+      frequency: "Real-time"
+      alerts:
+        - "Port scanning detected"
+        - "Data exfiltration (>10 GB in 15 min)"
+        - "Brute force attempts (>20 in 5 min)"
+        - "Unauthorized CDE access attempts"
+
+    - metric: "Security group changes"
+      frequency: "Real-time"
+      alerts:
+        - "Any security group rule modification"
+        - "Security group attached/detached"
+        - "Default security group usage"
+
+    - metric: "Route table changes"
+      frequency: "Real-time"
+      alerts:
+        - "Any route modification"
+        - "Internet gateway route to data/CDE tier"
+
+  periodic_audits:
+    - audit: "Security group review"
+      frequency: "Quarterly"
+      scope: "All security groups"
+      checks:
+        - "Overly permissive rules (0.0.0.0/0)"
+        - "Unused security groups"
+        - "SSH/RDP from internet"
+
+    - audit: "Network segmentation validation"
+      frequency: "Quarterly"
+      scope: "All traffic flows"
+      checks:
+        - "CDE isolation verified"
+        - "No unexpected cross-tier traffic"
+        - "VPC Flow Logs coverage 100%"
+
+    - audit: "Compliance assessment"
+      frequency: "Annual"
+      scope: "All network controls"
+      assessors: "QSA (Qualified Security Assessor)"
+
+# ===========================
+# Exceptions Process
+# ===========================
+
+exceptions:
+  process:
+    - "Request submitted via ServiceNow"
+    - "Security team review (risk assessment)"
+    - "Compensating controls identified"
+    - "CISO approval required"
+    - "Exception valid for maximum 90 days"
+    - "Quarterly exception review"
+
+  documentation_required:
+    - "Business justification"
+    - "Risk assessment"
+    - "Compensating controls"
+    - "Remediation timeline"
+    - "Approval signatures"
+
+  prohibited_exceptions:
+    - "CDE internet access"
+    - "Unencrypted cardholder data transmission"
+    - "Production access without MFA"
+    - "Default security group usage in production"
+
+# ===========================
+# Incident Response
+# ===========================
+
+incident_response:
+  security_events:
+    - event: "Unauthorized CDE access attempt"
+      severity: "Critical"
+      response_time: "Immediate (<15 minutes)"
+      actions:
+        - "Isolate affected systems"
+        - "Activate incident response team"
+        - "Preserve evidence (VPC Flow Logs)"
+        - "Notify CISO, compliance team"
+
+    - event: "Port scanning detected"
+      severity: "High"
+      response_time: "< 1 hour"
+      actions:
+        - "Identify source IP"
+        - "Add to WAF deny list"
+        - "Review security group rules"
+        - "Document in incident log"
+
+    - event: "Data exfiltration detected"
+      severity: "Critical"
+      response_time: "Immediate (<15 minutes)"
+      actions:
+        - "Block outbound traffic from source"
+        - "Activate incident response team"
+        - "Forensic analysis of compromised system"
+        - "Notify legal and compliance"
+
+# ===========================
+# Contacts
+# ===========================
+
+contacts:
+  security_team:
+    email: "security@example.com"
+    slack: "#security-team"
+    oncall: "pagerduty/security-oncall"
+
+  network_team:
+    email: "network@example.com"
+    slack: "#network-ops"
+
+  compliance_team:
+    email: "compliance@example.com"
+    slack: "#compliance"

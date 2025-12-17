@@ -198,6 +198,17 @@ Professional certifications and course materials
 
 This repository contains reference implementations and documentation for educational purposes. Please respect confidentiality and proprietary information.
 
+## 📘 Docs site (MkDocs)
+
+Build and preview the documentation site locally:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-docs.txt
+mkdocs serve
+```
+
 ---
 
 **Last Updated:** December 2025

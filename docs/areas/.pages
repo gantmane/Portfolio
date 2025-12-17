@@ -1,0 +1,10 @@
+title: Areas
+nav:
+  - index.md
+  - Cloud Security: cloud-security.md
+  - DevSecOps: devsecops.md
+  - Kubernetes Security: kubernetes-security.md
+  - SIEM & SOC: siem-soc.md
+  - PCI DSS 4.0: pci-dss-4.0.md
+
+

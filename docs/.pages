@@ -1,0 +1,9 @@
+title: Home
+nav:
+  - index.md
+  - Quick Start: quick-start.md
+  - Directory Structure: directory-structure.md
+  - Areas: areas
+  - About (full README): about.md
+
+

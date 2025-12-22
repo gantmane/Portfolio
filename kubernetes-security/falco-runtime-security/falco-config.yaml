@@ -1,0 +1,326 @@
+---
+# Falco Configuration for ExamplePay Production Clusters
+# Author: Evgeniy Gantman
+
+# ============================================================================
+# RULES CONFIGURATION
+# ============================================================================
+
+rules_file:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/falco_rules.local.yaml
+  - /etc/falco/k8s_audit_rules.yaml
+  - /etc/falco/rules.d
+
+# Load custom rules
+custom_rules:
+  - /etc/falco/custom-rules/pci-dss-rules.yaml
+  - /etc/falco/custom-rules/crypto-miner-detection.yaml
+  - /etc/falco/custom-rules/container-breakout.yaml
+
+# ============================================================================
+# LOGGING & OUTPUT
+# ============================================================================
+
+# JSON output for structured logging
+json_output: true
+json_include_output_property: true
+json_include_tags_property: true
+
+# Log levels: emergency, alert, critical, error, warning, notice, info, debug
+log_level: info
+log_stderr: true
+log_syslog: true
+
+# Output channels
+stdout_output:
+  enabled: true
+
+file_output:
+  enabled: true
+  keep_alive: false
+  filename: /var/log/falco/events.log
+
+syslog_output:
+  enabled: true
+
+# ============================================================================
+# PROGRAM OUTPUT - Alert Routing
+# ============================================================================
+
+# Send CRITICAL alerts to PagerDuty
+program_output:
+  enabled: true
+  keep_alive: false
+  program: |
+    jq 'select(.priority == "Critical") |
+    {event: .output, description: .rule, severity: "critical"}' |
+    curl -X POST https://events.pagerduty.com/v2/enqueue \
+      -H 'Content-Type: application/json' \
+      -d @-
+
+# ============================================================================
+# HTTP OUTPUT - Webhook & Metrics
+# ============================================================================
+
+http_output:
+  enabled: true
+  url: "http://falcosidekick:2801"
+  user_agent: "falco/0.36.0"
+  ca_bundle: ""
+  ca_cert: ""
+  ca_path: "/etc/ssl/certs"
+  insecure: false
+
+# ============================================================================
+# GRPC OUTPUT - For Falco Sidekick
+# ============================================================================
+
+grpc:
+  enabled: true
+  bind_address: "0.0.0.0:5060"
+  threadiness: 8
+
+grpc_output:
+  enabled: true
+
+# ============================================================================
+# WEBSERVER - Prometheus Metrics
+# ============================================================================
+
+webserver:
+  enabled: true
+  listen_port: 8765
+  k8s_healthz_endpoint: /healthz
+  ssl_enabled: false
+  ssl_certificate: /etc/falco/certs/server.pem
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  interval: 1h
+  output_rule: true
+  resource_utilization_enabled: true
+  state_counters_enabled: true
+  kernel_event_counters_enabled: true
+  libbpf_stats_enabled: true
+
+# ============================================================================
+# SYSCALL EVENT SETTINGS
+# ============================================================================
+
+# Syscall event drops
+syscall_event_drops:
+  actions:
+    - log
+    - alert
+  rate: 0.03333  # 1/30
+  max_burst: 1000
+
+# Syscall event timeout
+syscall_event_timeouts:
+  max_consecutives: 1000
+
+# Base syscalls to monitor
+base_syscalls:
+  custom_set: []
+  repair: false
+
+# ============================================================================
+# PERFORMANCE TUNING
+# ============================================================================
+
+# Buffer size for events (bytes)
+syscall_buf_size_preset: 4
+
+# Drop failed syscalls
+syscall_drop_failed_exit: false
+
+# CPU usage settings
+cpu_profile_duration: 0
+cpu_profile_interval: 0
+
+# Output buffering
+buffered_outputs: true
+
+# Output rate limiting
+output_throttle:
+  enabled: true
+  # Max events per second per rule
+  rate: 100
+  max_burst: 1000
+
+# ============================================================================
+# RULES PRIORITY FILTERING
+# ============================================================================
+
+# Minimum priority level to process
+priority: debug
+
+# Watch config file for changes
+watch_config_files: true
+
+# ============================================================================
+# CONTAINER RUNTIME
+# ============================================================================
+
+# Container runtime sockets
+container_runtime:
+  - type: cri
+    path: /run/containerd/containerd.sock
+  - type: cri
+    path: /run/crio/crio.sock
+  - type: docker
+    path: /var/run/docker.sock
+
+# ============================================================================
+# PLUGINS
+# ============================================================================
+
+plugins:
+  - name: k8saudit
+    library_path: libk8saudit.so
+    init_config:
+      maxEventBytes: 1048576
+      webhookMaxBatchSize: 12582912
+      sslCertificate: /etc/falco/certs/server.pem
+    open_params: "http://:9765/k8s-audit"
+
+  - name: cloudtrail
+    library_path: libcloudtrail.so
+    init_config: ""
+
+  - name: json
+    library_path: libjson.so
+    init_config: ""
+
+# ============================================================================
+# FALCO ENGINE SETTINGS
+# ============================================================================
+
+engine:
+  kind: modern_bpf
+  modern_bpf:
+    cpus_for_each_syscall_buffer: 2
+
+# Fallback to legacy eBPF if modern BPF unavailable
+ebpf:
+  probe: ${HOME}/.falco/falco-bpf.o
+
+# Kernel module (highest performance)
+kernel_module:
+  probe: ${HOME}/.falco/falco.ko
+
+# ============================================================================
+# LOAD BALANCING & REPLAY
+# ============================================================================
+
+# Load balancing across CPU cores
+load_plugins:
+  - rules: /etc/falco/rules.d
+    plugins:
+      - k8saudit
+      - json
+
+# ============================================================================
+# METADATA ENRICHMENT
+# ============================================================================
+
+# Kubernetes metadata
+metadata_download:
+  max_mb: 100
+  chunk_wait_us: 1000
+  watch_freq_sec: 1
+
+# ============================================================================
+# BUFFERING & TIMEOUTS
+# ============================================================================
+
+# Event buffering
+buffered_outputs: true
+outputs_queue:
+  capacity: 1000000
+
+# Timeouts
+time_format_iso_8601: true
+
+# ============================================================================
+# EXCEPTIONS & SAMPLING
+# ============================================================================
+
+# Disable rules by tag
+disabled_rule_tags:
+  - experimental
+
+# Disable specific rules
+disabled_rules: []
+
+# Enable rule sampling (reduce noise)
+# Sample 10% of high-frequency events
+rule_matching:
+  first_match: true
+
+sampling:
+  - rule: "Read sensitive file"
+    rate: 0.1
+  - rule: "Unexpected outbound connection"
+    rate: 0.1
+
+# ============================================================================
+# CUSTOM FIELDS
+# ============================================================================
+
+# Add custom fields to outputs
+output_fields:
+  - "container.id"
+  - "container.name"
+  - "container.image.repository"
+  - "container.image.tag"
+  - "k8s.ns.name"
+  - "k8s.pod.name"
+  - "k8s.deployment.name"
+  - "proc.name"
+  - "proc.cmdline"
+  - "user.name"
+  - "fd.name"
+  - "evt.time"
+
+# ============================================================================
+# ALERTING THRESHOLDS
+# ============================================================================
+
+# Alert when event drop rate exceeds threshold
+syscall_event_drops_threshold: 0.1
+
+# Maximum events per second before throttling
+max_events_per_second: 100000
+
+# ============================================================================
+# SECURITY SETTINGS
+# ============================================================================
+
+# Run Falco with least privilege
+run_as_user:
+  enabled: false
+  user: falco
+  group: falco
+
+# AppArmor / SELinux
+apparmor_profile: ""
+selinux_label: ""
+
+# ============================================================================
+# AUDIT LOG SETTINGS (PCI DSS Compliance)
+# ============================================================================
+
+audit_log:
+  enabled: true
+  # Retain audit logs for 1 year (PCI DSS requirement)
+  retention_days: 365
+  # Encrypt audit logs
+  encryption: true
+  # Immutable logs
+  write_once: true
+  # Log rotation
+  max_file_size_mb: 100
+  max_files: 100

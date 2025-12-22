@@ -1,0 +1,208 @@
+---
+# Constraint: Block Privileged Containers
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPPrivilegedContainer
+metadata:
+  name: psp-privileged-container
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+      - gatekeeper-system
+
+---
+# Constraint: Require Common Labels
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: require-common-labels
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace", "Service"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+  parameters:
+    labels:
+      - owner
+      - environment
+      - cost-center
+
+---
+# Constraint: Block hostPath Volumes
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPHostFilesystem
+metadata:
+  name: psp-host-filesystem
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces:
+      - kube-system
+      - monitoring
+  parameters:
+    allowedHostPaths: []  # No hostPath allowed
+
+---
+# Constraint: Require Container Resource Limits
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerLimits
+metadata:
+  name: container-must-have-limits
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces:
+      - kube-system
+
+---
+# Constraint: Trusted Image Registries Only
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sTrustedImages
+metadata:
+  name: trusted-images-only
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+  parameters:
+    registries:
+      - "registry.example.com/"
+      - "gcr.io/example-project/"
+      - "123456789012.dkr.ecr.us-east-1.amazonaws.com/"
+      - "docker.io/library/"  # Official Docker images
+
+---
+# Constraint: Read-Only Root Filesystem
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPReadOnlyRootFilesystem
+metadata:
+  name: psp-readonlyrootfilesystem
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    excludedNamespaces:
+      - kube-system
+      - istio-system
+
+---
+# Constraint: Disallow Default Namespace
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowDefaultNamespace
+metadata:
+  name: disallow-default-namespace
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod", "Service"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+
+---
+# Constraint: Require Network Policy (Audit Mode)
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireNetworkPolicy
+metadata:
+  name: require-network-policy
+spec:
+  enforcementAction: dryrun  # Audit mode only
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace"]
+    excludedNamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - gatekeeper-system
+
+---
+# Additional Constraint: Block Latest Tag
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sBlockLatestTag
+metadata:
+  name: block-latest-tag
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+  parameters:
+    exemptImages:
+      - "nginx"  # Development only
+
+---
+# Additional Constraint: Minimum Replica Count
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sMinReplicaCount
+metadata:
+  name: deployment-min-replicas
+spec:
+  enforcementAction: warn  # Warning only
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment"]
+    namespaceSelector:
+      matchLabels:
+        environment: production
+  parameters:
+    minReplicas: 2
+
+---
+# PCI DSS Specific: Require Encryption Labels
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: pci-dss-encryption-labels
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["PersistentVolumeClaim"]
+    namespaceSelector:
+      matchLabels:
+        pci-scope: "true"
+  parameters:
+    labels:
+      - encryption-at-rest
+      - data-classification
+      - pci-dss-requirement
+
+---
+# PCI DSS Specific: ServiceAccount Auto-Mount Token Disabled
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPAutomountServiceAccountToken
+metadata:
+  name: pci-dss-no-automount-token
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        pci-scope: "true"

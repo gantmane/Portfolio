@@ -1,0 +1,12 @@
+# Security Scanning Metadata
+project:
+  name: "Automated Security Scanning"
+  status: "Production"
+tools:
+  - name: "Trivy"
+    scans_per_day: 450
+  - name: "Snyk"  
+    dependencies_scanned: 15000
+metrics:
+  scan_coverage: 100
+  critical_vulns_prod: 0

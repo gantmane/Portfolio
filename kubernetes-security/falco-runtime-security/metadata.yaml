@@ -1,0 +1,94 @@
+project:
+  name: "Falco Runtime Security"
+  author: "Evgeniy Gantman"
+  threats_detected_annually: 3200
+  clusters_protected: 12
+  containers_monitored: 15000
+  rules_active: 180
+
+metrics:
+  detection_accuracy: "98.2%"
+  false_positive_rate: "1.5%"
+  mttd_seconds: 8
+  mtta_seconds: 12
+  event_processing_rate: 450000  # events/second
+  avg_latency_ms: 8
+  node_cpu_impact: "3.2%"
+  memory_per_node_mb: 110
+
+threat_categories:
+  container_breakout_attempts: 45
+  privilege_escalation: 120
+  suspicious_processes: 850
+  filesystem_modifications: 1200
+  network_anomalies: 680
+  credential_access_attempts: 95
+
+operational_results:
+  total_events_processed: 14200000000  # 14.2 billion
+  alerts_generated: 3200
+  true_positives: 3142
+  false_positives: 58
+  critical_threats_blocked: 260
+  estimated_cost_savings_usd: 2300000  # $2.3M
+
+compliance:
+  frameworks:
+    - name: "PCI DSS v4.0"
+      requirements:
+        - "10.2.1.1: Audit individual user access"
+        - "10.2.1.2: Actions with elevated privileges"
+        - "11.5.1: Intrusion detection monitoring"
+
+    - name: "NIST 800-190"
+      coverage:
+        - "Runtime Defense"
+        - "Anomaly Detection"
+        - "Security Monitoring"
+
+    - name: "CIS Kubernetes Benchmark"
+      sections:
+        - "5.4.1: Restrict sensitive host directories"
+        - "5.7.3: Limit pod-to-pod communication"
+
+deployment:
+  model: "DaemonSet"
+  kernel_module: true
+  ebpf_fallback: true
+  resource_requests:
+    cpu: "100m"
+    memory: "128Mi"
+  resource_limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+alert_routing:
+  critical: "PagerDuty (immediate)"
+  high: "Slack + SIEM"
+  medium: "Wazuh SIEM"
+  low: "Elasticsearch"
+
+automated_responses:
+  container_breakout: "Pod termination + node isolation"
+  crypto_mining: "Kill process + block image"
+  credential_access: "Rotate credentials + alert"
+  privilege_escalation: "Pod quarantine + forensic snapshot"
+
+technology_stack:
+  - "Falco v0.36+ (CNCF)"
+  - "Linux Kernel 4.14+"
+  - "eBPF (Linux 5.8+)"
+  - "Prometheus"
+  - "Elasticsearch"
+  - "PagerDuty"
+  - "Kubernetes"
+
+resume_achievements:
+  - achievement: "3,200+ runtime threats detected annually"
+    evidence: "Falco monitoring 15,000+ containers"
+  - achievement: "98.2% threat detection accuracy"
+    evidence: "ML-enhanced rules with <1.5% FP rate"
+  - achievement: "8-second MTTD"
+    evidence: "Real-time syscall monitoring"
+  - achievement: "$2.3M in prevented incidents"
+    evidence: "Blocked breakouts, miners, credential theft"

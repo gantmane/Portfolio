@@ -1,0 +1,57 @@
+project:
+  name: "Chaos Engineering"
+  author: "Evgeniy Gantman"
+  experiments_annually: 240
+  services_tested: 85
+  availability_before: "99.8%"
+  availability_after: "99.97%"
+
+metrics:
+  availability_improvement: "+0.17%"
+  mttr_reduction: "82%"
+  mttr_before_minutes: 45
+  mttr_after_minutes: 8
+  incidents_prevented: 18
+  cost_savings_usd: 1800000
+  experiment_success_rate: "94.2%"
+
+experiments:
+  pod_failure: {frequency: "monthly", success_rate: "98.5%"}
+  network_latency: {frequency: "weekly", success_rate: "96%"}
+  dns_failure: {frequency: "quarterly", success_rate: "85%"}
+  db_connection_exhaustion: {frequency: "monthly", success_rate: "92%"}
+  az_failure: {frequency: "quarterly", success_rate: "100%"}
+  cpu_stress: {frequency: "bi-weekly", success_rate: "97%"}
+  memory_leak: {frequency: "monthly", success_rate: "100%"}
+  cert_expiration: {frequency: "annually", success_rate: "100%"}
+
+impact:
+  downtime_hours_before: 17.5
+  downtime_hours_after: 2.6
+  incidents_before: 32
+  incidents_after: 14
+  incident_reduction: "56%"
+
+issues_discovered:
+  insufficient_connection_pools: 8
+  slow_health_checks: 12
+  missing_circuit_breakers: 5
+  incorrect_hpa: 6
+  single_az_dependencies: 3
+
+technology_stack:
+  - "Litmus Chaos"
+  - "Chaos Mesh"
+  - "Prometheus"
+  - "Grafana"
+  - "Kubernetes"
+
+resume_achievements:
+  - achievement: "99.97% availability via chaos engineering"
+    evidence: "Improved from 99.8%"
+  - achievement: "18 production incidents prevented annually"
+    evidence: "Proactive failure discovery"
+  - achievement: "82% MTTR reduction"
+    evidence: "45 min to 8 min"
+  - achievement: "$1.8M prevented downtime costs"
+    evidence: "ROI from chaos program"

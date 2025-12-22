@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'KMS Key with Rotation - PCI DSS 3.6.4'
+
+Parameters:
+  KeyDescription:
+    Type: String
+    Default: ExamplePay Production Encryption Key
+
+Resources:
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Ref KeyDescription
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+
+  KeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}
+      TargetKeyId: !Ref KMSKey
+
+Outputs:
+  KeyId:
+    Value: !Ref KMSKey
+  KeyArn:
+    Value: !GetAtt KMSKey.Arn
+  KeyAlias:
+    Value: !Ref KeyAlias

@@ -1,0 +1,1 @@
+project: {name: "Wazuh SIEM", events_per_day: 2500000}

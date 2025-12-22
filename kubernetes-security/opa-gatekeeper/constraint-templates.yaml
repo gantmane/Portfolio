@@ -1,0 +1,303 @@
+---
+# Constraint Template: No Privileged Containers
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spspprivilegedcontainer
+  annotations:
+    description: "Prevents creation of privileged containers"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPPrivilegedContainer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spspprivileged
+
+        violation[{"msg": msg, "details": {}}] {
+          c := input_containers[_]
+          c.securityContext.privileged
+          msg := sprintf("Privileged container not allowed: %v", [c.name])
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+
+---
+# Constraint Template: Required Labels
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+  annotations:
+    description: "Requires specified labels on resources"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        violation[{"msg": msg, "details": {"missing_labels": missing}}] {
+          provided := {label | input.review.object.metadata.labels[label]}
+          required := {label | label := input.parameters.labels[_]}
+          missing := required - provided
+          count(missing) > 0
+          msg := sprintf("Missing required labels: %v", [missing])
+        }
+
+---
+# Constraint Template: No hostPath Volumes
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spsphostfilesystem
+  annotations:
+    description: "Prevents use of hostPath volumes"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPHostFilesystem
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedHostPaths:
+              type: array
+              items:
+                type: object
+                properties:
+                  pathPrefix:
+                    type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spsphostfilesystem
+
+        violation[{"msg": msg, "details": {}}] {
+          volume := input_hostpath_volumes[_]
+          not input_hostpath_allowed(volume)
+          msg := sprintf("hostPath volume %v is not allowed", [volume.name])
+        }
+
+        input_hostpath_volumes[v] {
+          v := input.review.object.spec.volumes[_]
+          has_field(v, "hostPath")
+        }
+
+        input_hostpath_allowed(volume) {
+          allowed_paths := input.parameters.allowedHostPaths
+          path := volume.hostPath.path
+          path_matches(allowed_paths[_].pathPrefix, path)
+        }
+
+        path_matches(prefix, path) {
+          startswith(path, prefix)
+        }
+
+        has_field(obj, field) {
+          obj[field]
+        }
+
+---
+# Constraint Template: Container Resource Limits
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainerlimits
+  annotations:
+    description: "Requires CPU and memory limits on containers"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerLimits
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainerlimits
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not container.resources.limits.cpu
+          msg := sprintf("Container %v has no CPU limit", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("Container %v has no memory limit", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not container.resources.requests.cpu
+          msg := sprintf("Container %v has no CPU request", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not container.resources.requests.memory
+          msg := sprintf("Container %v has no memory request", [container.name])
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+
+---
+# Constraint Template: Trusted Image Registry
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8strustedimages
+  annotations:
+    description: "Restricts container images to trusted registries"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sTrustedImages
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            registries:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8strustedimages
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not image_from_trusted_registry(container.image)
+          msg := sprintf("Container %v uses untrusted image: %v", [container.name, container.image])
+        }
+
+        image_from_trusted_registry(image) {
+          registry := input.parameters.registries[_]
+          startswith(image, registry)
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+
+---
+# Constraint Template: Read-Only Root Filesystem
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spspreadonlyrootfilesystem
+  annotations:
+    description: "Requires read-only root filesystem"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPReadOnlyRootFilesystem
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spspreadonlyrootfilesystem
+
+        violation[{"msg": msg, "details": {}}] {
+          c := input_containers[_]
+          not input_read_only_root_fs(c)
+          msg := sprintf("Container %v must have readOnlyRootFilesystem set to true", [c.name])
+        }
+
+        input_read_only_root_fs(c) {
+          c.securityContext.readOnlyRootFilesystem == true
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+
+---
+# Constraint Template: Disallow Default Namespace
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisalloweddefaultnamespace
+  annotations:
+    description: "Prevents workloads from running in default namespace"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowDefaultNamespace
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowdefaultnamespace
+
+        violation[{"msg": msg}] {
+          input.review.object.metadata.namespace == "default"
+          msg := "Workloads cannot run in the default namespace"
+        }
+
+---
+# Constraint Template: Require Network Policy
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequirenetworkpolicy
+  annotations:
+    description: "Ensures namespaces have NetworkPolicy defined"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireNetworkPolicy
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirenetworkpolicy
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "Namespace"
+          not has_network_policy
+          msg := sprintf("Namespace %v requires a NetworkPolicy", [input.review.object.metadata.name])
+        }
+
+        has_network_policy {
+          # This would be checked via audit constraint
+          # In practice, use mutation webhook or external data
+          false
+        }

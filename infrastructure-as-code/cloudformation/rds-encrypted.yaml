@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Encrypted RDS Instance - PCI DSS 3.4, 3.5'
+
+Parameters:
+  DBIdentifier:
+    Type: String
+    Default: examplepay-prod-db
+  DBEngine:
+    Type: String
+    Default: postgres
+    AllowedValues: [postgres, mysql]
+  AllocatedStorage:
+    Type: Number
+    Default: 100
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Database subnet group
+      SubnetIds:
+        - !ImportValue production-DatabaseSubnetIds
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Ref DBIdentifier
+      Engine: !Ref DBEngine
+      EngineVersion: 15.3
+      DBInstanceClass: db.r6g.xlarge
+      AllocatedStorage: !Ref AllocatedStorage
+      StorageEncrypted: true
+      KmsKeyId: !GetAtt DBEncryptionKey.Arn
+      MultiAZ: true
+      BackupRetentionPeriod: 2555
+      DeletionProtection: true
+      EnableCloudwatchLogsExports:
+        - postgresql
+      DBSubnetGroupName: !Ref DBSubnetGroup
+
+  DBEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: RDS encryption key
+      EnableKeyRotation: true
+
+Outputs:
+  DBEndpoint:
+    Value: !GetAtt DBInstance.Endpoint.Address

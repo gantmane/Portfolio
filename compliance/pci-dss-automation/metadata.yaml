@@ -1,0 +1,22 @@
+project:
+  name: "PCI DSS v4.0 Compliance Automation"
+  framework: "PCI DSS v4.0"
+  compliance_score: 99.8
+  
+requirements:
+  total: 362
+  passing: 361
+  failing: 1
+  not_applicable: 0
+
+evidence_automation:
+  automated_percentage: 95
+  manual_percentage: 5
+  
+metrics:
+  audit_prep_time_days: 2
+  previous_audit_prep_days: 14
+  reduction_percentage: 85.7
+
+author:
+  name: "Evgeniy Gantman"

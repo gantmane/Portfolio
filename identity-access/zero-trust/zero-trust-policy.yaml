@@ -1,0 +1,582 @@
+# Zero Trust OPA Policies
+# Author: Evgeniy Gantman
+# Purpose: Dynamic authorization policies for zero trust enforcement
+# Framework: NIST 800-207, CISA Zero Trust Maturity Model
+
+# These policies are written in Rego (OPA policy language)
+# They are evaluated on every request to determine access
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-zero-trust-policies
+  namespace: opa-system
+  labels:
+    app: opa
+    purpose: zero-trust-authorization
+data:
+  # ===========================
+  # Identity-Based Access Control
+  # ===========================
+  identity.rego: |
+    package zero_trust.identity
+
+    import future.keywords.if
+    import future.keywords.in
+
+    # Default deny
+    default allow = false
+
+    # Allow if user is authenticated and has required role
+    allow if {
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+      has_required_role(input.user, input.request.resource)
+    }
+
+    # Check if user has required role
+    has_required_role(user, resource) if {
+      required_roles := data.rbac[resource.type]
+      role := user.roles[_]
+      role in required_roles
+    }
+
+    # Require re-authentication for high-risk actions
+    allow if {
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+      is_high_risk_action(input.request)
+      input.user.last_auth_time > (time.now_ns() - (15 * 60 * 1000000000))  # 15 minutes
+    }
+
+    is_high_risk_action(request) if {
+      request.action in ["delete", "modify", "export"]
+      request.resource.classification == "confidential"
+    }
+
+    # RBAC data (in production, this would come from external data source)
+    rbac := {
+      "database": ["database-admin", "database-reader"],
+      "kubernetes": ["cluster-admin", "developer"],
+      "secrets": ["security-team"],
+      "payment-gateway": ["payment-admin"],
+    }
+
+  # ===========================
+  # Device Trust Policies
+  # ===========================
+  device.rego: |
+    package zero_trust.device
+
+    import future.keywords.if
+    import future.keywords.in
+
+    default allow = false
+
+    # Allow if device is compliant
+    allow if {
+      input.device.enrolled == true
+      input.device.compliant == true
+      device_meets_requirements(input.device)
+    }
+
+    # Check device compliance
+    device_meets_requirements(device) if {
+      device.os_version_current == true
+      device.encryption_enabled == true
+      device.firewall_enabled == true
+      device.antivirus_updated == true
+      device.security_patches_applied == true
+    }
+
+    # Block access from unmanaged devices
+    deny[msg] if {
+      input.device.enrolled == false
+      msg := "Access denied: Device is not enrolled in Intune"
+    }
+
+    # Block access from non-compliant devices
+    deny[msg] if {
+      input.device.enrolled == true
+      input.device.compliant == false
+      msg := "Access denied: Device does not meet compliance requirements"
+    }
+
+    # Allow grace period for new devices (24 hours to become compliant)
+    allow if {
+      input.device.enrolled == true
+      input.device.compliant == false
+      device_enrollment_time := time.parse_rfc3339_ns(input.device.enrollment_time)
+      (time.now_ns() - device_enrollment_time) < (24 * 60 * 60 * 1000000000)
+      input.request.resource.type == "onboarding"
+    }
+
+  # ===========================
+  # Network Policies
+  # ===========================
+  network.rego: |
+    package zero_trust.network
+
+    import future.keywords.if
+    import future.keywords.in
+
+    default allow = false
+
+    # Allow based on network location
+    allow if {
+      is_trusted_location(input.network.source_ip)
+      input.network.tls_version >= "1.3"
+    }
+
+    # Check if IP is in trusted locations (corporate offices, approved VPN)
+    is_trusted_location(ip) if {
+      trusted_cidrs := [
+        "203.0.113.0/24",   # Corporate HQ
+        "198.51.100.0/24",  # Remote office
+        "10.0.0.0/8",       # Internal VPN
+      ]
+      cidr := trusted_cidrs[_]
+      net.cidr_contains(cidr, ip)
+    }
+
+    # Allow from anywhere if MFA and compliant device
+    allow if {
+      input.user.mfa_verified == true
+      input.device.compliant == true
+      input.network.tls_version >= "1.3"
+    }
+
+    # Block known malicious IPs
+    deny[msg] if {
+      is_malicious_ip(input.network.source_ip)
+      msg := sprintf("Access denied: Source IP %v is on blocklist", [input.network.source_ip])
+    }
+
+    is_malicious_ip(ip) if {
+      malicious_ips := data.threat_intel.malicious_ips
+      ip in malicious_ips
+    }
+
+    # Require VPN for production access from untrusted locations
+    allow if {
+      input.request.resource.environment == "production"
+      not is_trusted_location(input.network.source_ip)
+      input.network.vpn_connected == true
+      input.user.mfa_verified == true
+    }
+
+  # ===========================
+  # Workload Identity Policies
+  # ===========================
+  workload.rego: |
+    package zero_trust.workload
+
+    import future.keywords.if
+    import future.keywords.in
+
+    default allow = false
+
+    # Allow service-to-service communication
+    allow if {
+      input.source.workload_identity != null
+      input.destination.service != null
+      is_allowed_service_call(input.source, input.destination)
+      input.network.mtls == true
+    }
+
+    # Check if service call is allowed
+    is_allowed_service_call(source, destination) if {
+      allowed_calls := data.service_mesh.allowed_calls
+      call := allowed_calls[_]
+      call.source_namespace == source.namespace
+      call.source_service == source.service_account
+      call.destination_service == destination.service
+      call.method == input.request.method
+    }
+
+    # Block calls without mTLS
+    deny[msg] if {
+      input.network.mtls == false
+      msg := "Access denied: Service-to-service calls must use mTLS"
+    }
+
+    # Block workloads without identity
+    deny[msg] if {
+      input.source.workload_identity == null
+      msg := "Access denied: Workload must have valid identity (IRSA, Workload Identity, or Managed Identity)"
+    }
+
+    # Allow internal calls within same namespace (with restrictions)
+    allow if {
+      input.source.namespace == input.destination.namespace
+      input.network.mtls == true
+      input.request.method in ["GET", "POST"]
+      not is_sensitive_endpoint(input.destination)
+    }
+
+    is_sensitive_endpoint(destination) if {
+      sensitive_paths := ["/admin", "/delete", "/export", "/payment"]
+      path := sensitive_paths[_]
+      startswith(destination.path, path)
+    }
+
+  # ===========================
+  # Time-Based Access Control
+  # ===========================
+  temporal.rego: |
+    package zero_trust.temporal
+
+    import future.keywords.if
+
+    default allow = false
+
+    # Allow during business hours
+    allow if {
+      is_business_hours
+      input.user.authenticated == true
+    }
+
+    is_business_hours if {
+      now := time.now_ns()
+      day_of_week := time.weekday(now)
+      hour_of_day := time.clock([now])[0]
+
+      # Monday-Friday (1-5)
+      day_of_week >= 1
+      day_of_week <= 5
+
+      # 8 AM - 6 PM
+      hour_of_day >= 8
+      hour_of_day < 18
+    }
+
+    # Allow 24/7 for on-call engineers
+    allow if {
+      input.user.role == "on-call-engineer"
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+    }
+
+    # Allow after hours with additional verification
+    allow if {
+      not is_business_hours
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+      input.user.approval_code != null
+      verify_approval_code(input.user.approval_code)
+    }
+
+    verify_approval_code(code) if {
+      # In production, verify with external approval system
+      code != null
+      count(code) > 10
+    }
+
+  # ===========================
+  # Data Classification Policies
+  # ===========================
+  data_classification.rego: |
+    package zero_trust.data
+
+    import future.keywords.if
+    import future.keywords.in
+
+    default allow = false
+
+    # Public data - anyone authenticated
+    allow if {
+      input.request.resource.classification == "public"
+      input.user.authenticated == true
+    }
+
+    # Internal data - employees only
+    allow if {
+      input.request.resource.classification == "internal"
+      input.user.authenticated == true
+      input.user.type == "employee"
+    }
+
+    # Confidential data - specific roles only
+    allow if {
+      input.request.resource.classification == "confidential"
+      input.user.authenticated == true
+      has_confidential_access(input.user)
+    }
+
+    has_confidential_access(user) if {
+      role := user.roles[_]
+      role in ["security-team", "ciso", "cto", "executive"]
+    }
+
+    # Restricted data (PCI DSS) - security team only
+    allow if {
+      input.request.resource.classification == "restricted"
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+      input.device.compliant == true
+      user_is_security_team(input.user)
+    }
+
+    user_is_security_team(user) if {
+      "security-team" in user.roles
+    }
+
+    # Audit all access to confidential and restricted data
+    log[event] if {
+      input.request.resource.classification in ["confidential", "restricted"]
+      event := {
+        "timestamp": time.now_ns(),
+        "user": input.user.email,
+        "resource": input.request.resource.id,
+        "classification": input.request.resource.classification,
+        "action": input.request.action,
+        "allowed": allow,
+      }
+    }
+
+  # ===========================
+  # PCI DSS Compliance Policies
+  # ===========================
+  pci_dss.rego: |
+    package zero_trust.pci_dss
+
+    import future.keywords.if
+    import future.keywords.in
+
+    default allow = false
+
+    # Requirement 7.1: Limit access to cardholder data
+    allow if {
+      input.request.resource.contains_cardholder_data == true
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+      has_cardholder_data_access(input.user)
+    }
+
+    has_cardholder_data_access(user) if {
+      role := user.roles[_]
+      role in ["payment-processor", "payment-admin", "security-team"]
+    }
+
+    # Requirement 8.3: MFA for all access to CDE
+    deny[msg] if {
+      input.request.resource.in_cde == true
+      input.user.mfa_verified == false
+      msg := "Access denied: MFA required for Cardholder Data Environment (PCI DSS 8.3)"
+    }
+
+    # Requirement 8.5: MFA for remote network access
+    deny[msg] if {
+      input.network.access_type == "remote"
+      input.user.mfa_verified == false
+      msg := "Access denied: MFA required for remote access (PCI DSS 8.5)"
+    }
+
+    # Requirement 10.2: Audit all access to cardholder data
+    audit[event] if {
+      input.request.resource.contains_cardholder_data == true
+      event := {
+        "timestamp": time.now_ns(),
+        "user": input.user.email,
+        "user_id": input.user.id,
+        "resource": input.request.resource.id,
+        "action": input.request.action,
+        "result": allow,
+        "mfa_verified": input.user.mfa_verified,
+        "device_compliant": input.device.compliant,
+        "source_ip": input.network.source_ip,
+        "pci_dss_requirement": "10.2",
+      }
+    }
+
+  # ===========================
+  # Risk-Based Access Control
+  # ===========================
+  risk_based.rego: |
+    package zero_trust.risk
+
+    import future.keywords.if
+
+    default allow = false
+    default risk_score = 0
+
+    # Calculate risk score
+    risk_score := score if {
+      scores := [
+        user_risk_score,
+        device_risk_score,
+        network_risk_score,
+        behavioral_risk_score,
+      ]
+      score := sum(scores)
+    }
+
+    # User risk factors
+    user_risk_score := 20 if {
+      input.user.last_password_change_days > 90
+    } else := 10 if {
+      input.user.last_password_change_days > 60
+    } else := 0
+
+    # Device risk factors
+    device_risk_score := 30 if {
+      input.device.last_check_in_hours > 48
+    } else := 15 if {
+      input.device.last_check_in_hours > 24
+    } else := 0
+
+    # Network risk factors
+    network_risk_score := 40 if {
+      is_suspicious_location(input.network.source_ip)
+    } else := 20 if {
+      not is_trusted_location(input.network.source_ip)
+    } else := 0
+
+    is_suspicious_location(ip) if {
+      # Check against threat intelligence
+      data.threat_intel.suspicious_countries[input.network.country_code]
+    }
+
+    is_trusted_location(ip) if {
+      input.network.corporate_network == true
+    }
+
+    # Behavioral risk factors (impossible travel, unusual access patterns)
+    behavioral_risk_score := 50 if {
+      impossible_travel_detected
+    } else := 25 if {
+      unusual_access_pattern
+    } else := 0
+
+    impossible_travel_detected if {
+      # User logged in from two locations > 500 miles apart in < 1 hour
+      input.user.previous_location.distance_km > 800
+      input.user.previous_location.time_since_minutes < 60
+    }
+
+    unusual_access_pattern if {
+      # Accessing resource never accessed before at unusual time
+      input.request.resource.first_access == true
+      not is_business_hours
+    }
+
+    # Allow based on risk score
+    allow if {
+      risk_score < 20
+      input.user.authenticated == true
+    }
+
+    # Require additional verification for medium risk
+    allow if {
+      risk_score >= 20
+      risk_score < 50
+      input.user.authenticated == true
+      input.user.mfa_verified == true
+    }
+
+    # Block high risk
+    deny[msg] if {
+      risk_score >= 50
+      msg := sprintf("Access denied: Risk score too high (%v). Please contact security team.", [risk_score])
+    }
+
+---
+# OPA ConfigMap for service mesh allowed calls
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-service-mesh-data
+  namespace: opa-system
+  labels:
+    app: opa
+    purpose: service-mesh-authorization
+data:
+  service_mesh.json: |
+    {
+      "allowed_calls": [
+        {
+          "source_namespace": "frontend",
+          "source_service": "frontend-sa",
+          "destination_service": "backend-api",
+          "method": "POST",
+          "path": "/api/orders"
+        },
+        {
+          "source_namespace": "backend",
+          "source_service": "backend-api-sa",
+          "destination_service": "database-proxy",
+          "method": "POST",
+          "path": "/query"
+        },
+        {
+          "source_namespace": "backend",
+          "source_service": "backend-api-sa",
+          "destination_service": "payment-gateway",
+          "method": "POST",
+          "path": "/process"
+        },
+        {
+          "source_namespace": "monitoring",
+          "source_service": "prometheus-sa",
+          "destination_service": "*",
+          "method": "GET",
+          "path": "/metrics"
+        }
+      ]
+    }
+
+---
+# OPA ConfigMap for threat intelligence
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-threat-intel
+  namespace: opa-system
+  labels:
+    app: opa
+    purpose: threat-intelligence
+data:
+  threat_intel.json: |
+    {
+      "malicious_ips": [
+        "198.51.100.10",
+        "198.51.100.20",
+        "203.0.113.50"
+      ],
+      "suspicious_countries": {
+        "CN": true,
+        "RU": true,
+        "KP": true
+      },
+      "known_malware_hashes": [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ]
+    }
+
+---
+# Example: OPA admission controller webhook
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: opa-validating-webhook
+webhooks:
+  - name: validating-webhook.openpolicyagent.org
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: opa
+        namespace: opa-system
+        path: /v1/admit
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...  # Base64-encoded CA cert
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["pods", "services", "deployments"]
+    sideEffects: None
+    timeoutSeconds: 5
+    failurePolicy: Fail
+    namespaceSelector:
+      matchLabels:
+        opa-webhook: enabled

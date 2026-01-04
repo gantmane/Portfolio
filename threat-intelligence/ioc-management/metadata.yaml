@@ -1,0 +1,11 @@
+project:
+  name: "Threat Intelligence & IOC Management"
+  author: "Evgeniy Gantman"
+  iocs_tracked: 250000
+  threat_feeds: 15
+  threats_blocked_annually: 8200
+resume_achievements:
+  - achievement: "250,000+ IOCs tracked"
+  - achievement: "8,200+ threats blocked annually"
+  - achievement: "12-minute MTTB"
+  - achievement: "85+ APT groups monitored"

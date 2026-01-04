@@ -1,0 +1,13 @@
+project:
+  name: "Automated Backup & Recovery"
+  author: "Evgeniy Gantman"
+  backups_daily: 450
+  data_protected_tb: 850
+  recovery_success_rate: "100%"
+  rpo_hours: 6
+  rto_hours: 4
+resume_achievements:
+  - achievement: "450+ automated backups daily"
+  - achievement: "100% recovery success rate"
+  - achievement: "6-hour RPO, 4-hour RTO"
+  - achievement: "850TB data under protection"

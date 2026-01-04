@@ -1,0 +1,53 @@
+project:
+  name: "Cloud Cost Optimization (FinOps)"
+  author: "Evgeniy Gantman"
+  annual_savings_usd: 850000
+  cost_reduction_percentage: 35
+  resources_optimized: 2500
+
+savings_breakdown:
+  ec2_right_sizing: 280000
+  reserved_instances: 250000
+  spot_instances: 150000
+  idle_resource_cleanup: 95000
+  s3_optimization: 75000
+  rds_optimization: 50000
+
+metrics:
+  ri_coverage_before: "15%"
+  ri_coverage_after: "85%"
+  spot_adoption: "60%"
+  idle_resources_monthly: 450
+  wasted_spend_eliminated: 320000
+
+optimizations:
+  ec2_instances_rightsized: 320
+  ebs_volumes_deleted: 1200
+  snapshots_removed: 3500
+  elastic_ips_released: 45
+  s3_data_tiered_tb: 850
+  rds_instances_optimized: 12
+
+cost_monitoring:
+  daily_budget: 12000
+  alert_threshold: 15000
+  teams_tracked: 15
+  mandatory_tags: ["team", "environment", "cost-center"]
+
+technology_stack:
+  - "AWS Cost Explorer API"
+  - "AWS Compute Optimizer"
+  - "Karpenter"
+  - "CloudWatch"
+  - "Lambda"
+  - "QuickSight"
+
+resume_achievements:
+  - achievement: "$850K annual cloud cost savings"
+    evidence: "35% reduction via FinOps"
+  - achievement: "85% Reserved Instance coverage"
+    evidence: "60% discount vs on-demand"
+  - achievement: "2,500+ resources optimized"
+    evidence: "Right-sizing, spot, storage tiering"
+  - achievement: "$320K wasted resources eliminated"
+    evidence: "Automated idle resource cleanup"

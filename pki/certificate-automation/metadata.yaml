@@ -1,0 +1,11 @@
+project:
+  name: "SSL/TLS Certificate Automation"
+  author: "Evgeniy Gantman"
+  certificates_managed: 450
+  auto_renewal_rate: "100%"
+  expiration_incidents_24mo: 0
+resume_achievements:
+  - achievement: "450+ certificates automated"
+  - achievement: "100% auto-renewal rate"
+  - achievement: "<2 minute issuance"
+  - achievement: "Zero expiration incidents (24 months)"

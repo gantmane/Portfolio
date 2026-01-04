@@ -1,0 +1,11 @@
+project:
+  name: "Incident Response Automation"
+  author: "Evgeniy Gantman"
+  incidents_annually: 180
+  automation_rate: "75%"
+  mttr_minutes: 15
+resume_achievements:
+  - achievement: "180+ incidents handled annually"
+  - achievement: "75% automation rate"
+  - achievement: "15-minute MTTR"
+  - achievement: "<5 minute war room setup"

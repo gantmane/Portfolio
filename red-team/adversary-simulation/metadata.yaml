@@ -1,0 +1,11 @@
+project:
+  name: "Red Team Operations"
+  author: "Evgeniy Gantman"
+  exercises_annually: 6
+  ttps_tested: 120
+  detection_improvement: "35%"
+resume_achievements:
+  - achievement: "6 red team exercises annually"
+  - achievement: "120+ TTPs tested"
+  - achievement: "35% detection improvement"
+  - achievement: "78% detection rate (up from 43%)"

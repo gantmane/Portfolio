@@ -1,0 +1,11 @@
+project:
+  name: "Security Metrics & KPIs"
+  author: "Evgeniy Gantman"
+  kpis_tracked: 50
+  dashboards: 12
+  security_score: 98.5
+resume_achievements:
+  - achievement: "50+ security KPIs tracked"
+  - achievement: "12 real-time dashboards"
+  - achievement: "Monthly executive reports"
+  - achievement: "98.5/100 security score"

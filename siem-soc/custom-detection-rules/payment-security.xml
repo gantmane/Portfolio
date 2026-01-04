@@ -1,0 +1,326 @@
+<!--
+  Payment Processing Security Rules
+  PAN data access, tokenization, payment gateway, transaction monitoring
+  Rule ID Range: 100900-100999
+-->
+
+<group name="payment,fintech,cardholder_data,">
+
+  <!-- PAN (Primary Account Number) Access Detection -->
+  <rule id="100900" level="15">
+    <if_sid>550</if_sid>
+    <regex type="pcre2">(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})</regex>
+    <description>CRITICAL - Unmasked PAN (credit card number) detected in logs</description>
+    <mitre>
+      <id>T1552.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pan_exposure,pci_dss_3.4,gdpr_breach,</group>
+  </rule>
+
+  <rule id="100901" level="12">
+    <if_sid>31100</if_sid>
+    <url>/api/payment|/api/transaction|/api/card</url>
+    <match>cvv|cvv2|cvc|card_verification</match>
+    <description>CVV/CVC data accessed via API</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>cvv_access,pci_dss_3.2,</group>
+  </rule>
+
+  <rule id="100902" level="12" frequency="10" timeframe="300">
+    <if_sid>31100</if_sid>
+    <url>/api/payment|/api/card</url>
+    <same_user />
+    <description>Bulk payment/card data access - potential data harvesting</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>bulk_pan_access,pci_dss_10.2.1,</group>
+  </rule>
+
+  <!-- Tokenization Service Monitoring -->
+  <rule id="100910" level="9">
+    <if_sid>87950</if_sid>
+    <match>tokenization.*success|detokenization.*success</match>
+    <description>Payment tokenization operation</description>
+    <group>tokenization,pci_dss_3.4,</group>
+  </rule>
+
+  <rule id="100911" level="12">
+    <if_sid>87950</if_sid>
+    <match>detokenization.*unauthorized|token.*invalid_permission</match>
+    <description>Unauthorized detokenization attempt</description>
+    <mitre>
+      <id>T1552.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>unauthorized_detokenization,pci_dss_3.4,</group>
+  </rule>
+
+  <rule id="100912" level="15" frequency="50" timeframe="300">
+    <if_sid>100910</if_sid>
+    <match>detokenization</match>
+    <same_user />
+    <description>CRITICAL - Bulk detokenization (mass PAN exposure)</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>bulk_detokenization,pci_dss_3.4,active_response,</group>
+  </rule>
+
+  <rule id="100913" level="12">
+    <if_sid>87950</if_sid>
+    <match>tokenization.*service.*down|token.*vault.*unavailable</match>
+    <description>Tokenization service failure - payment processing at risk</description>
+    <group>tokenization_failure,pci_dss_12.10,</group>
+  </rule>
+
+  <!-- Payment Gateway Events -->
+  <rule id="100920" level="9">
+    <if_sid>87960</if_sid>
+    <match>payment.*authorized|transaction.*approved</match>
+    <description>Payment transaction authorized</description>
+    <group>payment_success,</group>
+  </rule>
+
+  <rule id="100921" level="12">
+    <if_sid>87960</if_sid>
+    <match>payment.*declined.*fraud|fraud.*detected|risk_score.*high</match>
+    <description>Payment declined due to fraud detection</description>
+    <mitre>
+      <id>T1534</id>
+      <tactic>Lateral Movement</tactic>
+    </mitre>
+    <group>fraud_detection,payment_fraud,</group>
+  </rule>
+
+  <rule id="100922" level="15" frequency="10" timeframe="60">
+    <if_matched_sid>100921</if_matched_sid>
+    <same_field>card_bin</same_field>
+    <description>CRITICAL - Card testing attack (multiple fraud declines, same BIN)</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>card_testing,carding,active_response,</group>
+  </rule>
+
+  <rule id="100923" level="12">
+    <if_sid>87960</if_sid>
+    <match>payment.*declined|transaction.*failed</match>
+    <frequency>5</frequency>
+    <timeframe>300</timeframe>
+    <same_source_ip />
+    <description>Multiple payment declines from same IP</description>
+    <group>payment_decline_pattern,</group>
+  </rule>
+
+  <rule id="100924" level="15">
+    <if_sid>87960</if_sid>
+    <match>chargeback.*initiated|dispute.*filed</match>
+    <description>Chargeback or dispute initiated</description>
+    <group>chargeback,payment_dispute,</group>
+  </rule>
+
+  <!-- Transaction Velocity Monitoring -->
+  <rule id="100930" level="12" frequency="20" timeframe="300">
+    <if_sid>87960</if_sid>
+    <match>payment.*authorized</match>
+    <same_user />
+    <description>High transaction velocity - 20 payments in 5 minutes</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>velocity_abuse,</group>
+  </rule>
+
+  <rule id="100931" level="15" frequency="10" timeframe="60">
+    <if_sid>87960</if_sid>
+    <match>payment.*authorized</match>
+    <same_field>card_number_last4</same_field>
+    <different_field>billing_country</different_field>
+    <description>CRITICAL - Same card used in multiple countries (impossible geography)</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>impossible_geography,card_fraud,</group>
+  </rule>
+
+  <rule id="100932" level="12">
+    <if_sid>87960</if_sid>
+    <match>amount</match>
+    <regex>amount.*:[5-9]\d{4,}|amount.*:\d{6,}</regex>
+    <description>Large transaction amount (>$50,000)</description>
+    <group>large_transaction,aml_monitoring,</group>
+  </rule>
+
+  <rule id="100933" level="15" frequency="5" timeframe="3600">
+    <if_matched_sid>100932</if_matched_sid>
+    <same_user />
+    <description>CRITICAL - Multiple large transactions (money laundering indicator)</description>
+    <group>aml_alert,suspicious_activity,</group>
+  </rule>
+
+  <!-- Merchant Account Security -->
+  <rule id="100940" level="12">
+    <if_sid>87970</if_sid>
+    <match>merchant.*created|merchant.*activated</match>
+    <description>New merchant account created or activated</description>
+    <group>merchant_lifecycle,pci_dss_12.3,</group>
+  </rule>
+
+  <rule id="100941" level="15">
+    <if_sid>87970</if_sid>
+    <match>merchant.*suspended.*fraud|merchant.*terminated.*violation</match>
+    <description>Merchant account suspended for fraud or violations</description>
+    <group>merchant_suspension,fraud,</group>
+  </rule>
+
+  <rule id="100942" level="12">
+    <if_sid>87970</if_sid>
+    <match>settlement.*manual|manual.*payout</match>
+    <description>Manual settlement or payout processed</description>
+    <group>manual_settlement,pci_dss_10.2,</group>
+  </rule>
+
+  <!-- 3D Secure (3DS) Events -->
+  <rule id="100950" level="9">
+    <if_sid>87960</if_sid>
+    <match>3ds.*authentication.*success|3ds2.*verified</match>
+    <description>3D Secure authentication successful</description>
+    <group>3ds_success,strong_authentication,</group>
+  </rule>
+
+  <rule id="100951" level="12">
+    <if_sid>87960</if_sid>
+    <match>3ds.*authentication.*failed|3ds.*abandoned</match>
+    <frequency>5</frequency>
+    <timeframe>300</timeframe>
+    <same_source_ip />
+    <description>Multiple 3DS authentication failures</description>
+    <group>3ds_failure,authentication_abuse,</group>
+  </rule>
+
+  <rule id="100952" level="9">
+    <if_sid>87960</if_sid>
+    <match>3ds.*not_enrolled|3ds.*unavailable</match>
+    <description>3DS not available for transaction (higher risk)</description>
+    <group>3ds_unavailable,</group>
+  </rule>
+
+  <!-- PCI DSS CDE Access Monitoring -->
+  <rule id="100960" level="9">
+    <if_sid>5501</if_sid>
+    <match>cde-|cardholder-|payment-db</match>
+    <description>Access to Cardholder Data Environment (CDE)</description>
+    <group>cde_access,pci_dss_10.2.1,</group>
+  </rule>
+
+  <rule id="100961" level="12">
+    <if_sid>5501</if_sid>
+    <match>cde-|cardholder-</match>
+    <time>20:00 - 06:00</time>
+    <description>CDE access during off-hours</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>cde_after_hours,pci_dss_10.2.5,</group>
+  </rule>
+
+  <rule id="100962" level="15" frequency="10" timeframe="300">
+    <if_matched_sid>100960</if_matched_sid>
+    <same_user />
+    <description>CRITICAL - Bulk CDE access (potential data breach)</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>bulk_cde_access,pci_dss_10.2,active_response,</group>
+  </rule>
+
+  <!-- Database Query Monitoring (Payment DB) -->
+  <rule id="100970" level="12">
+    <if_sid>87980</if_sid>
+    <match>SELECT.*FROM.*cards|SELECT.*FROM.*payments|SELECT.*FROM.*transactions</match>
+    <frequency>50</frequency>
+    <timeframe>300</timeframe>
+    <same_user />
+    <description>Bulk payment database queries</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>bulk_db_query,pci_dss_10.2.1,</group>
+  </rule>
+
+  <rule id="100971" level="15">
+    <if_sid>87980</if_sid>
+    <match>DELETE.*FROM.*transactions|DROP.*TABLE|TRUNCATE.*TABLE</match>
+    <description>CRITICAL - Destructive payment database operation</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>db_destruction,pci_dss_10.2.4,active_response,</group>
+  </rule>
+
+  <rule id="100972" level="12">
+    <if_sid>87980</if_sid>
+    <match>UPDATE.*cards.*SET|UPDATE.*payments.*SET</match>
+    <description>Payment/card data modified in database</description>
+    <group>data_modification,pci_dss_10.2.4,</group>
+  </rule>
+
+  <!-- Refund Abuse Detection -->
+  <rule id="100980" level="9">
+    <if_sid>87960</if_sid>
+    <match>refund.*issued|chargeback.*accepted</match>
+    <description>Refund or chargeback processed</description>
+    <group>refund,</group>
+  </rule>
+
+  <rule id="100981" level="12" frequency="10" timeframe="3600">
+    <if_matched_sid>100980</if_matched_sid>
+    <same_user />
+    <description>Multiple refunds by single user (abuse pattern)</description>
+    <group>refund_abuse,</group>
+  </rule>
+
+  <rule id="100982" level="15">
+    <if_sid>87960</if_sid>
+    <match>refund</match>
+    <regex>amount.*:[5-9]\d{4,}</regex>
+    <description>CRITICAL - Large refund issued (>$50,000)</description>
+    <group>large_refund,suspicious_activity,</group>
+  </rule>
+
+  <!-- Compliance Monitoring -->
+  <rule id="100990" level="12">
+    <if_sid>87960</if_sid>
+    <match>cvv.*stored|security_code.*saved</match>
+    <description>CRITICAL - CVV storage violation (PCI DSS 3.2.3 prohibited)</description>
+    <group>cvv_storage_violation,pci_dss_3.2.3,</group>
+  </rule>
+
+  <rule id="100991" level="12">
+    <if_sid>31100</if_sid>
+    <url>/api/payment</url>
+    <match>HTTP/1.1" 200</match>
+    <regex>http://</regex>
+    <description>Payment API accessed over unencrypted HTTP</description>
+    <mitre>
+      <id>T1040</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>unencrypted_payment,pci_dss_4.1,</group>
+  </rule>
+
+</group>

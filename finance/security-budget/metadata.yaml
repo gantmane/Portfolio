@@ -1,0 +1,11 @@
+project:
+  name: "Security Budget & ROI"
+  author: "Evgeniy Gantman"
+  annual_budget_usd: 3200000
+  roi_percentage: 420
+  cost_per_user_usd: 2133
+resume_achievements:
+  - achievement: "$3.2M security budget managed"
+  - achievement: "420% ROI ($13.4M value)"
+  - achievement: "$2,133 cost per user"
+  - achievement: "Strategic financial planning"

@@ -1,0 +1,454 @@
+<!--
+  Web Application Attack Detection Rules
+  OWASP Top 10, API abuse, injection attacks, XSS, RCE
+  Rule ID Range: 100500-100699
+-->
+
+<group name="web,attack,owasp,">
+
+  <!-- SQL Injection (A03:2021) -->
+  <rule id="100500" level="12">
+    <if_sid>31100,31103</if_sid>
+    <regex type="pcre2">(?i)(union.*select|select.*from|insert.*into|update.*set|delete.*from|drop.*table|exec\(|execute\(|'.*or.*'.*=.*'|1=1|' or 1=1)</regex>
+    <description>SQL Injection attempt detected</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>sql_injection,owasp_a03,pci_dss_6.5.1,</group>
+  </rule>
+
+  <rule id="100501" level="15">
+    <if_sid>31100</if_sid>
+    <status>500</status>
+    <match>SQL syntax|mysql_fetch|pg_query|ORA-|SQLException</match>
+    <description>CRITICAL - SQL Injection successful (database error exposed)</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>sql_injection_success,owasp_a03,active_response,</group>
+  </rule>
+
+  <rule id="100502" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(@@version|version\(\)|user\(\)|database\(\)|current_user|schema_name|information_schema)</regex>
+    <description>SQL database enumeration attempt</description>
+    <mitre>
+      <id>T1087</id>
+      <tactic>Discovery</tactic>
+    </mitre>
+    <group>sql_enumeration,owasp_a03,</group>
+  </rule>
+
+  <rule id="100503" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(xp_cmdshell|into outfile|load_file|pg_read_file|dbms_xmlquery)</regex>
+    <description>CRITICAL - SQL Injection attempting command execution</description>
+    <mitre>
+      <id>T1059.007</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>sql_rce,owasp_a03,active_response,</group>
+  </rule>
+
+  <!-- Cross-Site Scripting (A03:2021) -->
+  <rule id="100510" level="9">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(&lt;script|&lt;iframe|javascript:|onerror=|onload=|eval\(|alert\(|document\.cookie|window\.location)</regex>
+    <description>Cross-Site Scripting (XSS) attempt detected</description>
+    <mitre>
+      <id>T1189</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>xss,owasp_a03,pci_dss_6.5.7,</group>
+  </rule>
+
+  <rule id="100511" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(fromCharCode|String\.fromCharCode|atob|btoa|unescape|decodeURI)</regex>
+    <description>Obfuscated XSS payload detected</description>
+    <mitre>
+      <id>T1027</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>xss_obfuscated,owasp_a03,</group>
+  </rule>
+
+  <rule id="100512" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(&lt;script.*src=.*http|&lt;iframe.*src=.*http|fetch\(|XMLHttpRequest)</regex>
+    <description>CRITICAL - XSS attempting external resource load or data exfiltration</description>
+    <mitre>
+      <id>T1041</id>
+      <tactic>Exfiltration</tactic>
+    </mitre>
+    <group>xss_exfiltration,owasp_a03,</group>
+  </rule>
+
+  <!-- Command Injection / RCE (A03:2021) -->
+  <rule id="100520" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(;.*ls|;.*cat|;.*wget|;.*curl|\|.*bash|\|.*sh|`.*`|\$\(.*\)|&&.*rm|;.*nc|;.*netcat)</regex>
+    <description>CRITICAL - Command Injection / Remote Code Execution attempt</description>
+    <mitre>
+      <id>T1059.004</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>command_injection,rce,owasp_a03,active_response,</group>
+  </rule>
+
+  <rule id="100521" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(eval\(|exec\(|system\(|passthru\(|shell_exec\(|proc_open\(|popen\()</regex>
+    <description>CRITICAL - Code execution function detected in request</description>
+    <mitre>
+      <id>T1059</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>code_execution,owasp_a03,active_response,</group>
+  </rule>
+
+  <!-- Path Traversal / LFI (A01:2021) -->
+  <rule id="100530" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e%5c|etc/passwd|etc/shadow|windows/win.ini)</regex>
+    <description>Path Traversal / Local File Inclusion attempt</description>
+    <mitre>
+      <id>T1083</id>
+      <tactic>Discovery</tactic>
+    </mitre>
+    <group>path_traversal,lfi,owasp_a01,pci_dss_6.5.8,</group>
+  </rule>
+
+  <rule id="100531" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(file:///|php://|data://|expect://|zip://|rar://)</regex>
+    <description>CRITICAL - PHP stream wrapper detected (RFI/LFI)</description>
+    <mitre>
+      <id>T1105</id>
+      <tactic>Command and Control</tactic>
+    </mitre>
+    <group>rfi,lfi,owasp_a01,active_response,</group>
+  </rule>
+
+  <!-- XML External Entity (XXE) -->
+  <rule id="100540" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(&lt;!DOCTYPE.*ENTITY|&lt;!ENTITY.*SYSTEM|file:///|php://filter)</regex>
+    <description>XML External Entity (XXE) injection attempt</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>xxe,owasp_a05,</group>
+  </rule>
+
+  <!-- Server-Side Request Forgery (A10:2021) -->
+  <rule id="100550" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(localhost|127\.0\.0\.1|0\.0\.0\.0|169\.254\.169\.254|metadata\.google|169\.254\.169\.254/latest/meta-data)</regex>
+    <description>Server-Side Request Forgery (SSRF) attempt - internal resource access</description>
+    <mitre>
+      <id>T1212</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>ssrf,owasp_a10,pci_dss_6.5.10,</group>
+  </rule>
+
+  <rule id="100551" level="15">
+    <if_sid>31100</if_sid>
+    <match>169.254.169.254/latest/meta-data/iam/security-credentials</match>
+    <description>CRITICAL - SSRF attempting to steal AWS credentials</description>
+    <mitre>
+      <id>T1552.005</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>ssrf_aws,owasp_a10,active_response,</group>
+  </rule>
+
+  <rule id="100552" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(file://|dict://|gopher://|ldap://|tftp://)</regex>
+    <description>SSRF with dangerous URL scheme</description>
+    <mitre>
+      <id>T1212</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>ssrf_scheme,owasp_a10,</group>
+  </rule>
+
+  <!-- Broken Authentication (A07:2021) -->
+  <rule id="100560" level="9">
+    <if_sid>31100</if_sid>
+    <url>/admin|/administrator|/wp-admin|/phpmyadmin</url>
+    <status>200</status>
+    <description>Access to administrative interface</description>
+    <group>admin_access,owasp_a07,</group>
+  </rule>
+
+  <rule id="100561" level="12">
+    <if_sid>31100</if_sid>
+    <match>session_id=|PHPSESSID=|JSESSIONID=</match>
+    <url>http://</url>
+    <description>Session token transmitted over HTTP</description>
+    <mitre>
+      <id>T1539</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>insecure_session,owasp_a07,pci_dss_4.1,</group>
+  </rule>
+
+  <!-- Deserialization (A08:2021) -->
+  <rule id="100570" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(O:\d+:|a:\d+:|s:\d+:|rO0AB|aced0005|base64.*java\.lang|__reduce__|__wakeup)</regex>
+    <description>CRITICAL - Insecure deserialization attempt detected</description>
+    <mitre>
+      <id>T1203</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>deserialization,owasp_a08,active_response,</group>
+  </rule>
+
+  <!-- Log4Shell / Log4j (A06:2021) -->
+  <rule id="100580" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\$\{jndi:ldap://|\$\{jndi:rmi://|\$\{jndi:dns://|\$\{jndi:nis://)</regex>
+    <description>CRITICAL - Log4Shell (CVE-2021-44228) exploitation attempt</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>log4shell,cve_2021_44228,owasp_a06,active_response,</group>
+  </rule>
+
+  <rule id="100581" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\$\{.*:.*://.*\}|\$\{lower:|\$\{upper:|\$\{env:)</regex>
+    <description>CRITICAL - Log4Shell obfuscated payload detected</description>
+    <mitre>
+      <id>T1027</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>log4shell_obfuscated,cve_2021_44228,active_response,</group>
+  </rule>
+
+  <!-- API Abuse -->
+  <rule id="100590" level="9" frequency="100" timeframe="60">
+    <if_sid>31100</if_sid>
+    <url>/api/</url>
+    <same_source_ip />
+    <description>API rate limit exceeded - 100 requests per minute</description>
+    <group>api_abuse,rate_limit,</group>
+  </rule>
+
+  <rule id="100591" level="12" frequency="500" timeframe="300">
+    <if_sid>31100</if_sid>
+    <url>/api/</url>
+    <same_source_ip />
+    <description>Aggressive API abuse - 500 requests in 5 minutes</description>
+    <mitre>
+      <id>T1499.004</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>api_abuse_aggressive,dos,active_response,</group>
+  </rule>
+
+  <rule id="100592" level="12">
+    <if_sid>31100</if_sid>
+    <url>/api/</url>
+    <status>401|403</status>
+    <frequency>20</frequency>
+    <timeframe>300</timeframe>
+    <same_source_ip />
+    <description>API enumeration - multiple unauthorized access attempts</description>
+    <mitre>
+      <id>T1087</id>
+      <tactic>Discovery</tactic>
+    </mitre>
+    <group>api_enumeration,</group>
+  </rule>
+
+  <!-- WAF Bypass Attempts -->
+  <rule id="100600" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(%00|%0a|%0d|\.\.;|\.\.%00|\.\.%2f|\.\.%5c)</regex>
+    <description>WAF bypass using null bytes or encoding</description>
+    <mitre>
+      <id>T1027</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>waf_bypass,</group>
+  </rule>
+
+  <rule id="100601" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\/\*.*\*\/|--.*|#.*|\/\*\!.*\*\/)</regex>
+    <description>SQL comment-based WAF bypass attempt</description>
+    <mitre>
+      <id>T1027</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>waf_bypass_sql,</group>
+  </rule>
+
+  <!-- Web Shells -->
+  <rule id="100610" level="15">
+    <if_sid>31100</if_sid>
+    <url>.jsp|.php|.asp|.aspx</url>
+    <match>c99|r57|b374k|wso|c100|FilesMan|shell_exec|base64_decode</match>
+    <description>CRITICAL - Web shell access detected</description>
+    <mitre>
+      <id>T1505.003</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>webshell,active_response,</group>
+  </rule>
+
+  <rule id="100611" level="15">
+    <if_sid>31100</if_sid>
+    <status>200</status>
+    <url>\.php|\.jsp|\.asp</url>
+    <regex type="pcre2">(?i)(cmd=|exec=|command=|dir=|download=|upload=)</regex>
+    <description>CRITICAL - Active web shell command execution</description>
+    <mitre>
+      <id>T1059</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>webshell_execution,active_response,</group>
+  </rule>
+
+  <!-- File Upload Attacks -->
+  <rule id="100620" level="12">
+    <if_sid>31100</if_sid>
+    <match>POST</match>
+    <url>/upload|/file</url>
+    <regex type="pcre2">(?i)(\.php|\.jsp|\.asp|\.aspx|\.exe|\.sh|\.py|\.rb)</regex>
+    <description>Suspicious file upload - dangerous extension</description>
+    <mitre>
+      <id>T1105</id>
+      <tactic>Command and Control</tactic>
+    </mitre>
+    <group>file_upload,pci_dss_6.5.8,</group>
+  </rule>
+
+  <rule id="100621" level="15">
+    <if_sid>31100</if_sid>
+    <match>POST</match>
+    <url>/upload</url>
+    <match>Content-Type: image/</match>
+    <regex type="pcre2">(?i)(&lt;\?php|&lt;%@|&lt;script)</regex>
+    <description>CRITICAL - Malicious code in uploaded image (polyglot file)</description>
+    <mitre>
+      <id>T1027</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>malicious_upload,active_response,</group>
+  </rule>
+
+  <!-- NoSQL Injection -->
+  <rule id="100630" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\$ne|\$gt|\$lt|\$regex|\$where|\.find\(|\.update\(|db\..*\.insert)</regex>
+    <description>NoSQL injection attempt detected</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>nosql_injection,</group>
+  </rule>
+
+  <!-- LDAP Injection -->
+  <rule id="100640" level="12">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\*\)\(|\)\(|\(\||&\(|objectClass=|\|\(uid=)</regex>
+    <description>LDAP injection attempt detected</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>ldap_injection,</group>
+  </rule>
+
+  <!-- Template Injection (SSTI) -->
+  <rule id="100650" level="15">
+    <if_sid>31100</if_sid>
+    <regex type="pcre2">(?i)(\{\{.*\}\}|\{%.*%\}|\$\{.*\}|&lt;%=.*%&gt;)</regex>
+    <description>Server-Side Template Injection (SSTI) attempt</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>ssti,template_injection,</group>
+  </rule>
+
+  <!-- CSRF -->
+  <rule id="100660" level="9">
+    <if_sid>31100</if_sid>
+    <match>POST|PUT|DELETE</match>
+    <regex type="pcre2">Referer:.*(?!yourdomain\.com)</regex>
+    <description>Cross-Site Request Forgery (CSRF) - external referer</description>
+    <mitre>
+      <id>T1659</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>csrf,owasp_a01,</group>
+  </rule>
+
+  <!-- Scanner Detection -->
+  <rule id="100670" level="9">
+    <if_sid>31100</if_sid>
+    <user_agent>sqlmap|nikto|nmap|burp|acunetix|nessus|qualys|openvas|w3af|metasploit</user_agent>
+    <description>Web vulnerability scanner detected</description>
+    <mitre>
+      <id>T1595</id>
+      <tactic>Reconnaissance</tactic>
+    </mitre>
+    <group>web_scanner,pci_dss_11.3,</group>
+  </rule>
+
+  <rule id="100671" level="12" frequency="10" timeframe="60">
+    <if_matched_sid>100670</if_matched_sid>
+    <same_source_ip />
+    <description>Active vulnerability scanning in progress</description>
+    <group>active_scanning,active_response,</group>
+  </rule>
+
+  <!-- Bot Detection -->
+  <rule id="100680" level="6">
+    <if_sid>31100</if_sid>
+    <user_agent>bot|crawler|spider|scraper|curl|wget|python-requests</user_agent>
+    <description>Bot or automated tool detected</description>
+    <group>bot_detection,</group>
+  </rule>
+
+  <rule id="100681" level="9" frequency="50" timeframe="60">
+    <if_matched_sid>100680</if_matched_sid>
+    <same_source_ip />
+    <description>Aggressive bot activity</description>
+    <group>aggressive_bot,</group>
+  </rule>
+
+  <!-- HTTP Method Abuse -->
+  <rule id="100690" level="9">
+    <if_sid>31100</if_sid>
+    <match>TRACE|TRACK|DEBUG|OPTIONS</match>
+    <description>Dangerous HTTP method used</description>
+    <group>http_method_abuse,pci_dss_6.5.10,</group>
+  </rule>
+
+  <!-- Large Request Body (Potential DoS) -->
+  <rule id="100695" level="12">
+    <if_sid>31100</if_sid>
+    <match>Content-Length:</match>
+    <regex>Content-Length: [5-9]\d{7,}|Content-Length: \d{9,}</regex>
+    <description>Unusually large request body - potential DoS or upload abuse</description>
+    <mitre>
+      <id>T1499</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>large_request,dos,</group>
+  </rule>
+
+</group>

@@ -1,0 +1,11 @@
+project:
+  name: "Automated Security Testing"
+  author: "Evgeniy Gantman"
+  tests_daily: 2500
+  test_coverage: "95%"
+  vulnerabilities_caught_annually: 1800
+resume_achievements:
+  - achievement: "2,500+ security tests daily"
+  - achievement: "95% test coverage"
+  - achievement: "1,800+ vulnerabilities caught in CI"
+  - achievement: "100% automated regression"

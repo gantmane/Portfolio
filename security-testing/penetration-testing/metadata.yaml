@@ -1,0 +1,11 @@
+project:
+  name: "Penetration Testing Program"
+  author: "Evgeniy Gantman"
+  tests_annually: 4
+  vulnerabilities_found: 180
+  critical_findings: 0
+resume_achievements:
+  - achievement: "180+ vulnerabilities identified annually"
+  - achievement: "100% critical vulnerability remediation"
+  - achievement: "98.5% retest pass rate"
+  - achievement: "PCI DSS & SOC 2 validated"

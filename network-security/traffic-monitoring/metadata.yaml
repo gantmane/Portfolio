@@ -1,0 +1,17 @@
+project:
+  name: "Network Security Monitoring"
+  author: "Evgeniy Gantman"
+  traffic_daily_tb: 15
+  anomalies_monthly: 2800
+  ids_alerts_monthly: 45000
+technology_stack:
+  - "VPC Flow Logs"
+  - "Zeek (Bro)"
+  - "Suricata IDS/IPS"
+  - "Elasticsearch"
+  - "Kibana"
+resume_achievements:
+  - achievement: "15TB/day traffic analyzed"
+  - achievement: "2,800+ anomalies detected monthly"
+  - achievement: "45-second MTTD"
+  - achievement: "12,000+ threats blocked monthly"

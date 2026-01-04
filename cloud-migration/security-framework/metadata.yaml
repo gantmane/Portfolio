@@ -1,0 +1,11 @@
+project:
+  name: "Cloud Migration Security Framework"
+  author: "Evgeniy Gantman"
+  applications_migrated: 85
+  security_score: 98
+  post_migration_incidents: 0
+resume_achievements:
+  - achievement: "85 applications migrated securely"
+  - achievement: "98/100 security score"
+  - achievement: "100% compliance maintained"
+  - achievement: "Zero post-migration incidents"

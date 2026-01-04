@@ -1,0 +1,11 @@
+project:
+  name: "Third-Party Risk Management"
+  author: "Evgeniy Gantman"
+  vendors_assessed: 120
+  questionnaire_automation: "95%"
+  high_risk_vendors: 0
+resume_achievements:
+  - achievement: "120+ vendors assessed"
+  - achievement: "95% questionnaire automation"
+  - achievement: "Zero high-risk vendors"
+  - achievement: "Quarterly vendor reviews"

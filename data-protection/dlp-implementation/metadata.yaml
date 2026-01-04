@@ -1,0 +1,16 @@
+project:
+  name: "Data Loss Prevention (DLP)"
+  author: "Evgeniy Gantman"
+  data_scanned_tb: 500
+  pii_detected: 85000
+  violations_blocked_annually: 3200
+technology_stack:
+  - "AWS Macie"
+  - "Proofpoint Email DLP"
+  - "CrowdStrike Endpoint DLP"
+  - "Imperva DAM"
+resume_achievements:
+  - achievement: "500TB data scanned for PII/PHI"
+  - achievement: "85,000+ PII instances detected"
+  - achievement: "3,200+ violations blocked"
+  - achievement: "120+ exfiltration attempts blocked"

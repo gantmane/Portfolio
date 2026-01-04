@@ -1,0 +1,496 @@
+<!--
+  Kubernetes & Container Security Detection Rules
+  EKS, Pod Security, Container Runtime, Service Mesh
+  Rule ID Range: 100700-100899
+-->
+
+<group name="kubernetes,container,eks,">
+
+  <!-- Kubernetes API Server Attacks -->
+  <rule id="100700" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="verb">create</field>
+    <field name="objectRef.namespace">kube-system|kube-public|default</field>
+    <description>Pod created in sensitive namespace</description>
+    <mitre>
+      <id>T1610</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>k8s_pod_creation,pci_dss_10.2,</group>
+  </rule>
+
+  <rule id="100701" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods/exec</field>
+    <field name="verb">create</field>
+    <description>CRITICAL - kubectl exec into pod (potential shell access)</description>
+    <mitre>
+      <id>T1609</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>k8s_exec,container_shell,pci_dss_10.2.2,</group>
+  </rule>
+
+  <rule id="100702" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods/portforward</field>
+    <field name="verb">create</field>
+    <description>Port forward established to pod</description>
+    <mitre>
+      <id>T1572</id>
+      <tactic>Command and Control</tactic>
+    </mitre>
+    <group>k8s_portforward,</group>
+  </rule>
+
+  <rule id="100703" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">secrets</field>
+    <field name="verb">get|list</field>
+    <description>Kubernetes secret accessed</description>
+    <mitre>
+      <id>T1552.007</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>k8s_secret_access,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100704" level="15" frequency="10" timeframe="300">
+    <if_matched_sid>100703</if_matched_sid>
+    <same_field>user.username</same_field>
+    <description>CRITICAL - Bulk Kubernetes secret enumeration</description>
+    <mitre>
+      <id>T1552.007</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>k8s_secret_enumeration,</group>
+  </rule>
+
+  <!-- RBAC Privilege Escalation -->
+  <rule id="100710" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">clusterrolebindings|rolebindings</field>
+    <field name="verb">create|update</field>
+    <description>Kubernetes role binding created or modified</description>
+    <mitre>
+      <id>T1098</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>k8s_rbac,pci_dss_7.2,</group>
+  </rule>
+
+  <rule id="100711" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.name">cluster-admin</field>
+    <field name="verb">create|update</field>
+    <description>CRITICAL - cluster-admin role binding created</description>
+    <mitre>
+      <id>T1078.001</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_cluster_admin,pci_dss_7.2.1,</group>
+  </rule>
+
+  <rule id="100712" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">clusterroles|roles</field>
+    <field name="verb">create|update</field>
+    <field name="requestObject.rules.verbs">*</field>
+    <description>Kubernetes role created with wildcard permissions</description>
+    <mitre>
+      <id>T1098</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>k8s_wildcard_role,pci_dss_7.2.1,</group>
+  </rule>
+
+  <!-- Pod Security Violations -->
+  <rule id="100720" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.hostNetwork">true</field>
+    <description>CRITICAL - Pod created with hostNetwork=true</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_hostnetwork,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100721" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.hostPID">true</field>
+    <description>CRITICAL - Pod created with hostPID=true</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_hostpid,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100722" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.hostIPC">true</field>
+    <description>CRITICAL - Pod created with hostIPC=true</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_hostipc,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100723" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.securityContext.privileged">true</field>
+    <description>Privileged container created</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_privileged_container,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100724" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.securityContext.capabilities.add">SYS_ADMIN|NET_ADMIN|SYS_MODULE</field>
+    <description>Dangerous capability added to container</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_capabilities,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100725" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.securityContext.runAsUser">0</field>
+    <description>Container running as root (UID 0)</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_root_container,pod_security_violation,</group>
+  </rule>
+
+  <!-- Volume Mount Attacks -->
+  <rule id="100730" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.volumes.hostPath.path">/|/etc|/var/run/docker.sock|/proc|/sys</field>
+    <description>CRITICAL - Sensitive host path mounted in container</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_hostpath,pod_security_violation,</group>
+  </rule>
+
+  <rule id="100731" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.volumes.hostPath.path">/var/run/docker.sock</field>
+    <description>CRITICAL - Docker socket mounted (container escape risk)</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>k8s_docker_socket,container_escape,</group>
+  </rule>
+
+  <!-- Container Image Security -->
+  <rule id="100740" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.image">:latest$</field>
+    <description>Container using 'latest' tag (violates change control)</description>
+    <group>k8s_latest_tag,pci_dss_6.3.3,</group>
+  </rule>
+
+  <rule id="100741" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.image">^(?!.*ecr\.amazonaws\.com)(?!.*gcr\.io)</field>
+    <description>Container from untrusted registry</description>
+    <mitre>
+      <id>T1525</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>k8s_untrusted_image,</group>
+  </rule>
+
+  <rule id="100742" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.containers.imagePullPolicy">Never|IfNotPresent</field>
+    <description>Container not pulling latest image (cache risk)</description>
+    <group>k8s_image_pull_policy,</group>
+  </rule>
+
+  <!-- Service Account Token Abuse -->
+  <rule id="100750" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">serviceaccounts/token</field>
+    <field name="verb">create</field>
+    <description>Service account token created</description>
+    <mitre>
+      <id>T1528</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>k8s_sa_token,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100751" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">pods</field>
+    <field name="requestObject.spec.automountServiceAccountToken">true</field>
+    <description>Service account token auto-mounted to pod</description>
+    <group>k8s_sa_automount,</group>
+  </rule>
+
+  <!-- ConfigMap/Secret Manipulation -->
+  <rule id="100760" level="9">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">configmaps</field>
+    <field name="verb">update|patch|delete</field>
+    <description>ConfigMap modified or deleted</description>
+    <group>k8s_configmap,pci_dss_10.2,</group>
+  </rule>
+
+  <rule id="100761" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">secrets</field>
+    <field name="verb">create|update|patch|delete</field>
+    <description>Kubernetes secret modified or deleted</description>
+    <mitre>
+      <id>T1552.007</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>k8s_secret_modification,pci_dss_8.6,</group>
+  </rule>
+
+  <!-- Admission Controller Bypass -->
+  <rule id="100770" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">mutatingwebhookconfigurations|validatingwebhookconfigurations</field>
+    <field name="verb">delete|update</field>
+    <description>CRITICAL - Admission webhook configuration modified</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>k8s_admission_bypass,</group>
+  </rule>
+
+  <!-- Network Policy Violations -->
+  <rule id="100780" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">networkpolicies</field>
+    <field name="verb">delete</field>
+    <description>Network policy deleted - segmentation removed</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>k8s_netpol,pci_dss_1.2,</group>
+  </rule>
+
+  <!-- Container Runtime Events (from Falco/containerd) -->
+  <rule id="100800" level="15">
+    <if_sid>87920</if_sid>
+    <match>shell spawned|bash started|sh started</match>
+    <description>CRITICAL - Shell spawned in container</description>
+    <mitre>
+      <id>T1059.004</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>container_shell,runtime_security,</group>
+  </rule>
+
+  <rule id="100801" level="15">
+    <if_sid>87920</if_sid>
+    <match>docker cp|docker exec|crictl exec</match>
+    <description>CRITICAL - Direct container runtime command executed</description>
+    <mitre>
+      <id>T1609</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>container_runtime_exec,</group>
+  </rule>
+
+  <rule id="100802" level="15">
+    <if_sid>87920</if_sid>
+    <match>nsenter|unshare|setns</match>
+    <description>CRITICAL - Namespace manipulation detected (container escape attempt)</description>
+    <mitre>
+      <id>T1611</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>container_escape,runtime_security,</group>
+  </rule>
+
+  <rule id="100803" level="12">
+    <if_sid>87920</if_sid>
+    <match>curl.*metadata|wget.*metadata|169.254.169.254</match>
+    <description>Container attempting to access metadata service</description>
+    <mitre>
+      <id>T1552.005</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>metadata_access,runtime_security,</group>
+  </rule>
+
+  <rule id="100804" level="15">
+    <if_sid>87920</if_sid>
+    <match>nc -e|nc -c|/bin/sh|/bin/bash</match>
+    <description>CRITICAL - Reverse shell detected in container</description>
+    <mitre>
+      <id>T1059.004</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>reverse_shell,runtime_security,</group>
+  </rule>
+
+  <rule id="100805" level="12">
+    <if_sid>87920</if_sid>
+    <match>cryptominer|xmrig|minerd|stratum\+tcp</match>
+    <description>Cryptomining activity detected in container</description>
+    <mitre>
+      <id>T1496</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>cryptomining,runtime_security,</group>
+  </rule>
+
+  <!-- Istio Service Mesh Security -->
+  <rule id="100820" level="12">
+    <if_sid>87930</if_sid>
+    <match>RBAC: access denied|authorization failed</match>
+    <description>Istio authorization policy violation</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>istio_authz,service_mesh,</group>
+  </rule>
+
+  <rule id="100821" level="12">
+    <if_sid>87930</if_sid>
+    <match>TLS handshake failed|certificate verification failed</match>
+    <description>Istio mTLS handshake failure</description>
+    <mitre>
+      <id>T1557</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>istio_mtls,service_mesh,pci_dss_4.1,</group>
+  </rule>
+
+  <rule id="100822" level="9" frequency="50" timeframe="60">
+    <if_sid>87930</if_sid>
+    <match>429|rate limit exceeded</match>
+    <same_field>source_ip</same_field>
+    <description>Istio rate limit violation - potential DoS</description>
+    <mitre>
+      <id>T1499</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>istio_ratelimit,service_mesh,</group>
+  </rule>
+
+  <!-- EKS Specific Events -->
+  <rule id="100840" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateClusterConfig</field>
+    <field name="aws.requestParameters.resourcesVpcConfig.endpointPublicAccess">true</field>
+    <description>EKS cluster API endpoint exposed to public internet</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>eks_exposure,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100841" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteCluster|DeleteNodegroup</field>
+    <description>CRITICAL - EKS cluster or node group deleted</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>eks_deletion,</group>
+  </rule>
+
+  <rule id="100842" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateNodegroupConfig</field>
+    <field name="aws.requestParameters.scalingConfig.maxSize">100</field>
+    <description>EKS node group scaled to large size (cost/resource abuse)</description>
+    <group>eks_scaling,</group>
+  </rule>
+
+  <!-- Anonymous/Unauthenticated Access -->
+  <rule id="100860" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="user.username">system:anonymous|system:unauthenticated</field>
+    <field name="responseStatus.code">200|201</field>
+    <description>Anonymous/unauthenticated user successfully accessed Kubernetes API</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>k8s_anonymous_access,</group>
+  </rule>
+
+  <!-- Resource Deletion -->
+  <rule id="100870" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="verb">delete</field>
+    <field name="objectRef.resource">deployments|statefulsets|daemonsets</field>
+    <field name="objectRef.namespace">production|prod|prd</field>
+    <description>Critical workload deleted from production namespace</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>k8s_deletion,</group>
+  </rule>
+
+  <rule id="100871" level="15" frequency="5" timeframe="60">
+    <if_sid>100870</if_sid>
+    <same_field>user.username</same_field>
+    <description>CRITICAL - Bulk resource deletion in Kubernetes (ransomware indicator)</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>k8s_bulk_deletion,ransomware,</group>
+  </rule>
+
+  <!-- Pod Security Standards (PSS) Violations -->
+  <rule id="100880" level="9">
+    <if_sid>87940</if_sid>
+    <match>pod security.*restricted.*violation|PSP.*violation</match>
+    <description>Pod Security Standard violation detected</description>
+    <group>k8s_pss_violation,</group>
+  </rule>
+
+  <!-- CronJob Abuse -->
+  <rule id="100890" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="objectRef.resource">cronjobs</field>
+    <field name="verb">create|update</field>
+    <description>CronJob created or modified (persistence mechanism)</description>
+    <mitre>
+      <id>T1053.003</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>k8s_cronjob,</group>
+  </rule>
+
+</group>

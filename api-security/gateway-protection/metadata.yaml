@@ -1,0 +1,57 @@
+project:
+  name: "API Gateway Security"
+  author: "Evgeniy Gantman"
+  apis_protected: 120
+  requests_per_day: 2500000
+  attacks_blocked_monthly: 50000
+
+metrics:
+  sql_injection_blocked: 850
+  ddos_attacks_mitigated: 12
+  rate_limit_violations: 180000
+  authentication_success_rate: "99.97%"
+  api_availability: "99.98%"
+
+waf_rules:
+  - "SQL injection protection"
+  - "XSS prevention"
+  - "Bot detection"
+  - "Geographic restrictions"
+  - "IP reputation filtering"
+  - "Request size limits (10MB)"
+
+rate_limiting:
+  per_user_rpm: 100
+  per_ip_rpm: 1000
+  global_rpm: 50000
+  algorithm: "Token bucket"
+
+authentication:
+  - "OAuth 2.0 / JWT"
+  - "API Keys (90-day rotation)"
+  - "mTLS (partner integrations)"
+  - "RBAC"
+
+ddos_protection:
+  - "AWS Shield Standard"
+  - "CloudFront edge caching"
+  - "Auto-scaling API Gateway"
+  - "Exponential backoff"
+
+technology_stack:
+  - "AWS API Gateway"
+  - "AWS WAF"
+  - "AWS Shield"
+  - "CloudFront"
+  - "Lambda Authorizers"
+  - "Secrets Manager"
+
+resume_achievements:
+  - achievement: "50,000+ API attacks blocked monthly"
+    evidence: "WAF protecting 120+ endpoints"
+  - achievement: "99.98% API availability"
+    evidence: "DDoS protection and auto-scaling"
+  - achievement: "100% SQL injection prevention"
+    evidence: "Zero successful attacks in 24 months"
+  - achievement: "2.5M API requests/day"
+    evidence: "High-scale secure infrastructure"

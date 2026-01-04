@@ -1,0 +1,11 @@
+project:
+  name: "Centralized Logging & Analysis"
+  author: "Evgeniy Gantman"
+  logs_daily_tb: 50
+  log_sources: 450
+  retention_days: 365
+resume_achievements:
+  - achievement: "50TB/day logs ingested"
+  - achievement: "450+ log sources"
+  - achievement: "365-day retention"
+  - achievement: "<2s query performance"

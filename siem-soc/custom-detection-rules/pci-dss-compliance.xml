@@ -1,0 +1,427 @@
+<!--
+  PCI DSS 4.0 Compliance Monitoring Rules
+  Custom rules for automated PCI DSS compliance checking
+  Rule ID Range: 100000-100199
+-->
+
+<group name="pci_dss,compliance,">
+
+  <!-- Requirement 1: Network Security Controls -->
+  <rule id="100001" level="12">
+    <if_sid>5715</if_sid>
+    <match>firewall rule deleted|security group deleted</match>
+    <description>PCI DSS 1.2.1: Firewall rule deletion detected</description>
+    <mitre>
+      <id>T1562.004</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_1.2.1,firewall,</group>
+  </rule>
+
+  <rule id="100002" level="9">
+    <if_sid>5716</if_sid>
+    <match>0.0.0.0/0|::/0</match>
+    <description>PCI DSS 1.3.1: Unrestricted network access configured (0.0.0.0/0)</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_1.3.1,network_exposure,</group>
+  </rule>
+
+  <rule id="100003" level="12">
+    <if_sid>87901</if_sid>
+    <match>vpc-flow-logs disabled|flow logging disabled</match>
+    <description>PCI DSS 1.3.5: VPC Flow Logs disabled - network monitoring compromised</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_1.3.5,network_monitoring,</group>
+  </rule>
+
+  <rule id="100004" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.requestParameters.groupId">sg-</field>
+    <field name="aws.requestParameters.ipPermissions.fromPort">22|3389|5432|3306</field>
+    <field name="aws.requestParameters.ipPermissions.cidrIp">0.0.0.0/0</field>
+    <description>PCI DSS 1.3.2: Critical port exposed to internet (SSH/RDP/DB)</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_1.3.2,critical_exposure,</group>
+  </rule>
+
+  <!-- Requirement 2: Secure Configuration -->
+  <rule id="100010" level="12">
+    <if_sid>87902</if_sid>
+    <match>default password|vendor default|factory settings</match>
+    <description>PCI DSS 2.1.1: Default credentials in use</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_2.1.1,default_credentials,</group>
+  </rule>
+
+  <rule id="100011" level="9">
+    <if_sid>1002</if_sid>
+    <regex>telnet|ftp|rsh|rlogin</regex>
+    <description>PCI DSS 2.2.4: Insecure service detected (cleartext protocol)</description>
+    <mitre>
+      <id>T1040</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pci_dss_2.2.4,insecure_protocol,</group>
+  </rule>
+
+  <rule id="100012" level="12">
+    <decoded_as>sshd</decoded_as>
+    <match>PermitRootLogin yes|PasswordAuthentication yes</match>
+    <description>PCI DSS 2.2.2: SSH insecure configuration detected</description>
+    <mitre>
+      <id>T1021.004</id>
+      <tactic>Lateral Movement</tactic>
+    </mitre>
+    <group>pci_dss_2.2.2,ssh_misconfiguration,</group>
+  </rule>
+
+  <!-- Requirement 3: Protect Stored Cardholder Data -->
+  <rule id="100020" level="15">
+    <if_sid>550</if_sid>
+    <regex type="pcre2">(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})</regex>
+    <description>PCI DSS 3.4.1: CRITICAL - Unencrypted PAN detected in logs</description>
+    <mitre>
+      <id>T1552.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pci_dss_3.4.1,pan_exposure,gdpr_IV_30.1.g,</group>
+  </rule>
+
+  <rule id="100021" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteBucket|PutBucketEncryption</field>
+    <field name="aws.requestParameters.bucketName">cardholder|payment|pan</field>
+    <description>PCI DSS 3.4: Encryption disabled on CDE S3 bucket</description>
+    <mitre>
+      <id>T1565.001</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>pci_dss_3.4,encryption_disabled,</group>
+  </rule>
+
+  <rule id="100022" level="12">
+    <if_sid>87903</if_sid>
+    <match>kms.*Disable|kms.*ScheduleKeyDeletion</match>
+    <description>PCI DSS 3.5.1: KMS key deletion scheduled - data protection at risk</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>pci_dss_3.5.1,key_management,</group>
+  </rule>
+
+  <rule id="100023" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutObject</field>
+    <field name="aws.requestParameters.x-amz-server-side-encryption">^$</field>
+    <field name="aws.requestParameters.bucketName">cardholder|payment</field>
+    <description>PCI DSS 3.4: Unencrypted file uploaded to CDE bucket</description>
+    <group>pci_dss_3.4,unencrypted_upload,</group>
+  </rule>
+
+  <!-- Requirement 4: Protect Cardholder Data in Transit -->
+  <rule id="100030" level="12">
+    <if_sid>31100,31102,31103</if_sid>
+    <match>SSL 3.0|TLS 1.0|TLS 1.1</match>
+    <description>PCI DSS 4.2.1: Weak TLS version in use (must use TLS 1.2+)</description>
+    <mitre>
+      <id>T1040</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pci_dss_4.2.1,weak_crypto,</group>
+  </rule>
+
+  <rule id="100031" level="15">
+    <if_sid>31100</if_sid>
+    <match>http://</match>
+    <regex>cardholder|payment|pan|cvv</regex>
+    <description>PCI DSS 4.2: CRITICAL - Cardholder data transmitted over HTTP</description>
+    <mitre>
+      <id>T1040</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pci_dss_4.2,cleartext_transmission,</group>
+  </rule>
+
+  <rule id="100032" level="9">
+    <if_sid>2902</if_sid>
+    <match>NULL|EXPORT|DES|RC4|MD5</match>
+    <description>PCI DSS 4.2.1: Weak cipher suite detected</description>
+    <mitre>
+      <id>T1600</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_4.2.1,weak_cipher,</group>
+  </rule>
+
+  <!-- Requirement 5: Protect Against Malware -->
+  <rule id="100040" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">StopInstances|ModifyInstanceAttribute</field>
+    <field name="aws.requestParameters.disableApiTermination">false</field>
+    <description>PCI DSS 5.2: Anti-malware protection disabled on EC2 instance</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_5.2,antimalware_disabled,</group>
+  </rule>
+
+  <rule id="100041" level="15">
+    <if_sid>554</if_sid>
+    <match>wazuh-agent.*stopped|wazuh.*uninstall</match>
+    <description>PCI DSS 5.2: Wazuh agent stopped - malware protection compromised</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_5.2,security_tool_tampering,</group>
+  </rule>
+
+  <!-- Requirement 6: Develop Secure Systems -->
+  <rule id="100050" level="12">
+    <if_sid>23502</if_sid>
+    <match>CVE-.*CRITICAL|CVSS.*10.0|CVSS.*9.</match>
+    <description>PCI DSS 6.3.1: Critical vulnerability detected (CVSS 9.0+)</description>
+    <mitre>
+      <id>T1203</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>pci_dss_6.3.1,critical_vulnerability,</group>
+  </rule>
+
+  <rule id="100051" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateFunctionCode|CreateFunction</field>
+    <field name="aws.responseElements.runtime">python2.7|nodejs10.x|nodejs12.x</field>
+    <description>PCI DSS 6.2: Deprecated runtime version detected in Lambda</description>
+    <group>pci_dss_6.2,deprecated_software,</group>
+  </rule>
+
+  <rule id="100052" level="12">
+    <if_sid>87904</if_sid>
+    <match>OWASP|SQL injection|XSS|RCE|Path Traversal</match>
+    <description>PCI DSS 6.5: Web application vulnerability detected</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_6.5,web_vulnerability,</group>
+  </rule>
+
+  <!-- Requirement 7: Restrict Access -->
+  <rule id="100060" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutUserPolicy|PutRolePolicy|PutGroupPolicy</field>
+    <field name="aws.requestParameters.policyDocument">arn:aws:iam::aws:policy/AdministratorAccess|\*:\*</field>
+    <description>PCI DSS 7.2.1: Administrative access granted (violates least privilege)</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>pci_dss_7.2.1,excessive_permissions,</group>
+  </rule>
+
+  <rule id="100061" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">GetObject|DescribeDBInstances</field>
+    <field name="aws.userIdentity.principalId">root</field>
+    <description>PCI DSS 7.2.2: Root account used for routine operations</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>pci_dss_7.2.2,root_usage,</group>
+  </rule>
+
+  <rule id="100062" level="12">
+    <if_sid>5503</if_sid>
+    <match>user added to.*admin|user added to.*wheel|user added to.*sudo</match>
+    <description>PCI DSS 7.2.3: User added to administrative group</description>
+    <mitre>
+      <id>T1098</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>pci_dss_7.2.3,privilege_elevation,</group>
+  </rule>
+
+  <!-- Requirement 8: Identify Users -->
+  <rule id="100070" level="12">
+    <if_sid>5710</if_sid>
+    <match>password.*never expires|password expiration disabled</match>
+    <description>PCI DSS 8.3.9: Password expiration policy violation</description>
+    <group>pci_dss_8.3.9,password_policy,</group>
+  </rule>
+
+  <rule id="100071" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateUser|CreateAccessKey</field>
+    <field name="aws.requestParameters.userName">^(?!mfa-).*$</field>
+    <description>PCI DSS 8.4.2: User created without MFA enforcement</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_8.4.2,mfa_violation,</group>
+  </rule>
+
+  <rule id="100072" level="9">
+    <if_sid>5716</if_sid>
+    <match>concurrent sessions|multiple logins</match>
+    <description>PCI DSS 8.2.5: Concurrent session detected from same user</description>
+    <group>pci_dss_8.2.5,concurrent_session,</group>
+  </rule>
+
+  <rule id="100073" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateAccessKey</field>
+    <field name="aws.userIdentity.accessKeyAge">>90</field>
+    <description>PCI DSS 8.6.3: Access key older than 90 days (rotation required)</description>
+    <group>pci_dss_8.6.3,key_rotation,</group>
+  </rule>
+
+  <!-- Requirement 9: Physical Access (Cloud Context) -->
+  <rule id="100080" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.sourceIPAddress">!10.0.0.0/8,!172.16.0.0/12,!192.168.0.0/16</field>
+    <description>PCI DSS 9.1.2: Console access from non-corporate network</description>
+    <group>pci_dss_9.1.2,console_access,</group>
+  </rule>
+
+  <!-- Requirement 10: Log and Monitor Access -->
+  <rule id="100090" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteTrail|StopLogging|PutEventSelectors</field>
+    <description>PCI DSS 10.2.2: CRITICAL - CloudTrail logging disabled or modified</description>
+    <mitre>
+      <id>T1562.008</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_10.2.2,audit_tampering,</group>
+  </rule>
+
+  <rule id="100091" level="12">
+    <if_sid>550</if_sid>
+    <match>log rotation|log deletion|log cleared</match>
+    <description>PCI DSS 10.5.1: Log file tampering detected</description>
+    <mitre>
+      <id>T1070.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_10.5.1,log_tampering,</group>
+  </rule>
+
+  <rule id="100092" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">GetObject|PutObject|DeleteObject</field>
+    <field name="aws.requestParameters.bucketName">.*cardholder.*|.*payment.*|.*cde.*</field>
+    <description>PCI DSS 10.2.1: CDE data access logged</description>
+    <group>pci_dss_10.2.1,cde_access,</group>
+  </rule>
+
+  <rule id="100093" level="12">
+    <if_sid>87905</if_sid>
+    <match>retention policy.*modified|log retention.*changed</match>
+    <description>PCI DSS 10.5.1: Log retention policy modified (requires 1 year)</description>
+    <group>pci_dss_10.5.1,retention_violation,</group>
+  </rule>
+
+  <!-- Requirement 11: Test Security Systems -->
+  <rule id="100100" level="9">
+    <if_sid>40101</if_sid>
+    <match>vulnerability scan|penetration test|port scan</match>
+    <description>PCI DSS 11.3.1: Security testing activity detected</description>
+    <group>pci_dss_11.3.1,security_testing,</group>
+  </rule>
+
+  <rule id="100101" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ModifyInstanceAttribute</field>
+    <field name="aws.requestParameters.disableApiTermination">false</field>
+    <description>PCI DSS 11.4: IDS/IPS protection disabled</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_11.4,ids_disabled,</group>
+  </rule>
+
+  <rule id="100102" level="15">
+    <if_sid>554</if_sid>
+    <match>file integrity.*disabled|fim.*stopped</match>
+    <description>PCI DSS 11.5: File integrity monitoring disabled</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>pci_dss_11.5,fim_disabled,</group>
+  </rule>
+
+  <!-- Requirement 12: Support Information Security -->
+  <rule id="100110" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateUser|DeleteUser</field>
+    <description>PCI DSS 12.3: User lifecycle event (creation/deletion)</description>
+    <group>pci_dss_12.3,user_lifecycle,</group>
+  </rule>
+
+  <rule id="100111" level="12">
+    <if_sid>87906</if_sid>
+    <match>backup.*failed|snapshot.*failed</match>
+    <description>PCI DSS 12.10.1: Backup failure detected</description>
+    <group>pci_dss_12.10.1,backup_failure,</group>
+  </rule>
+
+  <!-- PCI DSS 4.0 New Requirements -->
+  <rule id="100120" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateService|UpdateTaskDefinition</field>
+    <field name="aws.requestParameters.taskDefinition">.*latest$</field>
+    <description>PCI DSS 6.3.3: Container using 'latest' tag (violates change control)</description>
+    <group>pci_dss_6.3.3,container_security,</group>
+  </rule>
+
+  <rule id="100121" level="9">
+    <if_sid>87907</if_sid>
+    <match>phishing.*detected|social engineering</match>
+    <description>PCI DSS 12.6.3: Phishing or social engineering attempt detected</description>
+    <mitre>
+      <id>T1566</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>pci_dss_12.6.3,phishing,</group>
+  </rule>
+
+  <rule id="100122" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateFunction|UpdateFunctionCode</field>
+    <field name="aws.requestParameters.environment.variables">.*password.*|.*api_key.*|.*secret.*</field>
+    <description>PCI DSS 6.2.4: Secrets hardcoded in Lambda environment variables</description>
+    <mitre>
+      <id>T1552.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>pci_dss_6.2.4,hardcoded_secrets,</group>
+  </rule>
+
+  <!-- Compliance Dashboard Metrics -->
+  <rule id="100150" level="3">
+    <if_sid>100001,100002,100003,100004,100010,100011,100012,100020,100021,100022,100023,100030,100031,100032,100040,100041,100050,100051,100052,100060,100061,100062,100070,100071,100072,100073,100080,100090,100091,100092,100093,100100,100101,100102,100110,100111,100120,100121,100122</if_sid>
+    <description>PCI DSS compliance violation detected - updating dashboard metrics</description>
+    <group>pci_dss_metrics,compliance_dashboard,</group>
+  </rule>
+
+</group>

@@ -1,0 +1,11 @@
+project:
+  name: "API Security Testing"
+  author: "Evgeniy Gantman"
+  apis_tested: 120
+  tests_per_api: 250
+  vulnerabilities_annually: 280
+resume_achievements:
+  - achievement: "120+ APIs security tested"
+  - achievement: "280+ vulnerabilities found"
+  - achievement: "OWASP API Top 10 coverage"
+  - achievement: "Zero critical findings in production"

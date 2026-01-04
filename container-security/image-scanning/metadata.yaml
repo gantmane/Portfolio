@@ -1,0 +1,11 @@
+project:
+  name: "Container Image Scanning"
+  author: "Evgeniy Gantman"
+  images_scanned: 3500
+  vulnerabilities_annually: 4200
+  critical_blocked: 180
+resume_achievements:
+  - achievement: "4,200+ vulnerabilities detected"
+  - achievement: "180+ critical CVEs blocked"
+  - achievement: "1,200+ vulnerable images blocked"
+  - achievement: "<30s scan time"

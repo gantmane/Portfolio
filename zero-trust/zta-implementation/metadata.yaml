@@ -1,0 +1,11 @@
+project:
+  name: "Zero Trust Architecture"
+  author: "Evgeniy Gantman"
+  users: 1500
+  mfa_enforcement: "100%"
+  services_segmented: 85
+resume_achievements:
+  - achievement: "1,500+ users on Zero Trust"
+  - achievement: "100% MFA + device trust"
+  - achievement: "95% lateral movement reduction"
+  - achievement: "85 services micro-segmented"

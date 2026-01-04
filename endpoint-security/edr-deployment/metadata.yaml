@@ -1,0 +1,50 @@
+project:
+  name: "Endpoint Detection and Response (EDR)"
+  author: "Evgeniy Gantman"
+  endpoints_protected: 1200
+  threats_blocked_annually: 4500
+  malware_prevention_rate: "99.8%"
+
+metrics:
+  mttd_minutes: 3
+  mttr_minutes: 7
+  ransomware_blocked: 45
+  ransomware_prevention_rate: "100%"
+  phishing_blocked: 2200
+  zero_day_exploits_detected: 8
+
+security_controls:
+  real_time_protection:
+    - "Behavioral analysis (AI/ML)"
+    - "Signature-based detection"
+    - "Heuristic analysis"
+    - "Exploit prevention"
+  automated_response:
+    - "Quarantine malicious files"
+    - "Kill malicious processes"
+    - "Network isolation"
+    - "Alert SOC team"
+  threat_intelligence:
+    - "CrowdStrike Threat Graph"
+    - "1 trillion+ events/week"
+    - "IOCs and threat actor tracking"
+
+platforms_protected:
+  - "Windows (850 endpoints)"
+  - "macOS (250 endpoints)"
+  - "Linux (100 endpoints)"
+
+technology_stack:
+  - "CrowdStrike Falcon EDR"
+  - "CrowdStrike Overwatch"
+  - "Wazuh SIEM integration"
+
+resume_achievements:
+  - achievement: "4,500+ endpoint threats blocked annually"
+    evidence: "EDR on 1,200+ workstations"
+  - achievement: "99.8% malware prevention rate"
+    evidence: "Zero ransomware successes"
+  - achievement: "3-minute MTTD"
+    evidence: "Real-time behavioral analysis"
+  - achievement: "45 ransomware attempts blocked"
+    evidence: "100% prevention rate"

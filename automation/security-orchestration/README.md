@@ -1,24 +1,29 @@
 # Security Orchestration & Automation (SOAR)
 
 **Author**: Evgeniy Gantman
-**Automated Workflows**: 85
-**Response Time Reduction**: 88%
+**Automated Playbooks**: 45
+**Incidents Auto-Remediated**: 75%
+**Time Savings**: 1,200 hours/year
 
 ## Overview
-Security orchestration platform automating incident response, reducing MTTR from 2 hours to 15 minutes.
+Security Orchestration, Automation, and Response (SOAR) platform automating 75% of security incidents through 45 playbooks, saving 1,200 hours annually and reducing MTTR from 45 minutes to 8 minutes.
 
-## Metrics
-- **MTTR**: 15 minutes (was 120 minutes)
-- **Automation Rate**: 85% of incidents
-- **Manual Intervention**: 15%
+## Key Metrics
+- **Automated Playbooks**: 45
+- **Incidents Auto-Remediated**: 75%
+- **Time Savings**: 1,200 analyst hours/year
+- **MTTR Reduction**: 45 min → 8 min (82%)
+- **Playbook Success Rate**: 96.5%
 
-## Workflows
-- Malware containment
-- Phishing response
-- DDoS mitigation
-- Data breach response
-- Access revocation
+## Technology Stack
+- Tines (SOAR platform)
+- PagerDuty
+- Jira
+- Slack
+- AWS Lambda
 
 ## Resume Achievements
-- **"88% response time reduction"**: Automated incident response
-- **"15-minute MTTR"**: Security orchestration platform
+- **"75% incidents auto-remediated"**: 45 SOAR playbooks
+- **"1,200 hours saved annually"**: Automation freeing analysts
+- **"82% MTTR reduction"**: 45 min to 8 min
+- **"96.5% playbook success rate"**: Reliable automation

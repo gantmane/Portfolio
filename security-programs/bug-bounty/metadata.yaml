@@ -1,0 +1,12 @@
+project:
+  name: "Bug Bounty Program"
+  author: "Evgeniy Gantman"
+  researchers: 350
+  submissions_annually: 420
+  valid_bugs: 95
+  payouts_usd: 145000
+resume_achievements:
+  - achievement: "$145K annual bug bounty payouts"
+  - achievement: "95 validated vulnerabilities"
+  - achievement: "8 critical findings remediated"
+  - achievement: "4-hour average response time"

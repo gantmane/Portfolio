@@ -1,0 +1,11 @@
+project:
+  name: "Cloud Governance"
+  author: "Evgeniy Gantman"
+  accounts_governed: 25
+  policies_enforced: 180
+  compliance_score: 96
+resume_achievements:
+  - achievement: "25 AWS accounts governed"
+  - achievement: "180+ policies enforced"
+  - achievement: "96/100 compliance score"
+  - achievement: "85% auto-remediation"

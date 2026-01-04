@@ -1,0 +1,11 @@
+project:
+  name: "DevSecOps Secure CI/CD Pipeline"
+  author: "Evgeniy Gantman"
+  pipelines_secured: 150
+  scans_daily: 850
+  vulnerabilities_blocked_annually: 2400
+resume_achievements:
+  - achievement: "150+ secure pipelines"
+  - achievement: "850+ security scans daily"
+  - achievement: "2,400+ vulnerabilities blocked"
+  - achievement: "100% SAST/SCA coverage"

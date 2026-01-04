@@ -1,0 +1,35 @@
+project:
+  name: "IAM Automation & Access Management"
+  author: "Evgeniy Gantman"
+  users_managed: 1200
+  provisioning_automation: "100%"
+  deprovisioning_time_hours: 1
+
+metrics:
+  mfa_enforcement: "100%"
+  orphaned_accounts: 0
+  policy_violations_monthly: 45
+  access_review_frequency: "monthly"
+
+automation:
+  onboarding_time_minutes: 5
+  onboarding_time_manual_hours: 2
+  offboarding_time_hours: 1
+
+technology_stack:
+  - "Okta SSO"
+  - "AWS IAM"
+  - "Workday"
+  - "Lambda"
+  - "DynamoDB"
+  - "Slack"
+
+resume_achievements:
+  - achievement: "1,200+ users via IAM automation"
+    evidence: "100% automated provisioning"
+  - achievement: "<1 hour deprovisioning"
+    evidence: "Immediate access revocation"
+  - achievement: "100% MFA enforcement"
+    evidence: "Zero exceptions"
+  - achievement: "Monthly access reviews"
+    evidence: "90% audit prep reduction"

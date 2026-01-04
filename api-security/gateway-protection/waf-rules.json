@@ -1,0 +1,74 @@
+{
+  "Name": "ExamplePayAPIProtection",
+  "Rules": [
+    {
+      "Name": "BlockSQLInjection",
+      "Priority": 1,
+      "Statement": {
+        "SqliMatchStatement": {
+          "FieldToMatch": {
+            "AllQueryArguments": {}
+          },
+          "TextTransformations": [
+            {
+              "Priority": 0,
+              "Type": "URL_DECODE"
+            },
+            {
+              "Priority": 1,
+              "Type": "HTML_ENTITY_DECODE"
+            }
+          ]
+        }
+      },
+      "Action": {
+        "Block": {}
+      }
+    },
+    {
+      "Name": "BlockXSS",
+      "Priority": 2,
+      "Statement": {
+        "XssMatchStatement": {
+          "FieldToMatch": {
+            "Body": {}
+          },
+          "TextTransformations": [
+            {
+              "Priority": 0,
+              "Type": "URL_DECODE"
+            }
+          ]
+        }
+      },
+      "Action": {
+        "Block": {}
+      }
+    },
+    {
+      "Name": "RateLimitPerIP",
+      "Priority": 3,
+      "Statement": {
+        "RateBasedStatement": {
+          "Limit": 1000,
+          "AggregateKeyType": "IP"
+        }
+      },
+      "Action": {
+        "Block": {}
+      }
+    },
+    {
+      "Name": "GeoBlockHighRisk",
+      "Priority": 4,
+      "Statement": {
+        "GeoMatchStatement": {
+          "CountryCodes": ["CN", "RU", "KP", "IR"]
+        }
+      },
+      "Action": {
+        "Block": {}
+      }
+    }
+  ]
+}

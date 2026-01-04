@@ -1,0 +1,11 @@
+project:
+  name: "Cloud Security Posture Management"
+  author: "Evgeniy Gantman"
+  accounts_monitored: 25
+  misconfigurations_annually: 1800
+  auto_remediation_rate: "85%"
+resume_achievements:
+  - achievement: "1,800+ misconfigurations detected"
+  - achievement: "85% auto-remediation rate"
+  - achievement: "95/100 security score"
+  - achievement: "15-minute MTTR"

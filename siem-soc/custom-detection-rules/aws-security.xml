@@ -1,0 +1,516 @@
+<!--
+  AWS Security Event Detection Rules
+  CloudTrail, GuardDuty, Config, IAM, S3, VPC monitoring
+  Rule ID Range: 100300-100499
+-->
+
+<group name="aws,cloud_security,">
+
+  <!-- IAM Policy Manipulation -->
+  <rule id="100300" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutUserPolicy|PutRolePolicy|PutGroupPolicy</field>
+    <field name="aws.requestParameters.policyDocument">.*\*:\*.*|.*arn:aws:iam::aws:policy/AdministratorAccess.*</field>
+    <description>Overly permissive IAM policy created (wildcard or admin access)</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>iam_abuse,pci_dss_7.2.1,</group>
+  </rule>
+
+  <rule id="100301" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AttachUserPolicy|AttachRolePolicy|AttachGroupPolicy</field>
+    <field name="aws.requestParameters.policyArn">arn:aws:iam::aws:policy/AdministratorAccess</field>
+    <description>CRITICAL - AdministratorAccess policy attached to principal</description>
+    <mitre>
+      <id>T1098.003</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>admin_access_granted,pci_dss_7.2.1,</group>
+  </rule>
+
+  <rule id="100302" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateAccessKey</field>
+    <description>New IAM access key created</description>
+    <mitre>
+      <id>T1098.001</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>access_key_creation,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100303" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateAccessKey</field>
+    <field name="aws.userIdentity.userName">.*admin.*|.*root.*</field>
+    <description>CRITICAL - Access key created for privileged user</description>
+    <mitre>
+      <id>T1098.001</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>privileged_key_creation,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100304" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateUser</field>
+    <field name="aws.userIdentity.invokedBy">^(?!.*sso).*$</field>
+    <description>IAM user created outside SSO process - policy violation</description>
+    <mitre>
+      <id>T1136.003</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>unauthorized_user_creation,pci_dss_8.1,</group>
+  </rule>
+
+  <!-- AWS Config and Compliance -->
+  <rule id="100310" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteConfigRule|PutConfigRule|StopConfigurationRecorder</field>
+    <description>AWS Config modification or disablement</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>config_tampering,pci_dss_10.5,</group>
+  </rule>
+
+  <rule id="100311" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteDeliveryChannel|DeleteConfigurationRecorder</field>
+    <description>CRITICAL - AWS Config disabled (compliance monitoring lost)</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>config_disabled,pci_dss_10.5,</group>
+  </rule>
+
+  <!-- GuardDuty Findings -->
+  <rule id="100320" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.service.serviceName">guardduty</field>
+    <field name="aws.service.action.actionType">AWS_API_CALL|NETWORK_CONNECTION|PORT_PROBE</field>
+    <field name="aws.severity">4|5|6|7</field>
+    <description>GuardDuty finding - Medium to High severity threat detected</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>guardduty,threat_detection,</group>
+  </rule>
+
+  <rule id="100321" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.service.serviceName">guardduty</field>
+    <field name="aws.severity">8|9|10</field>
+    <description>CRITICAL - GuardDuty high severity finding</description>
+    <group>guardduty_critical,threat_detection,</group>
+  </rule>
+
+  <rule id="100322" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteDetector|UpdateDetector</field>
+    <field name="aws.requestParameters.enable">false</field>
+    <description>CRITICAL - GuardDuty disabled</description>
+    <mitre>
+      <id>T1562.001</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>guardduty_disabled,pci_dss_11.4,</group>
+  </rule>
+
+  <!-- S3 Bucket Security -->
+  <rule id="100330" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutBucketPublicAccessBlock</field>
+    <field name="aws.requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls">false</field>
+    <description>S3 bucket public access enabled - data exposure risk</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>s3_exposure,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100331" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutBucketAcl|PutObjectAcl</field>
+    <field name="aws.requestParameters.AccessControlPolicy.AccessControlList.Grant.Grantee.URI">http://acs.amazonaws.com/groups/global/AllUsers</field>
+    <description>CRITICAL - S3 object/bucket made publicly accessible</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>s3_public_access,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100332" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteBucketEncryption|PutBucketEncryption</field>
+    <field name="aws.requestParameters.bucketName">.*cardholder.*|.*payment.*|.*sensitive.*</field>
+    <description>Encryption configuration changed on sensitive S3 bucket</description>
+    <mitre>
+      <id>T1565.001</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>s3_encryption,pci_dss_3.4,</group>
+  </rule>
+
+  <rule id="100333" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteBucket</field>
+    <field name="aws.requestParameters.bucketName">.*backup.*|.*audit.*|.*log.*</field>
+    <description>CRITICAL - Critical S3 bucket deleted (backup/audit/logs)</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>s3_deletion,pci_dss_10.5,</group>
+  </rule>
+
+  <rule id="100334" level="12" frequency="10" timeframe="600">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">GetObject</field>
+    <field name="aws.requestParameters.bucketName">.*cardholder.*|.*payment.*</field>
+    <same_field>aws.userIdentity.principalId</same_field>
+    <description>Bulk download from sensitive S3 bucket - potential exfiltration</description>
+    <mitre>
+      <id>T1530</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>s3_exfiltration,pci_dss_10.2,</group>
+  </rule>
+
+  <!-- VPC and Network Security -->
+  <rule id="100340" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AuthorizeSecurityGroupIngress</field>
+    <field name="aws.requestParameters.ipPermissions.ipv4Ranges.cidrIp">0.0.0.0/0</field>
+    <field name="aws.requestParameters.ipPermissions.toPort">22|3389|5432|3306|1521|27017</field>
+    <description>Critical port exposed to internet (SSH/RDP/DB)</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>sg_misconfiguration,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100341" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">RevokeSecurityGroupIngress|RevokeSecurityGroupEgress</field>
+    <description>Security group rule removed</description>
+    <group>sg_modification,pci_dss_1.2,</group>
+  </rule>
+
+  <rule id="100342" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteFlowLogs|ModifyVpcAttribute</field>
+    <description>VPC flow logs disabled or VPC modified</description>
+    <mitre>
+      <id>T1562.008</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>vpc_logging,pci_dss_10.3,</group>
+  </rule>
+
+  <rule id="100343" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateVpcPeeringConnection|AcceptVpcPeeringConnection</field>
+    <description>VPC peering connection created - network boundary change</description>
+    <mitre>
+      <id>T1599</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>vpc_peering,pci_dss_1.2,</group>
+  </rule>
+
+  <!-- KMS and Encryption -->
+  <rule id="100350" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DisableKey|ScheduleKeyDeletion</field>
+    <description>CRITICAL - KMS key disabled or scheduled for deletion</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>kms_deletion,pci_dss_3.5,</group>
+  </rule>
+
+  <rule id="100351" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutKeyPolicy|CreateGrant</field>
+    <description>KMS key policy modified or grant created</description>
+    <mitre>
+      <id>T1552.004</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>kms_policy,pci_dss_3.5,</group>
+  </rule>
+
+  <rule id="100352" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DisableKeyRotation</field>
+    <description>KMS key rotation disabled</description>
+    <group>kms_rotation,pci_dss_3.6,</group>
+  </rule>
+
+  <!-- EC2 Instance Security -->
+  <rule id="100360" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">RunInstances</field>
+    <field name="aws.requestParameters.instanceType">.*\.metal|.*\.24xlarge|.*\.16xlarge</field>
+    <description>Large EC2 instance launched (cost/cryptomining risk)</description>
+    <group>ec2_instance,cryptomining,</group>
+  </rule>
+
+  <rule id="100361" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ModifyInstanceAttribute</field>
+    <field name="aws.requestParameters.attribute">userData</field>
+    <description>EC2 user data modified - persistence mechanism</description>
+    <mitre>
+      <id>T1059</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>ec2_modification,</group>
+  </rule>
+
+  <rule id="100362" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">RunInstances</field>
+    <field name="aws.requestParameters.instancesSet.items.monitoring.enabled">false</field>
+    <description>EC2 instance launched without detailed monitoring</description>
+    <group>ec2_monitoring,pci_dss_10.2,</group>
+  </rule>
+
+  <!-- Lambda Security -->
+  <rule id="100370" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CreateFunction|UpdateFunctionCode</field>
+    <field name="aws.requestParameters.runtime">python2.7|nodejs10.x|nodejs12.x</field>
+    <description>Lambda function using deprecated/unsupported runtime</description>
+    <mitre>
+      <id>T1203</id>
+      <tactic>Execution</tactic>
+    </mitre>
+    <group>lambda_security,pci_dss_6.2,</group>
+  </rule>
+
+  <rule id="100371" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AddPermission</field>
+    <field name="aws.requestParameters.principal">\*</field>
+    <description>Lambda function made publicly accessible</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>lambda_exposure,pci_dss_1.3,</group>
+  </rule>
+
+  <!-- RDS Security -->
+  <rule id="100380" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ModifyDBInstance</field>
+    <field name="aws.requestParameters.publiclyAccessible">true</field>
+    <description>RDS instance made publicly accessible</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>rds_exposure,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100381" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ModifyDBInstance</field>
+    <field name="aws.requestParameters.masterUserPassword">.+</field>
+    <description>RDS master password changed</description>
+    <mitre>
+      <id>T1098</id>
+      <tactic>Persistence</tactic>
+    </mitre>
+    <group>rds_password,pci_dss_8.2,</group>
+  </rule>
+
+  <rule id="100382" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteDBSnapshot|DeleteDBInstance</field>
+    <description>CRITICAL - RDS database or snapshot deleted</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>rds_deletion,pci_dss_12.10,</group>
+  </rule>
+
+  <rule id="100383" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ModifyDBInstance</field>
+    <field name="aws.requestParameters.storageEncrypted">false</field>
+    <description>RDS encryption disabled</description>
+    <group>rds_encryption,pci_dss_3.4,</group>
+  </rule>
+
+  <!-- CloudTrail Security -->
+  <rule id="100390" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteTrail|StopLogging</field>
+    <description>CRITICAL - CloudTrail logging stopped or trail deleted</description>
+    <mitre>
+      <id>T1562.008</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>cloudtrail_disabled,pci_dss_10.2,</group>
+  </rule>
+
+  <rule id="100391" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateTrail</field>
+    <field name="aws.requestParameters.enableLogFileValidation">false</field>
+    <description>CloudTrail log file validation disabled</description>
+    <mitre>
+      <id>T1562.008</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>cloudtrail_integrity,pci_dss_10.5,</group>
+  </rule>
+
+  <rule id="100392" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">PutEventSelectors</field>
+    <description>CloudTrail event selectors modified</description>
+    <group>cloudtrail_modification,pci_dss_10.2,</group>
+  </rule>
+
+  <!-- EKS Security -->
+  <rule id="100400" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateClusterConfig</field>
+    <field name="aws.requestParameters.logging.clusterLogging.enabled">false</field>
+    <description>EKS cluster logging disabled</description>
+    <mitre>
+      <id>T1562.008</id>
+      <tactic>Defense Evasion</tactic>
+    </mitre>
+    <group>eks_logging,pci_dss_10.2,</group>
+  </rule>
+
+  <rule id="100401" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">UpdateClusterConfig</field>
+    <field name="aws.requestParameters.resourcesVpcConfig.endpointPublicAccess">true</field>
+    <description>EKS API endpoint exposed to internet</description>
+    <mitre>
+      <id>T1190</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>eks_exposure,pci_dss_1.3,</group>
+  </rule>
+
+  <rule id="100402" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteCluster</field>
+    <description>EKS cluster deleted</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>eks_deletion,</group>
+  </rule>
+
+  <!-- Secrets Manager -->
+  <rule id="100410" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">GetSecretValue</field>
+    <frequency>10</frequency>
+    <timeframe>600</timeframe>
+    <same_field>aws.userIdentity.principalId</same_field>
+    <description>Bulk secret retrieval - potential credential harvesting</description>
+    <mitre>
+      <id>T1552.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>secrets_access,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100411" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeleteSecret|RemoveRegionsFromReplication</field>
+    <description>CRITICAL - Secret deleted from Secrets Manager</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>secret_deletion,pci_dss_8.6,</group>
+  </rule>
+
+  <rule id="100412" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">CancelRotateSecret|DeleteRotationLambda</field>
+    <description>Secret rotation disabled</description>
+    <group>secret_rotation,pci_dss_8.6.3,</group>
+  </rule>
+
+  <!-- Resource Deletion (Broad) -->
+  <rule id="100420" level="12">
+    <if_sid>60103</if_sid>
+    <match>^Delete|^Terminate|^Remove</match>
+    <frequency>10</frequency>
+    <timeframe>300</timeframe>
+    <same_field>aws.userIdentity.principalId</same_field>
+    <description>Bulk resource deletion - potential sabotage or ransomware</description>
+    <mitre>
+      <id>T1485</id>
+      <tactic>Impact</tactic>
+    </mitre>
+    <group>bulk_deletion,</group>
+  </rule>
+
+  <!-- Unusual API Activity -->
+  <rule id="100430" level="9">
+    <if_sid>60103</if_sid>
+    <field name="aws.errorCode">AccessDenied|UnauthorizedOperation</field>
+    <frequency>10</frequency>
+    <timeframe>300</timeframe>
+    <same_field>aws.userIdentity.principalId</same_field>
+    <description>Multiple access denied errors - privilege enumeration</description>
+    <mitre>
+      <id>T1069</id>
+      <tactic>Discovery</tactic>
+    </mitre>
+    <group>privilege_enumeration,</group>
+  </rule>
+
+  <rule id="100431" level="12">
+    <if_sid>60103</if_sid>
+    <match>Describe|List|Get</match>
+    <frequency>50</frequency>
+    <timeframe>600</timeframe>
+    <same_field>aws.userIdentity.principalId</same_field>
+    <description>Excessive API reconnaissance activity</description>
+    <mitre>
+      <id>T1580</id>
+      <tactic>Discovery</tactic>
+    </mitre>
+    <group>api_reconnaissance,</group>
+  </rule>
+
+  <!-- Cross-Account Access -->
+  <rule id="100440" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AssumeRole</field>
+    <field name="aws.requestParameters.roleArn">arn:aws:iam::(?!123456789012).*</field>
+    <description>Cross-account role assumption detected</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Lateral Movement</tactic>
+    </mitre>
+    <group>cross_account,pci_dss_7.2,</group>
+  </rule>
+
+</group>

@@ -1,0 +1,11 @@
+project:
+  name: "Infrastructure Architecture & Diagrams"
+  author: "Evgeniy Gantman"
+  architectures_documented: 25
+  security_zones: 6
+  compliance: "PCI DSS network segmentation"
+resume_achievements:
+  - achievement: "25+ architectures documented"
+  - achievement: "6 security zones (defense in depth)"
+  - achievement: "PCI DSS network segmentation"
+  - achievement: "Multi-region HA architecture"

@@ -1,0 +1,50 @@
+project:
+  name: "Security Operations Runbooks"
+  author: "Evgeniy Gantman"
+  runbooks_documented: 35
+  incidents_handled_annually: 180
+  mttr_minutes: 15
+
+metrics:
+  runbook_compliance: "98%"
+  training_completion: "95%"
+  incident_resolution_rate: "99.4%"
+  average_mttr_minutes: 15
+
+runbook_categories:
+  incident_response: 12
+  threat_mitigation: 8
+  compliance_auditing: 7
+  disaster_recovery: 8
+
+key_runbooks:
+  - "Ransomware Response (30-min procedure)"
+  - "Data Breach Containment"
+  - "DDoS Mitigation"
+  - "Insider Threat Investigation"
+  - "PCI DSS Audit Prep (3-day)"
+  - "SOC 2 Evidence Collection"
+  - "RDS Multi-AZ Failover"
+  - "Kubernetes Cluster Recovery"
+
+automation_level:
+  detection: "95%"
+  containment: "60%"
+  eradication: "40%"
+  recovery: "70%"
+
+technology_stack:
+  - "PagerDuty (incident management)"
+  - "Confluence (documentation)"
+  - "GitLab (version control)"
+  - "Terraform (infrastructure recovery)"
+
+resume_achievements:
+  - achievement: "15-minute MTTR"
+    evidence: "Rapid incident response via runbooks"
+  - achievement: "180+ incidents handled annually"
+    evidence: "Comprehensive operational procedures"
+  - achievement: "99.4% incident resolution rate"
+    evidence: "Proven runbook effectiveness"
+  - achievement: "98% runbook compliance"
+    evidence: "SOC team adherence"

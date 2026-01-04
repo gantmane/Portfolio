@@ -1,0 +1,39 @@
+project:
+  name: "Multi-Region Disaster Recovery"
+  author: "Evgeniy Gantman"
+  rto_minutes: 15
+  rpo_minutes: 5
+  dr_tests_annually: 12
+
+metrics:
+  test_success_rate: "100%"
+  data_replication_lag_seconds: 30
+  availability_during_dr: "99.95%"
+  dr_cost_percentage: 25
+
+regions:
+  primary: "us-east-1"
+  secondary: "us-west-2"
+
+replication:
+  rds: "Cross-region read replicas (<30s lag)"
+  s3: "Cross-Region Replication (RTC)"
+  dynamodb: "Global Tables (<1s lag)"
+
+technology_stack:
+  - "Route53 DNS Failover"
+  - "RDS Cross-Region Replicas"
+  - "S3 CRR"
+  - "DynamoDB Global Tables"
+  - "CloudFormation"
+  - "Lambda"
+
+resume_achievements:
+  - achievement: "15-minute RTO, 5-minute RPO"
+    evidence: "Multi-region automated failover"
+  - achievement: "100% DR test success"
+    evidence: "12 monthly validation tests"
+  - achievement: "99.95% availability during DR"
+    evidence: "Seamless failover"
+  - achievement: "<30s replication lag"
+    evidence: "Real-time data sync"

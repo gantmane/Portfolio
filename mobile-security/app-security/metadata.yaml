@@ -1,0 +1,11 @@
+project:
+  name: "Mobile Application Security"
+  author: "Evgeniy Gantman"
+  apps_secured: 8
+  security_score: 95
+  vulnerabilities_fixed: 180
+resume_achievements:
+  - achievement: "8 mobile apps secured"
+  - achievement: "95/100 OWASP MASVS score"
+  - achievement: "180+ vulnerabilities fixed"
+  - achievement: "Zero critical findings"

@@ -1,0 +1,350 @@
+<!--
+  Authentication Attack Detection Rules
+  Brute force, credential stuffing, password spray, MFA bypass
+  Rule ID Range: 100200-100299
+-->
+
+<group name="authentication,attack,">
+
+  <!-- Brute Force Attacks -->
+  <rule id="100200" level="10" frequency="5" timeframe="300">
+    <if_matched_sid>5503</if_matched_sid>
+    <same_source_ip />
+    <description>Brute force attack detected - 5 failed logins in 5 minutes</description>
+    <mitre>
+      <id>T1110.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>brute_force,authentication_attack,</group>
+  </rule>
+
+  <rule id="100201" level="12" frequency="10" timeframe="600">
+    <if_matched_sid>5503</if_matched_sid>
+    <same_source_ip />
+    <description>Aggressive brute force - 10 failed logins in 10 minutes</description>
+    <mitre>
+      <id>T1110.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>brute_force_aggressive,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100202" level="15" frequency="20" timeframe="900">
+    <if_matched_sid>5503</if_matched_sid>
+    <same_source_ip />
+    <description>CRITICAL - Sustained brute force attack (20+ attempts)</description>
+    <mitre>
+      <id>T1110.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>brute_force_critical,active_response,</group>
+  </rule>
+
+  <rule id="100203" level="12" frequency="5" timeframe="86400">
+    <if_matched_sid>5501</if_matched_sid>
+    <same_user />
+    <description>Multiple failed logins for single user across sources</description>
+    <mitre>
+      <id>T1110.003</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>password_spray,</group>
+  </rule>
+
+  <!-- AWS Console Brute Force -->
+  <rule id="100210" level="10" frequency="5" timeframe="300">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.errorCode">Failed authentication</field>
+    <same_field>aws.sourceIPAddress</same_field>
+    <description>AWS Console brute force detected</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>brute_force,aws,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100211" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.errorCode">Failed authentication</field>
+    <field name="aws.userIdentity.principalId">root</field>
+    <description>Failed root account login attempt - CRITICAL</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>root_login_attempt,pci_dss_7.2.2,</group>
+  </rule>
+
+  <rule id="100212" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.responseElements.ConsoleLogin">Success</field>
+    <field name="aws.userIdentity.principalId">root</field>
+    <description>CRITICAL - Root account console login successful</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>root_login_success,pci_dss_7.2.2,active_response,</group>
+  </rule>
+
+  <!-- SSH Brute Force -->
+  <rule id="100220" level="10" frequency="5" timeframe="300">
+    <if_sid>5716</if_sid>
+    <same_source_ip />
+    <description>SSH brute force attack detected</description>
+    <mitre>
+      <id>T1110.001</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>ssh_brute_force,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100221" level="12">
+    <if_sid>5716</if_sid>
+    <user>root</user>
+    <description>Failed SSH login attempt as root user</description>
+    <mitre>
+      <id>T1078.003</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>ssh_root_attempt,pci_dss_2.2.2,</group>
+  </rule>
+
+  <rule id="100222" level="15" frequency="3" timeframe="60">
+    <if_matched_sid>100221</if_matched_sid>
+    <same_source_ip />
+    <description>CRITICAL - Rapid SSH root login attempts (3 in 1 min)</description>
+    <mitre>
+      <id>T1078.003</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>ssh_root_brute_force,active_response,</group>
+  </rule>
+
+  <!-- Credential Stuffing -->
+  <rule id="100230" level="9">
+    <if_sid>31100</if_sid>
+    <match>401 Unauthorized</match>
+    <url>/login|/signin|/auth</url>
+    <description>Failed authentication to web application</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>web_authentication,</group>
+  </rule>
+
+  <rule id="100231" level="12" frequency="10" timeframe="300">
+    <if_matched_sid>100230</if_matched_sid>
+    <same_source_ip />
+    <description>Credential stuffing attack - multiple failed web logins</description>
+    <mitre>
+      <id>T1110.004</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>credential_stuffing,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100232" level="15" frequency="20" timeframe="600">
+    <if_matched_sid>100230</if_matched_sid>
+    <same_source_ip />
+    <description>CRITICAL - Large-scale credential stuffing (20+ attempts)</description>
+    <mitre>
+      <id>T1110.004</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>credential_stuffing_critical,active_response,</group>
+  </rule>
+
+  <!-- Password Spray -->
+  <rule id="100240" level="12" frequency="5" timeframe="3600">
+    <if_sid>5503</if_sid>
+    <same_source_ip />
+    <different_user />
+    <description>Password spray attack - same IP, multiple users</description>
+    <mitre>
+      <id>T1110.003</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>password_spray,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100241" level="15" frequency="10" timeframe="3600">
+    <if_matched_sid>100240</if_matched_sid>
+    <same_source_ip />
+    <description>CRITICAL - Large-scale password spray (10+ users)</description>
+    <mitre>
+      <id>T1110.003</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>password_spray_critical,active_response,</group>
+  </rule>
+
+  <!-- MFA Bypass Attempts -->
+  <rule id="100250" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.additionalEventData.MFAUsed">No</field>
+    <field name="aws.responseElements.ConsoleLogin">Success</field>
+    <description>Successful login without MFA - policy violation</description>
+    <mitre>
+      <id>T1556</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>mfa_bypass,pci_dss_8.4.2,</group>
+  </rule>
+
+  <rule id="100251" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">DeactivateMFADevice|DeleteVirtualMFADevice</field>
+    <description>CRITICAL - MFA device deactivated or deleted</description>
+    <mitre>
+      <id>T1556.006</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>mfa_disabled,pci_dss_8.4.2,</group>
+  </rule>
+
+  <rule id="100252" level="12" frequency="3" timeframe="300">
+    <if_sid>87910</if_sid>
+    <match>MFA.*failed|two-factor.*failed</match>
+    <same_user />
+    <description>Multiple MFA failures for single user</description>
+    <mitre>
+      <id>T1556</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>mfa_failure,</group>
+  </rule>
+
+  <!-- Account Lockout Detection -->
+  <rule id="100260" level="9">
+    <if_sid>5503</if_sid>
+    <match>account locked|user locked|locked out</match>
+    <description>Account locked due to failed authentication attempts</description>
+    <group>account_lockout,pci_dss_8.2.4,</group>
+  </rule>
+
+  <rule id="100261" level="12" frequency="5" timeframe="3600">
+    <if_matched_sid>100260</if_matched_sid>
+    <description>Multiple accounts locked - potential attack</description>
+    <mitre>
+      <id>T1110</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>mass_lockout,</group>
+  </rule>
+
+  <!-- Session Hijacking -->
+  <rule id="100270" level="12">
+    <if_sid>31100</if_sid>
+    <match>session token.*invalid|session expired|invalid session</match>
+    <frequency>5</frequency>
+    <timeframe>300</timeframe>
+    <same_user />
+    <description>Multiple session token failures - potential hijacking</description>
+    <mitre>
+      <id>T1539</id>
+      <tactic>Credential Access</tactic>
+    </mitre>
+    <group>session_hijacking,</group>
+  </rule>
+
+  <rule id="100271" level="15">
+    <if_sid>31100</if_sid>
+    <match>concurrent session|session conflict</match>
+    <description>CRITICAL - Concurrent sessions from different locations</description>
+    <mitre>
+      <id>T1185</id>
+      <tactic>Collection</tactic>
+    </mitre>
+    <group>concurrent_session,pci_dss_8.2.5,</group>
+  </rule>
+
+  <rule id="100272" level="12">
+    <if_sid>31100</if_sid>
+    <match>session.*replayed|replay attack</match>
+    <description>Session replay attack detected</description>
+    <mitre>
+      <id>T1550.004</id>
+      <tactic>Lateral Movement</tactic>
+    </mitre>
+    <group>session_replay,</group>
+  </rule>
+
+  <!-- Impossible Travel -->
+  <rule id="100280" level="15">
+    <if_sid>5501</if_sid>
+    <match>impossible travel|geolocation anomaly</match>
+    <description>CRITICAL - Impossible travel detected (login from distant locations)</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>impossible_travel,pci_dss_10.2.4,</group>
+  </rule>
+
+  <rule id="100281" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.responseElements.ConsoleLogin">Success</field>
+    <script>impossible_travel_check.py</script>
+    <description>AWS login from unusual geographic location</description>
+    <group>geo_anomaly,</group>
+  </rule>
+
+  <!-- Privileged Account Abuse -->
+  <rule id="100290" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AssumeRole</field>
+    <field name="aws.requestParameters.roleArn">.*admin.*|.*root.*</field>
+    <description>Privileged role assumption detected</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>assume_role,pci_dss_7.2.1,</group>
+  </rule>
+
+  <rule id="100291" level="15">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">AssumeRole</field>
+    <field name="aws.errorCode">AccessDenied</field>
+    <frequency>5</frequency>
+    <timeframe>300</timeframe>
+    <description>CRITICAL - Multiple failed privilege escalation attempts</description>
+    <mitre>
+      <id>T1078.004</id>
+      <tactic>Privilege Escalation</tactic>
+    </mitre>
+    <group>privilege_escalation_attempt,</group>
+  </rule>
+
+  <!-- After-Hours Authentication -->
+  <rule id="100295" level="9">
+    <if_sid>5501</if_sid>
+    <time>20:00 - 06:00</time>
+    <description>Authentication outside business hours</description>
+    <group>after_hours_access,pci_dss_10.2.5,</group>
+  </rule>
+
+  <rule id="100296" level="12">
+    <if_sid>60103</if_sid>
+    <field name="aws.eventName">ConsoleLogin</field>
+    <field name="aws.responseElements.ConsoleLogin">Success</field>
+    <field name="aws.userIdentity.principalId">.*admin.*</field>
+    <time>20:00 - 06:00</time>
+    <weekday>Saturday, Sunday</weekday>
+    <description>Administrative access during weekend off-hours</description>
+    <mitre>
+      <id>T1078</id>
+      <tactic>Initial Access</tactic>
+    </mitre>
+    <group>suspicious_timing,pci_dss_10.2.5,</group>
+  </rule>
+
+</group>

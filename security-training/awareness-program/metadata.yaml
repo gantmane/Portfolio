@@ -1,0 +1,15 @@
+project:
+  name: "Security Awareness Training"
+  author: "Evgeniy Gantman"
+  employees_trained: 1500
+  completion_rate: "98%"
+  phishing_reduction: "87%"
+technology_stack:
+  - "KnowBe4"
+  - "PhishMe"
+  - "Slack"
+resume_achievements:
+  - achievement: "98% training completion"
+  - achievement: "87% phishing click reduction"
+  - achievement: "+320% incident reporting"
+  - achievement: "Monthly phishing simulations"

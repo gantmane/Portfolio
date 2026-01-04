@@ -1,1 +1,11 @@
-project: {name: "SOAR Platform", mttr_minutes: 15}
+project:
+  name: "Security Orchestration & Automation"
+  author: "Evgeniy Gantman"
+  automated_playbooks: 45
+  auto_remediation_rate: "75%"
+  time_savings_hours: 1200
+resume_achievements:
+  - achievement: "75% incidents auto-remediated"
+  - achievement: "1,200 hours saved annually"
+  - achievement: "82% MTTR reduction"
+  - achievement: "96.5% playbook success rate"

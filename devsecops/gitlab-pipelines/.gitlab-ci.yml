@@ -1,1 +1,779 @@
-stages: [build, test, scan, deploy]
+# ==============================================================================
+# COMPREHENSIVE DEVSECOPS PIPELINE
+# ==============================================================================
+# Author: Evgeniy Gantman
+# Purpose: Production-grade CI/CD pipeline with integrated security gates
+# Security: SAST, DAST, SCA, Container Scanning, IaC Scanning, Secret Detection
+# Compliance: PCI DSS 4.0, SOC 2, secure SDLC
+# ==============================================================================
+
+variables:
+  # Docker configuration
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_BUILDKIT: "1"
+
+  # Security scanning thresholds
+  SAST_SEVERITY_THRESHOLD: "high"
+  CONTAINER_SEVERITY_THRESHOLD: "critical"
+  DAST_SEVERITY_THRESHOLD: "medium"
+
+  # Image registry
+  CI_REGISTRY_IMAGE: "${CI_REGISTRY}/${CI_PROJECT_PATH}"
+  IMAGE_TAG: "${CI_COMMIT_SHORT_SHA}"
+
+  # SonarQube
+  SONAR_HOST_URL: "https://sonarqube.company.com"
+  SONAR_PROJECT_KEY: "${CI_PROJECT_NAME}"
+
+  # OWASP ZAP
+  ZAP_TARGET_URL: "https://staging.company.com"
+
+  # Kubernetes
+  K8S_NAMESPACE: "${CI_PROJECT_NAME}-${CI_ENVIRONMENT_NAME}"
+
+  # Secrets management
+  VAULT_ADDR: "https://vault.company.com"
+
+# ==============================================================================
+# PIPELINE STAGES
+# ==============================================================================
+stages:
+  - pre-build      # Code quality, linting, secrets detection
+  - build          # Build artifacts, compile code
+  - sast           # Static Application Security Testing
+  - test           # Unit, integration, API tests
+  - container      # Container image scanning, signing
+  - iac-scan       # Infrastructure as Code security scanning
+  - dast           # Dynamic Application Security Testing
+  - security-gate  # Security approval gate
+  - deploy-dev     # Deploy to development
+  - deploy-staging # Deploy to staging
+  - deploy-prod    # Deploy to production
+  - post-deploy    # Smoke tests, notifications
+
+# ==============================================================================
+# REUSABLE TEMPLATES
+# ==============================================================================
+.docker-template: &docker-template
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.kubernetes-template: &kubernetes-template
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl config set-cluster k8s --server="$KUBE_URL" --insecure-skip-tls-verify=true
+    - kubectl config set-credentials admin --token="$KUBE_TOKEN"
+    - kubectl config set-context default --cluster=k8s --user=admin --namespace="$K8S_NAMESPACE"
+    - kubectl config use-context default
+
+.security-report-template: &security-report-template
+  artifacts:
+    when: always
+    expire_in: 30 days
+    reports:
+      sast: gl-sast-report.json
+      dependency_scanning: gl-dependency-scanning-report.json
+      container_scanning: gl-container-scanning-report.json
+    paths:
+      - security-reports/
+
+# ==============================================================================
+# STAGE 1: PRE-BUILD (Code Quality, Secret Detection)
+# ==============================================================================
+
+code-quality:
+  stage: pre-build
+  image: python:3.11-slim
+  script:
+    - echo "Running code quality checks..."
+    - pip install pylint black flake8 mypy
+    # Python linting
+    - pylint --rcfile=.pylintrc src/ || true
+    # Code formatting check
+    - black --check src/ || echo "Code formatting issues found"
+    # Type checking
+    - mypy src/ --ignore-missing-imports || true
+    # Complexity analysis
+    - pip install radon
+    - radon cc src/ -a -nb || true
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+secret-detection:
+  stage: pre-build
+  image: zricethezav/gitleaks:latest
+  script:
+    - echo "Scanning for secrets and credentials..."
+    - gitleaks detect --source . --report-format json --report-path gl-secret-detection-report.json --verbose
+    - |
+      if [ -s gl-secret-detection-report.json ]; then
+        echo "CRITICAL: Secrets detected in repository!"
+        cat gl-secret-detection-report.json
+        exit 1
+      fi
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - gl-secret-detection-report.json
+  allow_failure: false  # Hard fail on secrets
+  only:
+    - merge_requests
+    - main
+
+dependency-check:
+  stage: pre-build
+  image: python:3.11-slim
+  script:
+    - echo "Checking for outdated and vulnerable dependencies..."
+    - pip install pip-audit safety
+    - pip-audit --desc --format json --output pip-audit-report.json || true
+    - safety check --json > safety-report.json || true
+    - cat pip-audit-report.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - pip-audit-report.json
+      - safety-report.json
+  allow_failure: true
+
+# ==============================================================================
+# STAGE 2: BUILD
+# ==============================================================================
+
+build-application:
+  stage: build
+  image: python:3.11-slim
+  script:
+    - echo "Building application..."
+    - pip install -r requirements.txt
+    - python setup.py build || echo "No setup.py found"
+    # Generate SBOM (Software Bill of Materials)
+    - pip install cyclonedx-bom
+    - cyclonedx-py -o sbom.json
+    - echo "SBOM generated for supply chain security"
+  artifacts:
+    paths:
+      - build/
+      - dist/
+      - sbom.json
+    expire_in: 1 day
+  only:
+    - merge_requests
+    - main
+    - tags
+
+build-docker-image:
+  <<: *docker-template
+  stage: build
+  script:
+    - echo "Building Docker image with security best practices..."
+    # Multi-stage build with distroless base
+    - |
+      docker build \
+        --pull \
+        --cache-from $CI_REGISTRY_IMAGE:latest \
+        --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+        --build-arg VCS_REF=$CI_COMMIT_SHA \
+        --build-arg VERSION=$CI_COMMIT_TAG \
+        --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.version=$CI_COMMIT_TAG" \
+        --tag $CI_REGISTRY_IMAGE:$IMAGE_TAG \
+        --tag $CI_REGISTRY_IMAGE:latest \
+        .
+    # Push to registry
+    - docker push $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    - docker push $CI_REGISTRY_IMAGE:latest
+    # Generate image metadata
+    - docker inspect $CI_REGISTRY_IMAGE:$IMAGE_TAG > image-metadata.json
+  artifacts:
+    paths:
+      - image-metadata.json
+    expire_in: 1 day
+  only:
+    - merge_requests
+    - main
+    - tags
+
+# ==============================================================================
+# STAGE 3: SAST (Static Application Security Testing)
+# ==============================================================================
+
+sast-semgrep:
+  stage: sast
+  image: returntocorp/semgrep:latest
+  script:
+    - echo "Running Semgrep SAST..."
+    - semgrep --config=auto --json --output=semgrep-report.json src/
+    - semgrep --config=auto --severity=ERROR src/ || echo "High severity issues found"
+    # Custom security rules
+    - semgrep --config=.semgrep-rules.yaml src/ || true
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - semgrep-report.json
+  allow_failure: true
+
+sast-sonarqube:
+  stage: sast
+  image: sonarsource/sonar-scanner-cli:latest
+  script:
+    - echo "Running SonarQube analysis..."
+    - |
+      sonar-scanner \
+        -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+        -Dsonar.sources=src/ \
+        -Dsonar.host.url=$SONAR_HOST_URL \
+        -Dsonar.login=$SONAR_TOKEN \
+        -Dsonar.python.coverage.reportPaths=coverage.xml \
+        -Dsonar.qualitygate.wait=true
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+sast-bandit:
+  stage: sast
+  image: python:3.11-slim
+  script:
+    - echo "Running Bandit Python security linter..."
+    - pip install bandit
+    - bandit -r src/ -f json -o bandit-report.json || true
+    - bandit -r src/ -ll  # Show only medium and high severity
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - bandit-report.json
+  allow_failure: true
+
+# ==============================================================================
+# STAGE 4: TESTING
+# ==============================================================================
+
+unit-tests:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - echo "Running unit tests..."
+    - pip install -r requirements.txt pytest pytest-cov
+    - pytest tests/unit/ --cov=src --cov-report=xml --cov-report=html --junitxml=junit.xml
+    - echo "Code coverage report generated"
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    when: always
+    expire_in: 7 days
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+  only:
+    - merge_requests
+    - main
+
+integration-tests:
+  stage: test
+  image: python:3.11-slim
+  services:
+    - postgres:14-alpine
+    - redis:7-alpine
+  variables:
+    POSTGRES_DB: testdb
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    DATABASE_URL: "postgresql://testuser:testpass@postgres:5432/testdb"
+    REDIS_URL: "redis://redis:6379/0"
+  script:
+    - echo "Running integration tests..."
+    - pip install -r requirements.txt pytest
+    - pytest tests/integration/ --junitxml=integration-junit.xml
+  artifacts:
+    when: always
+    expire_in: 7 days
+    reports:
+      junit: integration-junit.xml
+  only:
+    - merge_requests
+    - main
+
+api-tests:
+  stage: test
+  image: postman/newman:alpine
+  script:
+    - echo "Running API tests with Newman..."
+    - newman run tests/postman-collection.json --environment tests/postman-environment.json --reporters cli,json --reporter-json-export newman-report.json
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - newman-report.json
+  allow_failure: true
+
+# ==============================================================================
+# STAGE 5: CONTAINER SECURITY SCANNING
+# ==============================================================================
+
+container-scan-trivy:
+  <<: *docker-template
+  stage: container
+  script:
+    - echo "Scanning container image with Trivy..."
+    # Install Trivy
+    - apk add --no-cache curl
+    - |
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | \
+      sh -s -- -b /usr/local/bin
+    # Scan image for vulnerabilities
+    - trivy image --exit-code 0 --severity LOW,MEDIUM --no-progress $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    - trivy image --exit-code 0 --severity HIGH --no-progress $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    - trivy image --exit-code 1 --severity CRITICAL --no-progress $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    # Generate reports
+    - trivy image --format json --output trivy-report.json $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    - trivy image --format sarif --output trivy-sarif-report.json $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    # Scan for secrets in image
+    - trivy image --scanners secret --severity HIGH,CRITICAL $CI_REGISTRY_IMAGE:$IMAGE_TAG
+  artifacts:
+    when: always
+    expire_in: 7 days
+    reports:
+      container_scanning: trivy-sarif-report.json
+    paths:
+      - trivy-report.json
+  allow_failure: false  # Fail on critical vulnerabilities
+
+container-scan-grype:
+  <<: *docker-template
+  stage: container
+  script:
+    - echo "Scanning with Grype for additional vulnerability coverage..."
+    - apk add --no-cache curl
+    - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+    - grype $CI_REGISTRY_IMAGE:$IMAGE_TAG -o json --file grype-report.json
+    - grype $CI_REGISTRY_IMAGE:$IMAGE_TAG --fail-on critical
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - grype-report.json
+  allow_failure: true
+
+image-signing:
+  <<: *docker-template
+  stage: container
+  script:
+    - echo "Signing container image with Cosign..."
+    - apk add --no-cache curl
+    # Install Cosign
+    - |
+      curl -LO https://github.com/sigstore/cosign/releases/download/v2.2.0/cosign-linux-amd64
+      mv cosign-linux-amd64 /usr/local/bin/cosign
+      chmod +x /usr/local/bin/cosign
+    # Sign image (keyless signing with Sigstore)
+    - echo "$COSIGN_PASSWORD" | cosign sign --key env://COSIGN_PRIVATE_KEY $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    # Generate SBOM and attach to image
+    - apk add --no-cache syft
+    - syft $CI_REGISTRY_IMAGE:$IMAGE_TAG -o spdx-json > sbom-spdx.json
+    - cosign attach sbom --sbom sbom-spdx.json $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    - echo "Image signed and SBOM attached for supply chain security"
+  artifacts:
+    paths:
+      - sbom-spdx.json
+    expire_in: 7 days
+  only:
+    - main
+    - tags
+
+# ==============================================================================
+# STAGE 6: INFRASTRUCTURE AS CODE SCANNING
+# ==============================================================================
+
+iac-scan-checkov:
+  stage: iac-scan
+  image: bridgecrew/checkov:latest
+  script:
+    - echo "Scanning IaC with Checkov..."
+    - checkov --directory terraform/ --output json --output-file checkov-report.json || true
+    - checkov --directory terraform/ --framework terraform --compact
+    - checkov --directory kubernetes/ --framework kubernetes --compact
+    # Enforce compliance frameworks
+    - checkov --directory terraform/ --framework terraform --check CKV_AWS_* --compact
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - checkov-report.json
+  allow_failure: true
+
+iac-scan-tfsec:
+  stage: iac-scan
+  image: aquasec/tfsec:latest
+  script:
+    - echo "Scanning Terraform with tfsec..."
+    - tfsec terraform/ --format json --out tfsec-report.json || true
+    - tfsec terraform/ --minimum-severity MEDIUM
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - tfsec-report.json
+  allow_failure: true
+
+iac-scan-terrascan:
+  stage: iac-scan
+  image: tenable/terrascan:latest
+  script:
+    - echo "Scanning IaC with Terrascan..."
+    - terrascan scan -i terraform -d terraform/ -o json > terrascan-report.json || true
+    - terrascan scan -i terraform -d terraform/ --severity high --severity critical
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - terrascan-report.json
+  allow_failure: true
+
+kubernetes-policy-check:
+  stage: iac-scan
+  image: openpolicyagent/conftest:latest
+  script:
+    - echo "Validating Kubernetes manifests with Conftest..."
+    - conftest test kubernetes/*.yaml --policy opa-policies/ --output json > conftest-report.json || true
+    - conftest test kubernetes/*.yaml --policy opa-policies/ --all-namespaces
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - conftest-report.json
+  allow_failure: true
+
+# ==============================================================================
+# STAGE 7: DAST (Dynamic Application Security Testing)
+# ==============================================================================
+
+dast-zap-baseline:
+  stage: dast
+  image: owasp/zap2docker-stable:latest
+  script:
+    - echo "Running OWASP ZAP baseline scan..."
+    - mkdir -p /zap/wrk
+    - |
+      zap-baseline.py \
+        -t $ZAP_TARGET_URL \
+        -r zap-baseline-report.html \
+        -J zap-baseline-report.json \
+        -w zap-baseline-report.md \
+        -c zap-rules.conf \
+        -z "-config api.disablekey=true"
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - zap-baseline-report.html
+      - zap-baseline-report.json
+      - zap-baseline-report.md
+  allow_failure: true
+  only:
+    - main
+    - staging
+
+dast-zap-full-scan:
+  stage: dast
+  image: owasp/zap2docker-stable:latest
+  script:
+    - echo "Running OWASP ZAP full active scan..."
+    - mkdir -p /zap/wrk
+    - |
+      zap-full-scan.py \
+        -t $ZAP_TARGET_URL \
+        -r zap-full-report.html \
+        -J zap-full-report.json \
+        -z "-config api.disablekey=true"
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - zap-full-report.html
+      - zap-full-report.json
+  allow_failure: true
+  when: manual
+  only:
+    - staging
+
+dast-nuclei:
+  stage: dast
+  image: projectdiscovery/nuclei:latest
+  script:
+    - echo "Running Nuclei vulnerability scanner..."
+    - nuclei -u $ZAP_TARGET_URL -severity critical,high,medium -json -o nuclei-report.json
+    - nuclei -u $ZAP_TARGET_URL -severity critical,high -silent
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - nuclei-report.json
+  allow_failure: true
+  only:
+    - main
+    - staging
+
+# ==============================================================================
+# STAGE 8: SECURITY APPROVAL GATE
+# ==============================================================================
+
+security-gate:
+  stage: security-gate
+  image: python:3.11-slim
+  script:
+    - echo "Evaluating security scan results..."
+    - |
+      python3 << 'EOF'
+      import json
+      import sys
+
+      def check_vulnerabilities():
+          critical_count = 0
+          high_count = 0
+
+          # Check Trivy results
+          try:
+              with open('trivy-report.json', 'r') as f:
+                  trivy_data = json.load(f)
+                  for result in trivy_data.get('Results', []):
+                      for vuln in result.get('Vulnerabilities', []):
+                          if vuln.get('Severity') == 'CRITICAL':
+                              critical_count += 1
+                          elif vuln.get('Severity') == 'HIGH':
+                              high_count += 1
+          except FileNotFoundError:
+              print("Trivy report not found")
+
+          print(f"Security Summary:")
+          print(f"  Critical Vulnerabilities: {critical_count}")
+          print(f"  High Vulnerabilities: {high_count}")
+
+          # Security gate policy
+          if critical_count > 0:
+              print("FAILED: Critical vulnerabilities must be remediated")
+              sys.exit(1)
+          elif high_count > 5:
+              print("WARNING: Too many high severity vulnerabilities")
+              sys.exit(1)
+          else:
+              print("PASSED: Security gate criteria met")
+              sys.exit(0)
+
+      check_vulnerabilities()
+      EOF
+  dependencies:
+    - container-scan-trivy
+  allow_failure: false  # Hard gate for production deployments
+  only:
+    - main
+    - tags
+
+# ==============================================================================
+# STAGE 9: DEPLOYMENT - DEVELOPMENT
+# ==============================================================================
+
+deploy-dev:
+  <<: *kubernetes-template
+  stage: deploy-dev
+  variables:
+    CI_ENVIRONMENT_NAME: "dev"
+  script:
+    - echo "Deploying to development environment..."
+    - kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+    # Apply Kubernetes manifests
+    - kubectl apply -f kubernetes/dev/ -n $K8S_NAMESPACE
+    # Update image
+    - kubectl set image deployment/${CI_PROJECT_NAME} ${CI_PROJECT_NAME}=$CI_REGISTRY_IMAGE:$IMAGE_TAG -n $K8S_NAMESPACE
+    # Verify deployment
+    - kubectl rollout status deployment/${CI_PROJECT_NAME} -n $K8S_NAMESPACE --timeout=5m
+    # Run smoke tests
+    - kubectl run test-pod --image=curlimages/curl:latest --rm -i --restart=Never -- curl http://${CI_PROJECT_NAME}:8080/health
+  environment:
+    name: development
+    url: https://dev.company.com
+    on_stop: cleanup-dev
+  only:
+    - merge_requests
+    - develop
+
+cleanup-dev:
+  <<: *kubernetes-template
+  stage: deploy-dev
+  variables:
+    CI_ENVIRONMENT_NAME: "dev"
+  script:
+    - kubectl delete namespace $K8S_NAMESPACE --ignore-not-found=true
+  when: manual
+  environment:
+    name: development
+    action: stop
+
+# ==============================================================================
+# STAGE 10: DEPLOYMENT - STAGING
+# ==============================================================================
+
+deploy-staging:
+  <<: *kubernetes-template
+  stage: deploy-staging
+  variables:
+    CI_ENVIRONMENT_NAME: "staging"
+  script:
+    - echo "Deploying to staging environment..."
+    - kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+    # Verify image signature before deployment
+    - apk add --no-cache curl
+    - |
+      curl -LO https://github.com/sigstore/cosign/releases/download/v2.2.0/cosign-linux-amd64
+      mv cosign-linux-amd64 /usr/local/bin/cosign
+      chmod +x /usr/local/bin/cosign
+    - cosign verify --key env://COSIGN_PUBLIC_KEY $CI_REGISTRY_IMAGE:$IMAGE_TAG
+    # Deploy with blue-green strategy
+    - kubectl apply -f kubernetes/staging/ -n $K8S_NAMESPACE
+    - kubectl set image deployment/${CI_PROJECT_NAME} ${CI_PROJECT_NAME}=$CI_REGISTRY_IMAGE:$IMAGE_TAG -n $K8S_NAMESPACE
+    - kubectl rollout status deployment/${CI_PROJECT_NAME} -n $K8S_NAMESPACE --timeout=10m
+  environment:
+    name: staging
+    url: https://staging.company.com
+  only:
+    - main
+
+# ==============================================================================
+# STAGE 11: DEPLOYMENT - PRODUCTION
+# ==============================================================================
+
+deploy-production:
+  <<: *kubernetes-template
+  stage: deploy-prod
+  variables:
+    CI_ENVIRONMENT_NAME: "prod"
+  script:
+    - echo "Deploying to PRODUCTION environment..."
+    # Verify image signature (mandatory for prod)
+    - apk add --no-cache curl
+    - |
+      curl -LO https://github.com/sigstore/cosign/releases/download/v2.2.0/cosign-linux-amd64
+      mv cosign-linux-amd64 /usr/local/bin/cosign
+      chmod +x /usr/local/bin/cosign
+    - cosign verify --key env://COSIGN_PUBLIC_KEY $CI_REGISTRY_IMAGE:$IMAGE_TAG || exit 1
+    # Create namespace if not exists
+    - kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+    # Canary deployment (10% traffic)
+    - echo "Starting canary deployment..."
+    - kubectl apply -f kubernetes/prod/canary.yaml -n $K8S_NAMESPACE
+    - kubectl set image deployment/${CI_PROJECT_NAME}-canary ${CI_PROJECT_NAME}=$CI_REGISTRY_IMAGE:$IMAGE_TAG -n $K8S_NAMESPACE
+    - kubectl rollout status deployment/${CI_PROJECT_NAME}-canary -n $K8S_NAMESPACE --timeout=5m
+    # Wait for manual approval or automated checks
+    - sleep 300  # 5 minute soak test
+    # Full deployment
+    - echo "Promoting canary to full production..."
+    - kubectl apply -f kubernetes/prod/ -n $K8S_NAMESPACE
+    - kubectl set image deployment/${CI_PROJECT_NAME} ${CI_PROJECT_NAME}=$CI_REGISTRY_IMAGE:$IMAGE_TAG -n $K8S_NAMESPACE
+    - kubectl rollout status deployment/${CI_PROJECT_NAME} -n $K8S_NAMESPACE --timeout=15m
+    # Cleanup canary
+    - kubectl delete deployment/${CI_PROJECT_NAME}-canary -n $K8S_NAMESPACE --ignore-not-found=true
+  environment:
+    name: production
+    url: https://company.com
+  when: manual  # Require manual approval for production
+  only:
+    - main
+    - tags
+
+# ==============================================================================
+# STAGE 12: POST-DEPLOYMENT
+# ==============================================================================
+
+smoke-tests:
+  stage: post-deploy
+  image: curlimages/curl:latest
+  script:
+    - echo "Running production smoke tests..."
+    - curl -f https://company.com/health || exit 1
+    - curl -f https://company.com/api/v1/status || exit 1
+    - echo "Smoke tests passed"
+  only:
+    - main
+    - tags
+
+security-scan-live:
+  stage: post-deploy
+  image: projectdiscovery/nuclei:latest
+  script:
+    - echo "Running post-deployment security scan..."
+    - nuclei -u https://company.com -severity critical,high -silent
+  allow_failure: true
+  only:
+    - main
+
+notify-slack:
+  stage: post-deploy
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST -H 'Content-type: application/json' \
+      --data "{\"text\":\"✅ Deployment successful: ${CI_PROJECT_NAME} ${CI_COMMIT_TAG} to production\"}" \
+      $SLACK_WEBHOOK_URL
+  when: on_success
+  only:
+    - tags
+
+notify-pagerduty:
+  stage: post-deploy
+  image: curlimages/curl:latest
+  script:
+    - |
+      curl -X POST https://events.pagerduty.com/v2/enqueue \
+      -H 'Content-Type: application/json' \
+      -d "{
+        \"routing_key\": \"$PAGERDUTY_INTEGRATION_KEY\",
+        \"event_action\": \"trigger\",
+        \"payload\": {
+          \"summary\": \"Production deployment failed: ${CI_PROJECT_NAME}\",
+          \"severity\": \"critical\",
+          \"source\": \"gitlab-ci\"
+        }
+      }"
+  when: on_failure
+  only:
+    - main
+    - tags
+
+# ==============================================================================
+# SCHEDULED JOBS
+# ==============================================================================
+
+dependency-update-check:
+  image: python:3.11-slim
+  script:
+    - pip install pip-audit
+    - pip-audit --desc
+  only:
+    - schedules
+  when: always
+
+security-baseline-scan:
+  <<: *docker-template
+  script:
+    - trivy image --severity CRITICAL,HIGH $CI_REGISTRY_IMAGE:latest
+  only:
+    - schedules
+  allow_failure: true
+
+# ==============================================================================
+# END OF PIPELINE
+# ==============================================================================

@@ -1,0 +1,345 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: production-alerting-rules
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus
+spec:
+  groups:
+
+    # ---------------------------------------------------------------------------
+    # Infrastructure
+    # ---------------------------------------------------------------------------
+    - name: infrastructure.alerts
+      interval: 60s
+      rules:
+
+        - alert: NodeDiskPressure
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs",mountpoint!~"/boot.*"}
+              / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs",mountpoint!~"/boot.*"}
+            ) < 0.15
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node disk usage above 85% (instance {{ $labels.instance }})"
+            description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" (mul (sub 1 $value) 100) }}% full."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/node-disk-pressure"
+
+        - alert: NodeDiskPressureCritical
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs",mountpoint!~"/boot.*"}
+              / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs",mountpoint!~"/boot.*"}
+            ) < 0.05
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node disk usage above 95% — imminent full (instance {{ $labels.instance }})"
+            description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" (mul (sub 1 $value) 100) }}% full. Immediate action required."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/node-disk-pressure"
+
+        - alert: NodeMemoryPressure
+          expr: |
+            (
+              1 - (
+                node_memory_MemAvailable_bytes
+                / node_memory_MemTotal_bytes
+              )
+            ) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node memory usage above 90% (instance {{ $labels.instance }})"
+            description: "{{ $labels.instance }} memory utilisation is {{ printf \"%.1f\" (mul $value 100) }}%. OOM risk is high."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/node-memory-pressure"
+
+        - alert: NodeCPUPressure
+          expr: |
+            (
+              1 - avg by (instance) (
+                rate(node_cpu_seconds_total{mode="idle"}[5m])
+              )
+            ) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node CPU usage above 85% for 10 min (instance {{ $labels.instance }})"
+            description: "{{ $labels.instance }} average CPU utilisation is {{ printf \"%.1f\" (mul $value 100) }}% over the last 10 minutes."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/node-cpu-pressure"
+
+        - alert: KubePodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total[15m]) > 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace {{ $labels.namespace }}) has restarted {{ printf \"%.0f\" $value }} times in the last 15 minutes."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/pod-crash-looping"
+
+        - alert: KubePodNotReady
+          expr: |
+            kube_pod_status_ready{condition="true"} == 0
+            unless on (pod, namespace)
+              kube_pod_status_phase{phase=~"Succeeded|Failed"} == 1
+          for: 15m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been not-ready for 15 min"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been in a non-ready state for more than 15 minutes."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/pod-not-ready"
+
+    # ---------------------------------------------------------------------------
+    # Security
+    # ---------------------------------------------------------------------------
+    - name: security.alerts
+      interval: 30s
+      rules:
+
+        - alert: VaultSealed
+          expr: |
+            vault_core_unsealed == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: security
+          annotations:
+            summary: "Vault instance {{ $labels.instance }} is sealed"
+            description: "Vault on {{ $labels.instance }} has been sealed for more than 2 minutes. Secret access is unavailable — services may start failing."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/vault-sealed"
+
+        - alert: CertificateExpiringSoon
+          expr: |
+            (x509_cert_expiry - time()) / 86400 < 30
+          for: 1h
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "TLS certificate expiring in < 30 days ({{ $labels.subject }})"
+            description: "Certificate for {{ $labels.subject }} (issuer: {{ $labels.issuer }}) expires in {{ printf \"%.0f\" (div (sub $labels.notAfter (time)) 86400) }} days. Renew before expiry to prevent outages."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/certificate-expiry"
+
+        - alert: CertificateExpiryCritical
+          expr: |
+            (x509_cert_expiry - time()) / 86400 < 7
+          for: 15m
+          labels:
+            severity: critical
+            team: security
+          annotations:
+            summary: "TLS certificate expiring in < 7 days ({{ $labels.subject }})"
+            description: "Certificate for {{ $labels.subject }} expires in less than 7 days. Immediate renewal required to prevent service disruption."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/certificate-expiry"
+
+        - alert: WazuhAgentDisconnected
+          expr: |
+            wazuh_agent_status{status="disconnected"} == 1
+          for: 5m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "Wazuh agent {{ $labels.agent_name }} offline > 5 min"
+            description: "Wazuh agent {{ $labels.agent_name }} (ID: {{ $labels.agent_id }}, host: {{ $labels.instance }}) has been disconnected for more than 5 minutes. Security telemetry gap exists."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/wazuh-agent-offline"
+
+        - alert: FailedLoginAttempts
+          expr: |
+            increase(auth_failed_login_total[5m]) > 10
+          for: 1m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "Excessive failed login attempts on {{ $labels.service }} ({{ $labels.instance }})"
+            description: "{{ printf \"%.0f\" $value }} failed login attempts detected on {{ $labels.service }} in the last 5 minutes from source {{ $labels.source_ip }}. Possible brute-force attack."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/failed-login-attempts"
+
+        - alert: SuspiciousAPIActivity
+          expr: |
+            (
+              rate(http_requests_total{job=~".*api.*"}[5m])
+              /
+              avg_over_time(rate(http_requests_total{job=~".*api.*"}[5m])[1h:5m])
+            ) > 5
+          for: 3m
+          labels:
+            severity: warning
+            team: security
+          annotations:
+            summary: "Anomalous API traffic spike on {{ $labels.job }} ({{ $labels.instance }})"
+            description: "API call rate on {{ $labels.job }} is {{ printf \"%.1f\" $value }}x higher than the 1-hour baseline. Possible credential stuffing, scraping, or DDoS attack."
+            runbook_url: "https://runbooks.gantmanbiz.io/security/suspicious-api-activity"
+
+    # ---------------------------------------------------------------------------
+    # Payment / PCI DSS
+    # ---------------------------------------------------------------------------
+    - name: payment.alerts
+      interval: 30s
+      rules:
+
+        - alert: PaymentFailureRateHigh
+          expr: |
+            (
+              rate(payment_transactions_total{status="failed"}[5m])
+              /
+              rate(payment_transactions_total[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "Payment failure rate exceeds 5% ({{ $labels.provider }})"
+            description: "Payment failure rate on {{ $labels.provider }} is {{ printf \"%.1f\" (mul $value 100) }}% — above the 5% PCI DSS monitoring threshold. Revenue impact in progress."
+            runbook_url: "https://runbooks.gantmanbiz.io/payments/high-failure-rate"
+
+        - alert: TransactionLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              rate(payment_transaction_duration_seconds_bucket[5m])
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            team: payments
+          annotations:
+            summary: "Payment p99 latency > 2 s ({{ $labels.provider }})"
+            description: "99th-percentile payment transaction latency on {{ $labels.provider }} is {{ printf \"%.2f\" $value }}s, exceeding the 2-second SLO threshold."
+            runbook_url: "https://runbooks.gantmanbiz.io/payments/transaction-latency"
+
+        - alert: PaymentServiceDown
+          expr: |
+            (
+              rate(payment_transactions_total{status="success"}[5m]) == 0
+            ) and (
+              rate(payment_transactions_total[5m]) > 0
+            )
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "Payment service {{ $labels.provider }} — no successful transactions in 5 min"
+            description: "No successful payment transactions have been recorded for {{ $labels.provider }} in the last 5 minutes while traffic exists. Service may be down or all transactions are failing."
+            runbook_url: "https://runbooks.gantmanbiz.io/payments/service-down"
+
+        - alert: DatabaseConnectionPoolExhausted
+          expr: |
+            (
+              pg_stat_activity_count
+              /
+              pg_settings_max_connections
+            ) > 0.90
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "PostgreSQL connection pool > 90% utilised ({{ $labels.instance }})"
+            description: "Database {{ $labels.instance }} has {{ printf \"%.1f\" (mul $value 100) }}% of max_connections in use. New connections will be refused imminently, causing payment failures."
+            runbook_url: "https://runbooks.gantmanbiz.io/payments/db-connection-pool"
+
+        - alert: AuditLogGap
+          expr: |
+            (
+              time() - max by (service) (
+                audit_log_last_event_timestamp_seconds
+              )
+            ) > 300
+          for: 2m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "Audit log gap detected for {{ $labels.service }} (> 5 min)"
+            description: "No audit log events have been received from {{ $labels.service }} for {{ printf \"%.0f\" (div $value 60) }} minutes. This is a PCI DSS 10.x compliance violation. Investigate immediately."
+            runbook_url: "https://runbooks.gantmanbiz.io/payments/audit-log-gap"
+
+    # ---------------------------------------------------------------------------
+    # Observability platform
+    # ---------------------------------------------------------------------------
+    - name: observability.alerts
+      interval: 60s
+      rules:
+
+        - alert: PrometheusTargetDown
+          expr: |
+            up == 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Prometheus scrape target unreachable: {{ $labels.job }} / {{ $labels.instance }}"
+            description: "Prometheus has been unable to scrape {{ $labels.instance }} (job: {{ $labels.job }}) for more than 5 minutes. Metrics are missing; alerts may not fire."
+            runbook_url: "https://runbooks.gantmanbiz.io/observability/target-down"
+
+        - alert: AlertmanagerClusterDown
+          expr: |
+            (
+              count by (namespace, service) (
+                alertmanager_cluster_members
+              ) < 1
+            )
+            or
+            absent(alertmanager_cluster_members)
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Alertmanager cluster is not responding"
+            description: "No Alertmanager cluster members detected in namespace {{ $labels.namespace }}. Alerts cannot be routed to on-call channels — firing alerts will be silently dropped."
+            runbook_url: "https://runbooks.gantmanbiz.io/observability/alertmanager-down"
+
+        - alert: LogIngestionLag
+          expr: |
+            (
+              time() - max by (job) (
+                loki_distributor_ingester_appends_total offset 0s
+              )
+            ) > 300
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Log ingestion lag > 5 min for job {{ $labels.job }}"
+            description: "Loki log ingestion for {{ $labels.job }} is {{ printf \"%.0f\" (div $value 60) }} minutes behind real-time. Security events and audit trails may be delayed, impacting incident response."
+            runbook_url: "https://runbooks.gantmanbiz.io/observability/log-ingestion-lag"
+
+    # ---------------------------------------------------------------------------
+    # Existing — preserved and labelled
+    # ---------------------------------------------------------------------------
+    - name: application.alerts
+      interval: 60s
+      rules:
+
+        - alert: HighErrorRate
+          expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "High HTTP 5xx error rate on {{ $labels.job }} ({{ $labels.instance }})"
+            description: "HTTP 5xx error rate is {{ printf \"%.2f\" $value }} req/s (threshold: 0.05 req/s) on {{ $labels.instance }}."
+            runbook_url: "https://runbooks.gantmanbiz.io/platform/high-error-rate"

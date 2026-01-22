@@ -4,71 +4,71 @@ This directory contains cloud security implementations, configurations, and best
 
 ## Contents
 
-### [AWS](aws/)
+### [AWS](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws)
 Production-ready AWS security configurations and architectures
 
-#### [Multi-Account Setup](aws/multi-account-setup/)
+#### [Multi-Account Setup](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/multi-account-setup)
 - AWS Organizations structure
 - Control Tower landing zone configurations
 - Service Control Policies (SCPs)
 - Account baseline templates
 - Cross-account role configurations
 
-#### [IAM Policies](aws/iam-policies/)
+#### [IAM Policies](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/iam-policies)
 - Least-privilege IAM policies
 - IAM Identity Center (SSO) configurations
 - Permission boundaries
 - Service-specific policies
 - IRSA (IAM Roles for Service Accounts) for EKS
 
-#### [Security Hub Configs](aws/security-hub-configs/)
+#### [Security Hub Configs](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/security-hub-configs)
 - Multi-account Security Hub setup
 - Custom security standards
 - Automated remediation workflows
 - Integration with SIEM
 - Compliance reporting automation
 
-#### [GuardDuty Automation](aws/guardduty-automation/)
+#### [GuardDuty Automation](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/guardduty-automation)
 - Multi-account GuardDuty deployment
 - Custom threat detection rules
 - Automated response workflows
 - S3 protection configurations
 - EKS protection settings
 
-#### [KMS Encryption](aws/kms-encryption/)
+#### [KMS Encryption](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/kms-encryption)
 - Customer Managed Keys (CMK) configurations
 - Key rotation automation
 - Cross-account key sharing
 - Envelope encryption patterns
 - CloudHSM integration
 
-#### [VPC Network Security](aws/vpc-network-security/)
+#### [VPC Network Security](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/vpc-network-security)
 - Hub-and-spoke topology with Transit Gateway
 - VPC Flow Logs analysis
 - Network segmentation patterns
 - AWS Network Firewall rules
 - PrivateLink configurations
 
-#### [WAF & Shield](aws/waf-shield/)
+#### [WAF & Shield](https://github.com/gantmane/Portfolio/tree/main/cloud-security/aws/waf-shield)
 - WAF rules and rule groups
 - Rate limiting configurations
 - Bot protection
 - Shield Advanced DDoS protection
 - CloudFront security configurations
 
-### [GCP](gcp/)
+### [GCP](https://github.com/gantmane/Portfolio/tree/main/cloud-security/gcp)
 - GKE security configurations
 - Cloud Armor policies
 - VPC Service Controls
 - Identity and Access Management
 
-### [Azure](azure/)
+### [Azure](https://github.com/gantmane/Portfolio/tree/main/cloud-security/azure)
 - Azure Security Center configurations
 - Network Security Groups
 - Azure Policy definitions
 - Sentinel integration
 
-### [Zero Trust Architecture](zero-trust-architecture/)
+### [Zero Trust Architecture](https://github.com/gantmane/Portfolio/tree/main/cloud-security/zero-trust-architecture)
 - Identity verification patterns
 - Device trust configurations
 - Network micro-segmentation
@@ -112,6 +112,6 @@ Security controls mapping to PCI DSS 4.0 requirements:
 **Requirement 11:** GuardDuty, Security Hub, vulnerability scanning
 
 ## Related Directories
-- [Compliance](../compliance/) - Compliance automation and frameworks
-- [Infrastructure as Code](../infrastructure-as-code/) - IaC for cloud security
-- [Monitoring & Observability](../monitoring-observability/) - Security monitoring
+- [Compliance](https://github.com/gantmane/Portfolio/tree/main/compliance) - Compliance automation and frameworks
+- [Infrastructure as Code](https://github.com/gantmane/Portfolio/tree/main/infrastructure-as-code) - IaC for cloud security
+- [Monitoring & Observability](https://github.com/gantmane/Portfolio/tree/main/monitoring-observability) - Security monitoring

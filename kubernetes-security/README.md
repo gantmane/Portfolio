@@ -4,7 +4,7 @@ Production-grade Kubernetes security implementations for EKS, GKE, and self-mana
 
 ## Contents
 
-### [EKS Hardening](eks-hardening/)
+### [EKS Hardening](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/eks-hardening)
 Amazon EKS security configurations and best practices
 - Cluster security group configurations
 - API server endpoint access control
@@ -15,7 +15,7 @@ Amazon EKS security configurations and best practices
 - Update and patch management
 - EKS Pod Identity configuration
 
-### [Pod Security Standards](pod-security-standards/)
+### [Pod Security Standards](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/pod-security-standards)
 Pod security policies and admission control
 - Pod Security Standards (Restricted, Baseline, Privileged)
 - Pod Security Admission controller configs
@@ -25,7 +25,7 @@ Pod security policies and admission control
 - Capability dropping configurations
 - seccomp and AppArmor profiles
 
-### [Network Policies](network-policies/)
+### [Network Policies](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/network-policies)
 Kubernetes network segmentation and traffic control
 - Namespace isolation policies
 - Default deny-all policies
@@ -36,7 +36,7 @@ Kubernetes network segmentation and traffic control
 - CDE (Cardholder Data Environment) isolation
 - Calico/Cilium advanced policies
 
-### [Service Mesh (Istio)](service-mesh-istio/)
+### [Service Mesh (Istio)](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/service-mesh-istio)
 Istio service mesh for security and observability
 - Mutual TLS (mTLS) configuration
 - Authorization policies (RBAC)
@@ -47,7 +47,7 @@ Istio service mesh for security and observability
 - Security best practices
 - PeerAuthentication and RequestAuthentication
 
-### [Falco Runtime Security](falco-runtime-security/)
+### [Falco Runtime Security](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/falco-runtime-security)
 Runtime threat detection and response
 - Falco deployment configurations
 - Custom detection rules
@@ -58,7 +58,7 @@ Runtime threat detection and response
 - Integration with SIEM (Wazuh)
 - Kubernetes audit events
 
-### [OPA Gatekeeper](opa-gatekeeper/)
+### [OPA Gatekeeper](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security/opa-gatekeeper)
 Policy-as-code admission control
 - Constraint templates library
 - Common security policies:
@@ -220,7 +220,7 @@ Kubernetes security controls for PCI DSS 4.0:
 - Sealed Secrets
 
 ## Related Directories
-- [DevSecOps](../devsecops/) - CI/CD security integration
-- [Infrastructure as Code](../infrastructure-as-code/) - K8s IaC templates
-- [SIEM & SOC](../siem-soc/) - Security monitoring integration
-- [Compliance](../compliance/) - Compliance automation
+- [DevSecOps](https://github.com/gantmane/Portfolio/tree/main/devsecops) - CI/CD security integration
+- [Infrastructure as Code](https://github.com/gantmane/Portfolio/tree/main/infrastructure-as-code) - K8s IaC templates
+- [SIEM & SOC](https://github.com/gantmane/Portfolio/tree/main/siem-soc) - Security monitoring integration
+- [Compliance](https://github.com/gantmane/Portfolio/tree/main/compliance) - Compliance automation

@@ -73,8 +73,8 @@ AWS WAF + API Gateway protecting 120+ endpoints
 ### By Use Case
 
 **For CISOs Evaluating Security Expertise**:
-1. [PCI DSS Compliance Rules](siem-soc/custom-detection-rules/pci-dss-compliance.xml) - 50+ automated checks
-2. [Data Breach Response](siem-soc/incident-response/data-breach-response.md) - Complete playbook
+1. [PCI DSS Compliance Rules](siem-soc/custom-detection-rules/) - 50+ automated checks
+2. [Data Breach Response](siem-soc/incident-response/) - Complete playbook
 3. [MITRE ATT&CK Coverage](threat-detection/mitre-attack-mapping/) - 85%+ validated
 
 **For Security Architects**:
@@ -207,7 +207,7 @@ Business continuity and resilience
 - **DR Testing**: Quarterly validation procedures
 
 **Key Files**:
-- [DR Deployment](disaster-recovery/multi-region-dr/deploy-dr.sh) - 600+ line automation script
+- [DR Deployment](disaster-recovery/multi-region-dr/) - 600+ line automation script
 - [Backup Automation](disaster-recovery/backup-automation/) - Velero + AWS Backup
 
 ### 8. [Infrastructure as Code](infrastructure-as-code/)
@@ -373,4 +373,3 @@ This repository contains **production reference implementations** and documentat
 ---
 
 **Last Updated**: December 2025
-**Portfolio Review Report**: See [FINAL_PORTFOLIO_REPORT.md](FINAL_PORTFOLIO_REPORT.md)

@@ -33,7 +33,7 @@ Implementation of Zero Trust principles across cloud and Kubernetes environments
 - Continuous verification and monitoring
 - Least-privilege access controls
 
-### 3. [Multi-Region Disaster Recovery](03-multi-region-dr-architecture.md)
+### 3. Multi-Region Disaster Recovery
 Active-passive DR strategy with 4-hour RTO and 15-minute RPO.
 
 **Key Features**:
@@ -42,7 +42,7 @@ Active-passive DR strategy with 4-hour RTO and 15-minute RPO.
 - S3 Cross-Region Replication
 - Route 53 health-based failover
 
-### 4. [Security Monitoring Architecture](04-security-monitoring-architecture.md)
+### 4. Security Monitoring Architecture
 Dual-SIEM strategy with Wazuh (host) and Security Onion (network).
 
 **Key Features**:
@@ -51,7 +51,7 @@ Dual-SIEM strategy with Wazuh (host) and Security Onion (network).
 - MITRE ATT&CK coverage mapping
 - Centralized log aggregation
 
-### 5. [EKS Security Architecture](05-eks-security-architecture.md)
+### 5. EKS Security Architecture
 Production-grade Kubernetes security for payment processing workloads.
 
 **Key Features**:
@@ -60,7 +60,7 @@ Production-grade Kubernetes security for payment processing workloads.
 - Falco runtime security
 - OPA Gatekeeper admission control
 
-### 6. [API Security Gateway](06-api-security-gateway.md)
+### 6. API Security Gateway
 API protection framework with AWS WAF and rate limiting.
 
 **Key Features**:
@@ -69,7 +69,7 @@ API protection framework with AWS WAF and rate limiting.
 - JWT authentication + mTLS
 - Tiered rate limiting
 
-### 7. [CI/CD Security Pipeline](07-cicd-security-pipeline.md)
+### 7. CI/CD Security Pipeline
 Secure software delivery with security gates.
 
 **Key Features**:

@@ -79,5 +79,5 @@
 - **LinkedIn**: [evgeniy-gantman](https://www.linkedin.com/in/evgeniy-gantman/)
 - **GitHub**: [gantmane](https://github.com/gantmane)
 - **Telegram**: @tachys
-- **WhatsApp**: +972559662515
+- **WhatsApp**: +972553189185
 - **Location**: Israel / Georgia (Remote-friendly)

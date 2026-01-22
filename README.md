@@ -339,7 +339,7 @@ Architecture and operational guides
 ## 📫 Contact
 
 **Email**: egDevOps@gmail.com
-**WhatsApp**: +972559662515
+**WhatsApp**: +972553189185
 **Telegram**: @tachys
 **Location**: Israel / Georgia (Remote-friendly)
 

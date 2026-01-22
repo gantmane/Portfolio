@@ -1,0 +1,300 @@
+{
+  "$schema": "Model routing configuration for Claude Code agents",
+  "version": "1.0",
+  "routing": {
+    "default": "sonnet",
+    "rules": {
+      "by_complexity": {
+        "simple": "haiku",
+        "medium": "sonnet",
+        "complex": "opus"
+      },
+      "by_task_type": {
+        "explore": "haiku",
+        "search": "haiku",
+        "read": "haiku",
+        "code_generation": "ollama:qwen",
+        "code_review": "ollama:qwen",
+        "security_analysis": "ollama:deepseek",
+        "threat_modeling": "ollama:deepseek",
+        "architecture": "opus",
+        "planning": "opus",
+        "documentation": "haiku"
+      }
+    }
+  },
+  "agents": {
+    "explore": {
+      "model": "haiku",
+      "reason": "Simple file/code search"
+    },
+    "bash-developer": {
+      "model": "haiku",
+      "ollama_fallback": "qwen",
+      "reason": "Script generation - local model capable"
+    },
+    "python-developer": {
+      "model": "haiku",
+      "ollama_fallback": "qwen",
+      "reason": "Code generation - local model capable"
+    },
+    "tech-writer": {
+      "model": "haiku",
+      "reason": "Documentation tasks are straightforward"
+    },
+    "soc-analyst": {
+      "model": "haiku",
+      "ollama_fallback": "deepseek",
+      "reason": "Log analysis - local model for queries"
+    },
+    "detection-engineer": {
+      "model": "haiku",
+      "ollama_fallback": "deepseek",
+      "reason": "Rule generation - pattern based"
+    },
+    "vulnerability-manager": {
+      "model": "haiku",
+      "ollama_fallback": "deepseek",
+      "reason": "CVE analysis - structured data"
+    },
+    "finops-engineer": {
+      "model": "haiku",
+      "reason": "Cost analysis - data processing"
+    },
+    "devsecops-engineer": {
+      "model": "sonnet",
+      "ollama_fallback": "qwen",
+      "reason": "Mixed code/security tasks"
+    },
+    "infrastructure-hardening": {
+      "model": "sonnet",
+      "ollama_fallback": "deepseek",
+      "reason": "CIS benchmark analysis"
+    },
+    "kubernetes-security": {
+      "model": "sonnet",
+      "ollama_fallback": "deepseek",
+      "reason": "K8s config analysis"
+    },
+    "network-security": {
+      "model": "sonnet",
+      "reason": "Network design requires context"
+    },
+    "dba-architect": {
+      "model": "sonnet",
+      "reason": "Database design moderate complexity"
+    },
+    "sre-engineer": {
+      "model": "sonnet",
+      "reason": "SLO/monitoring design"
+    },
+    "incident-responder": {
+      "model": "sonnet",
+      "ollama_fallback": "deepseek",
+      "reason": "Forensics analysis"
+    },
+    "compliance-auditor": {
+      "model": "sonnet",
+      "ollama_fallback": "deepseek",
+      "reason": "Compliance mapping"
+    },
+    "data-protection": {
+      "model": "sonnet",
+      "reason": "Encryption strategy"
+    },
+    "iam-architect": {
+      "model": "sonnet",
+      "reason": "IAM policy design"
+    },
+    "cloud-security-architect": {
+      "model": "opus",
+      "reason": "Complex multi-cloud architecture"
+    },
+    "cybersec-architect": {
+      "model": "opus",
+      "reason": "Threat modeling requires deep reasoning"
+    },
+    "platform-architect": {
+      "model": "opus",
+      "reason": "Complex infrastructure decisions"
+    },
+    "project-orchestrator": {
+      "model": "opus",
+      "reason": "Multi-agent coordination"
+    },
+    "sec-project-orchestrator": {
+      "model": "opus",
+      "reason": "Security project planning"
+    },
+    "red-team-operator": {
+      "model": "opus",
+      "reason": "Attack path analysis requires reasoning"
+    },
+    "ollama-engineer": {
+      "model": "haiku",
+      "ollama_primary": true,
+      "reason": "Routes to local Ollama models"
+    }
+  },
+  "ollama": {
+    "endpoint": "http://192.168.2.2:11434",
+    "models": {
+      "qwen": {
+        "id": "danielsheep/Qwen3-Coder-30B-A3B-Instruct-1M-Unsloth:UD-Q5_K_XL",
+        "use_for": [
+          "code_generation",
+          "debugging",
+          "scripts",
+          "tests",
+          "devops",
+          "iac"
+        ],
+        "temperature": 0.7,
+        "context_length": 500000,
+        "max_prompt_length": 400000,
+        "speed": "23-65 tok/s"
+      },
+      "deepseek": {
+        "id": "deepseek-r1:32b",
+        "use_for": [
+          "security_analysis",
+          "threat_modeling",
+          "architecture",
+          "reasoning"
+        ],
+        "temperature": 0.6,
+        "context_length": 32768,
+        "max_prompt_length": 26214,
+        "speed": "70 tok/s"
+      }
+    },
+    "routing_keywords": {
+      "qwen": [
+        "write",
+        "create",
+        "generate",
+        "implement",
+        "code",
+        "function",
+        "class",
+        "module",
+        "fix",
+        "debug",
+        "refactor",
+        "optimize",
+        "script",
+        "test",
+        "unit test",
+        "python",
+        "bash",
+        "javascript",
+        "typescript",
+        "go",
+        "rust",
+        "java",
+        "dockerfile",
+        "docker-compose",
+        "yaml",
+        "helm",
+        "makefile",
+        "terraform",
+        "terragrunt",
+        "cloudformation",
+        "hcl",
+        "ansible",
+        "pulumi",
+        "aws",
+        "gcp",
+        "azure",
+        "eks",
+        "ecs",
+        "lambda",
+        "s3",
+        "rds",
+        "vpc",
+        "gke",
+        "aks",
+        "sql",
+        "database",
+        "api",
+        "rest",
+        "graphql",
+        "github actions",
+        "gitlab",
+        "ci/cd",
+        "pipeline",
+        "example",
+        "snippet",
+        "template",
+        "boilerplate",
+        "syntax"
+      ],
+      "deepseek": [
+        "analyze",
+        "explain why",
+        "explain how",
+        "investigate",
+        "assess",
+        "threat model",
+        "vulnerability",
+        "attack surface",
+        "pentest",
+        "penetration",
+        "security analysis",
+        "security review",
+        "security audit",
+        "compliance",
+        "risk analysis",
+        "risk assessment",
+        "architecture",
+        "design pattern",
+        "design decision",
+        "trade-off",
+        "compare",
+        "comparison",
+        "evaluate",
+        "pros and cons",
+        "which is better",
+        "root cause",
+        "reasoning",
+        "strategy",
+        "planning",
+        "decision",
+        "terraform security",
+        "kubernetes security",
+        "cloud security",
+        "iam policy",
+        "mitre",
+        "nist",
+        "cis",
+        "owasp",
+        "pci-dss",
+        "soc2",
+        "hipaa",
+        "iso-27001"
+      ]
+    }
+  },
+  "cost_estimates": {
+    "opus": {
+      "input_per_1k": 0.015,
+      "output_per_1k": 0.075,
+      "typical_task": 0.5
+    },
+    "sonnet": {
+      "input_per_1k": 0.003,
+      "output_per_1k": 0.015,
+      "typical_task": 0.1
+    },
+    "haiku": {
+      "input_per_1k": 0.0008,
+      "output_per_1k": 0.004,
+      "typical_task": 0.03
+    },
+    "ollama": {
+      "input_per_1k": 0,
+      "output_per_1k": 0,
+      "typical_task": 0
+    }
+  }
+}

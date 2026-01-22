@@ -1,0 +1,925 @@
+{"ts":"1768911108","cmd":"ls -la"}
+{"ts":"1768912706","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1768912723","cmd":"python3 << 'EOF'
+import time
+import json
+from urllib.request import Request, url"}
+{"ts":"1768913953","cmd":"python3 << 'EOF'
+import time
+import json
+from urllib.request import Request, url"}
+{"ts":"1768914165","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1768914404","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1768914615","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1768914858","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1768914882","cmd":"python3 -c "
+from ollama_prompt import detect_model
+
+tests = [
+    # Qwen (codin"}
+{"ts":"1768915166","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768916204","cmd":"python DevSecOps/scripts/nist_csf_review.py --quick 2>&1"}
+{"ts":"1768916288","cmd":"python DevSecOps/scripts/nist_csf_review.py"}
+{"ts":"1768916478","cmd":"tail -100 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects"}
+{"ts":"1768916482","cmd":"ls -la /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/ta"}
+{"ts":"1768916494","cmd":"curl -s http://localhost:11434/api/tags 2>/dev/null || echo "Ollama not respondi"}
+{"ts":"1768916499","cmd":"ollama serve &>/dev/null & sleep 3 && curl -s http://localhost:11434/api/tags | "}
+{"ts":"1768916507","cmd":"nohup ollama serve > /dev/null 2>&1 &"}
+{"ts":"1768916514","cmd":"sleep 3 && curl -s http://localhost:11434/api/tags 2>/dev/null || echo "Ollama s"}
+{"ts":"1768916521","cmd":"which ollama && pgrep -fl ollama"}
+{"ts":"1768916631","cmd":"python DevSecOps/scripts/nist_csf_review.py --health"}
+{"ts":"1768916636","cmd":"python .claude/skills/ollama-skills/ollama_prompt.py --health"}
+{"ts":"1768916642","cmd":"python DevSecOps/scripts/nist_csf_review.py 2>&1"}
+{"ts":"1768916646","cmd":"tail -50 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/"}
+{"ts":"1768916652","cmd":"sleep 5 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pro"}
+{"ts":"1768916661","cmd":"ps aux | grep nist_csf && ls -la /private/tmp/claude/-Users-evgenygantman-Docume"}
+{"ts":"1768916668","cmd":"sleep 15 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pr"}
+{"ts":"1768916688","cmd":"ps aux | grep -E "nist_csf|Python" | grep -v grep && echo "---" && ls -la /priva"}
+{"ts":"1768916743","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1768916755","cmd":"python -u DevSecOps/scripts/nist_csf_review.py 2>&1"}
+{"ts":"1768916759","cmd":"sleep 3 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pro"}
+{"ts":"1768916770","cmd":"sleep 60 && tail -80 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanb"}
+{"ts":"1768916838","cmd":"sleep 90 && tail -100 /private/tmp/claude/-Users-evgenygantman-Documents-gantman"}
+{"ts":"1768916936","cmd":"sleep 120 && tail -120 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768917066","cmd":"sleep 180 && tail -150 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768917255","cmd":"sleep 180 && tail -150 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768917443","cmd":"sleep 180 && tail -200 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768917910","cmd":"mkdir -p DevSecOps/terragrunt/_modules/yandex/disaster-recovery"}
+{"ts":"1768918079","cmd":"mkdir -p DevSecOps/terragrunt/_modules/yandex/disaster-recovery/functions"}
+{"ts":"1768918164","cmd":"mkdir -p DevSecOps/terragrunt/_modules/yandex/incident-response/functions"}
+{"ts":"1768918311","cmd":"mkdir -p DevSecOps/terragrunt/_modules/yandex/governance"}
+{"ts":"1768918437","cmd":"mkdir -p DevSecOps/terragrunt/_modules/yandex/asset-management"}
+{"ts":"1768918579","cmd":"python DevSecOps/scripts/nist_csf_review.py --quick 2>&1"}
+{"ts":"1768918732","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768918735","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768918742","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768918745","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768918758","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768918873","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768918966","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_m"}
+{"ts":"1768919104","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_modu"}
+{"ts":"1768919107","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_modu"}
+{"ts":"1768925312","cmd":"tail -5 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/t"}
+{"ts":"1768925318","cmd":"for f in /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/"}
+{"ts":"1768925329","cmd":"for agent in adccf1e a7a0a10 a9723cd abcdd7e; do
+  echo "=== Agent $agent ==="
+ "}
+{"ts":"1768925340","cmd":"ls -la DevSecOps/terragrunt/_modules/yandex/security-events/*.tf DevSecOps/terra"}
+{"ts":"1768977630","cmd":"for agent in adccf1e a7a0a10 a9723cd abcdd7e; do
+  echo "=== Agent $agent ==="
+ "}
+{"ts":"1768977639","cmd":"echo "=== Files created by agents ===" && find DevSecOps/terragrunt/_modules/yan"}
+{"ts":"1768977659","cmd":"python -u DevSecOps/scripts/nist_csf_review.py --quick 2>&1 | head -80"}
+{"ts":"1768977664","cmd":"python -u DevSecOps/scripts/nist_csf_review.py --quick 2>&1 | tail -80"}
+{"ts":"1768977737","cmd":"python -u DevSecOps/scripts/nist_csf_review.py 2>&1"}
+{"ts":"1768977743","cmd":"sleep 15 && tail -30 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanb"}
+{"ts":"1768977764","cmd":"sleep 60 && tail -50 /private/tmp/claude/-Users-evgenygantman-Documents-gantmanb"}
+{"ts":"1768977829","cmd":"sleep 120 && tail -80 /private/tmp/claude/-Users-evgenygantman-Documents-gantman"}
+{"ts":"1768977956","cmd":"sleep 180 && tail -100 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768978143","cmd":"sleep 180 && tail -120 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768978329","cmd":"sleep 180 && tail -150 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768978514","cmd":"sleep 120 && tail -200 /private/tmp/claude/-Users-evgenygantman-Documents-gantma"}
+{"ts":"1768978557","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type d -name "}
+{"ts":"1768978558","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1768978558","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps"}
+{"ts":"1768978558","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1768978560","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/assessment/ "}
+{"ts":"1768978561","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ 2>/dev/null"}
+{"ts":"1768978562","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/content-bund"}
+{"ts":"1768978563","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/scripts/"}
+{"ts":"1768978563","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type d -maxde"}
+{"ts":"1768978563","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/assessment/"}
+{"ts":"1768978563","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/templates/"}
+{"ts":"1768978564","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt -ty"}
+{"ts":"1768978565","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/detection-ru"}
+{"ts":"1768978566","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/ "}
+{"ts":"1768978566","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/detection-ru"}
+{"ts":"1768978566","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/"}
+{"ts":"1768978566","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt -ty"}
+{"ts":"1768978568","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ai_results/ "}
+{"ts":"1768978570","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ai_results/t"}
+{"ts":"1768978570","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/helm/ | head"}
+{"ts":"1768978572","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/docs/ | head"}
+{"ts":"1768978574","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/platform_doc"}
+{"ts":"1768978575","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/helm/ | tail"}
+{"ts":"1768978576","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/detection-rule"}
+{"ts":"1768978576","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt -ty"}
+{"ts":"1768978576","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768978578","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/helm_template "}
+{"ts":"1768978580","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978580","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/templates/"}
+{"ts":"1768978582","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ai_results/t"}
+{"ts":"1768978583","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/apps_repo_temp"}
+{"ts":"1768978583","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978583","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978583","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978586","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768978587","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*.md" |"}
+{"ts":"1768978588","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/gitlab_pipel"}
+{"ts":"1768978588","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/helm -type d -"}
+{"ts":"1768978588","cmd":"head -100 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/assessmen"}
+{"ts":"1768978589","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978590","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ai_results/t"}
+{"ts":"1768978592","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ISP/"}
+{"ts":"1768978592","cmd":"head -50 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/IMPLEMENTA"}
+{"ts":"1768978592","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*.md" -"}
+{"ts":"1768978594","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768978594","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978595","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ | grep -E ""}
+{"ts":"1768978598","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ISP/ | head "}
+{"ts":"1768978598","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768978600","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1768978600","cmd":"head -50 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SECURITY_A"}
+{"ts":"1768978600","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SECURITY_AUDI"}
+{"ts":"1768978602","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ISP -name "*.m"}
+{"ts":"1768978602","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/gitlab_pipelin"}
+{"ts":"1768978605","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/content-bundle"}
+{"ts":"1768978609","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/ai_results/t"}
+{"ts":"1768978609","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978613","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/detection-rule"}
+{"ts":"1768978616","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768978619","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768978622","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768978625","cmd":"cat /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/TRACK1-README.m"}
+{"ts":"1768978759","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/"}
+{"ts":"1768978759","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt -na"}
+{"ts":"1768978765","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768978765","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/detection-ru"}
+{"ts":"1768978776","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768979071","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/"}
+{"ts":"1768979076","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/"}
+{"ts":"1768979080","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768980124","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/agents/framework -typ"}
+{"ts":"1768980490","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/{confi"}
+{"ts":"1768980901","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/"}
+{"ts":"1768980904","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extracto"}
+{"ts":"1768981015","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractors"}
+{"ts":"1768981018","cmd":"python3 -m py_compile DevSecOps/SAO/extractors/base.py DevSecOps/SAO/extractors/"}
+{"ts":"1768981075","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractor"}
+{"ts":"1768981110","cmd":"find DevSecOps/SAO/extractors -type f -name "*.py" -o -name "*.md" | sort"}
+{"ts":"1768981114","cmd":"wc -l DevSecOps/SAO/extractors/*.py && echo "---" && python3 -c "
+import sys
+sys"}
+{"ts":"1768981118","cmd":"python3 -c "
+import sys
+print('Testing imports from DevSecOps package...')
+try:
+"}
+{"ts":"1768981123","cmd":"python3 -c "
+import sys
+print('Testing base extractor and models...')
+try:
+    f"}
+{"ts":"1768981137","cmd":"python3 -c "
+import sys
+print('Testing base extractor and models...')
+try:
+    f"}
+{"ts":"1768981153","cmd":"python3 << 'EOF'
+import sys
+print("=" * 70)
+print("STATE EXTRACTORS VERIFICATION"}
+{"ts":"1768981156","cmd":"python3 -m py_compile DevSecOps/SAO/extractors/base.py DevSecOps/SAO/extractors/"}
+{"ts":"1768981192","cmd":"ls -lh DevSecOps/SAO/extractors/ && echo "" && wc -l DevSecOps/SAO/extractors/*."}
+{"ts":"1768981247","cmd":"cat << 'EOF'
+==================================================================="}
+{"ts":"1768981352","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO -type f -n"}
+{"ts":"1768981356","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extracto"}
+{"ts":"1768981359","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/parsers/"}
+{"ts":"1768981362","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_tre"}
+{"ts":"1768981364","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_t"}
+{"ts":"1768981529","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extract"}
+{"ts":"1768981531","cmd":"python3 -m py_compile /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecO"}
+{"ts":"1768981563","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/parsers -t"}
+{"ts":"1768981601","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_"}
+{"ts":"1768981603","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_"}
+{"ts":"1768981606","cmd":"python3 -m py_compile DevSecOps/SAO/attack_tree/__init__.py DevSecOps/SAO/attack"}
+{"ts":"1768981617","cmd":"cat > /tmp/sbom_summary.md << 'EOF'
+# SBOM Extractors Implementation Summary
+
+##"}
+{"ts":"1768981618","cmd":"python3 -m py_compile DevSecOps/SAO/attack_tree/__init__.py DevSecOps/SAO/attack"}
+{"ts":"1768981622","cmd":"python3 << 'EOF'
+import yaml
+import os
+
+templates_dir = "/Users/evgenygantman/Do"}
+{"ts":"1768981624","cmd":"python3 -m py_compile DevSecOps/SAO/parsers/*.py 2>&1 | head -20"}
+{"ts":"1768981625","cmd":"head -20 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack"}
+{"ts":"1768981654","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractors"}
+{"ts":"1768981657","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractor"}
+{"ts":"1768981675","cmd":"cat > /tmp/attack_tree_summary.txt << 'EOF'
+ATTACK TREE ENGINE IMPLEMENTATION SU"}
+{"ts":"1768981698","cmd":"find DevSecOps/SAO/parsers -type f \( -name "*.py" -o -name "*.md" \) | sort && "}
+{"ts":"1768981701","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/parsers/"}
+{"ts":"1768981721","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/a"}
+{"ts":"1768981721","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981721","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768981724","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_mo"}
+{"ts":"1768981725","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981725","cmd":"tree -L 3 -d /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terrag"}
+{"ts":"1768981729","cmd":"wc -l "/Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/platform_doc"}
+{"ts":"1768981730","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractors/s"}
+{"ts":"1768981731","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981731","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981731","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981731","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981747","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt -ma"}
+{"ts":"1768981747","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/ "}
+{"ts":"1768981752","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981752","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768981753","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_tre"}
+{"ts":"1768981756","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981760","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981760","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981760","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981765","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981765","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/aws"}
+{"ts":"1768981795","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_tr"}
+{"ts":"1768981835","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768981858","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1768982122","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/docs"}
+{"ts":"1768982565","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/exampl"}
+{"ts":"1768982569","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/docs/procedure"}
+{"ts":"1768982657","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO -type f \("}
+{"ts":"1768982663","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/docs/*.md"}
+{"ts":"1768982833","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/"}
+{"ts":"1768982842","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/examples"}
+{"ts":"1768982842","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/chains/"}
+{"ts":"1768982842","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/integrat"}
+{"ts":"1768982842","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/docs/"}
+{"ts":"1768982843","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768982848","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768982877","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768982888","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractors"}
+{"ts":"1768982907","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/**/*.py /"}
+{"ts":"1768982907","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_t"}
+{"ts":"1768982907","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/tests/ 2"}
+{"ts":"1768982910","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768982915","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983053","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983056","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768983162","cmd":"touch /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/t"}
+{"ts":"1768983165","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983168","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983172","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983245","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983257","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983261","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983266","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983284","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983293","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983328","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983369","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983406","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/I"}
+{"ts":"1768983412","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768983416","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983420","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768983445","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/D"}
+{"ts":"1768983555","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983559","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983560","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768983563","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983566","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983568","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983573","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983575","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768983718","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768983741","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983744","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983748","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983784","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983793","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983796","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768983845","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/I"}
+{"ts":"1768983851","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768983852","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -p"}
+{"ts":"1768983859","cmd":"cat << 'EOF'
+==================================================================="}
+{"ts":"1768983879","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768983898","cmd":"cat << 'EOF'
+
+╔═════════════════════════════════════════════════════════════════"}
+{"ts":"1768983898","cmd":"cat > /tmp/kms_deliverables.txt << 'EOF'
+KMS MODULE IMPLEMENTATION - COMPLETE DE"}
+{"ts":"1768983905","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983909","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768983918","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/chains -na"}
+{"ts":"1768983918","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/chains/*."}
+{"ts":"1768983927","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768985383","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768985387","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985391","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -n"}
+{"ts":"1768985391","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985395","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768985402","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985406","cmd":"grep -r "VPCConfig" /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps"}
+{"ts":"1768985445","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985463","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985486","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768985496","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768985500","cmd":"
+# Create __init__.py files for the VPC test module
+touch /Users/evgenygantman/D"}
+{"ts":"1768985510","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768985517","cmd":"cat /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/src"}
+{"ts":"1768985539","cmd":"rm /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/src/"}
+{"ts":"1768985542","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985545","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985552","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985552","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768985553","cmd":"
+# Validate Python syntax on the test file
+python3 -m py_compile /Users/evgenyga"}
+{"ts":"1768985555","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985566","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768985587","cmd":"python -m py_compile DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/vp"}
+{"ts":"1768985590","cmd":"wc -l DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/vpc/schemas.py &&"}
+{"ts":"1768985591","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985594","cmd":"grep "^class " DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/vpc/sche"}
+{"ts":"1768985595","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985598","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985600","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985603","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985603","cmd":"python3 << 'EOF'
+from aws_pci_dss.modules.foundation.vpc.schemas import (
+    VP"}
+{"ts":"1768985604","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985612","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985615","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985619","cmd":"python3 -m ast DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/vpc/sche"}
+{"ts":"1768985619","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985624","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768985625","cmd":"python3 << 'EOF'
+import ast
+import inspect
+
+# Parse the schemas file
+with open(""}
+{"ts":"1768985658","cmd":"
+# Verify all created files
+echo "=== VPC Flow Logs Implementation Files ==="
+ec"}
+{"ts":"1768985658","cmd":"cat > /tmp/vpc_schemas_summary.md << 'EOF'
+# VPC Module Schemas - Comprehensive "}
+{"ts":"1768985661","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768985665","cmd":"echo "=== FINAL VERIFICATION ===" && \
+echo "" && \
+echo "File path:" && \
+ls -l"}
+{"ts":"1768985670","cmd":"ls -lh DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/vpc/schemas.py &"}
+{"ts":"1768985671","cmd":"cat > /tmp/vpc_summary.txt << 'EOF'
+════════════════════════════════════════════"}
+{"ts":"1768985678","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && e"}
+{"ts":"1768985683","cmd":"cat > /tmp/vpc_endpoints_checklist.md << 'EOF'
+# VPC Endpoints Implementation Ch"}
+{"ts":"1768985691","cmd":"cat > /tmp/security_groups_summary.md << 'EOF'
+# SecurityGroupResource Implement"}
+{"ts":"1768985695","cmd":"
+# Final verification
+echo "=== DELIVERY VERIFICATION ==="
+echo ""
+echo "Project"}
+{"ts":"1768985697","cmd":"cat << 'EOF'
+
+=================================================================="}
+{"ts":"1768985720","cmd":"cat > /tmp/DELIVERY_SUMMARY.txt << 'EOF'
+======================================="}
+{"ts":"1768985727","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985731","cmd":"cat << 'EOF'
+
+╔═════════════════════════════════════════════════════════════════"}
+{"ts":"1768985732","cmd":"cat << 'EOF' | tee /tmp/implementation_report.txt
+=============================="}
+{"ts":"1768985741","cmd":"echo "VERIFICATION: Files Created" && \
+echo "" && \
+ls -lh /Users/evgenygantman"}
+{"ts":"1768985748","cmd":"python3 << 'EOF'
+import ast
+
+# Parse the file
+with open('/Users/evgenygantman/Do"}
+{"ts":"1768985758","cmd":"cat << 'EOF'
+
+╔═════════════════════════════════════════════════════════════════"}
+{"ts":"1768985767","cmd":"
+cat > /tmp/delivery_summary.txt << 'EOF'
+======================================"}
+{"ts":"1768985767","cmd":"cat > /tmp/deliverables.txt << 'EOF'
+═══════════════════════════════════════════"}
+{"ts":"1768985768","cmd":"cat << 'EOF'
+
+=================================================================="}
+{"ts":"1768985773","cmd":"
+# Create index of all delivered files
+cd /Users/evgenygantman/Documents/gantman"}
+{"ts":"1768985786","cmd":"cat << 'EOF'
+
+=================================================================="}
+{"ts":"1768985794","cmd":"echo "FINAL VERIFICATION - ALL DELIVERABLES" && \
+echo "" && \
+echo "1. MAIN IMP"}
+{"ts":"1768985863","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768985874","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/ 2>/dev/"}
+{"ts":"1768985874","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768985874","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/ml/agents/framework/ 2"}
+{"ts":"1768985874","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768985882","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_t"}
+{"ts":"1768985882","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extracto"}
+{"ts":"1768985882","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986086","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986142","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO -type f -n"}
+{"ts":"1768986143","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986144","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986144","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/ml/agents/framework/ 2"}
+{"ts":"1768986148","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986149","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986151","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986153","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986159","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986159","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986162","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986187","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768986190","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986191","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986191","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986193","cmd":"python3 -m py_compile DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/foundation/s"}
+{"ts":"1768986194","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986194","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986211","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986213","cmd":"mkdir -p DevSecOps/aws-pci-dss/src/api/{routers,models,schemas,services,websocke"}
+{"ts":"1768986224","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986230","cmd":"ls -la /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/ta"}
+{"ts":"1768986246","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986246","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986251","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -n"}
+{"ts":"1768986251","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986252","cmd":"python3 -m py_compile DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/security/waf"}
+{"ts":"1768986255","cmd":"python3 -m py_compile DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/security/waf"}
+{"ts":"1768986255","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986257","cmd":"python3 -m py_compile DevSecOps/aws-pci-dss/src/aws_pci_dss/modules/security/waf"}
+{"ts":"1768986258","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986264","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986281","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986289","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986294","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986309","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986316","cmd":"cat > /tmp/s3_module_summary.txt << 'EOF'
+======================================"}
+{"ts":"1768986316","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986329","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -p"}
+{"ts":"1768986345","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768986346","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768986361","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986366","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768986381","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768986386","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768986389","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768986406","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986409","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986427","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768986431","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986435","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986436","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986437","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768986440","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986440","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986442","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986445","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768986445","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && l"}
+{"ts":"1768986448","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986453","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768986458","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986463","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986465","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768986466","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986485","cmd":"python3 -m py_compile /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecO"}
+{"ts":"1768986549","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986552","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986605","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/I"}
+{"ts":"1768986629","cmd":"cat /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/CLI"}
+{"ts":"1768986677","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986758","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768986849","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768986849","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768986860","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && P"}
+{"ts":"1768986865","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && P"}
+{"ts":"1768987454","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987461","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768987478","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987485","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987489","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987494","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768987494","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987494","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987515","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768987601","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987604","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768987607","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768987610","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987613","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987616","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987618","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987654","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768987660","cmd":"mv /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/test"}
+{"ts":"1768987725","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768987728","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768987732","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768987735","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768987739","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && P"}
+{"ts":"1768987788","cmd":"cat > /tmp/verify_cloudtrail.sh << 'EOF'
+#!/bin/bash
+
+BASE_DIR="/Users/evgenygan"}
+{"ts":"1768987791","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768987897","cmd":"cat > /tmp/summary.txt << 'EOF'
+================================================"}
+{"ts":"1768988185","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988185","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988193","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988200","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768988220","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768988235","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && s"}
+{"ts":"1768988268","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768988272","cmd":"python3 -m py_compile /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecO"}
+{"ts":"1768988276","cmd":"python3 -m py_compile /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecO"}
+{"ts":"1768988336","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988340","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768988341","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988343","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768988346","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988346","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988346","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988348","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988363","cmd":"cat > /tmp/verify_module.sh << 'EOF'
+#!/bin/bash
+
+BASE_DIR="/Users/evgenygantman"}
+{"ts":"1768988366","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988370","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768988419","cmd":"echo "=== AWS SECURITY HUB MODULE - FINAL VERIFICATION ===" && echo && echo "FIL"}
+{"ts":"1768988471","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988535","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988554","cmd":"touch /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/t"}
+{"ts":"1768988588","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768988588","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768988588","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/test"}
+{"ts":"1768988592","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768988596","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988600","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && p"}
+{"ts":"1768988604","cmd":"python3 -c "
+import ast
+import sys
+
+files = [
+    '/Users/evgenygantman/Document"}
+{"ts":"1768988619","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768988623","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988665","cmd":"cat << 'EOF'
+========================================
+AWS GuardDuty Module Imple"}
+{"ts":"1768988669","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988717","cmd":"cat > /tmp/integration_test_summary.txt << 'EOF'
+==============================="}
+{"ts":"1768988726","cmd":"cat << 'EOF'
+
+╔═════════════════════════════════════════════════════════════════"}
+{"ts":"1768988729","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -p"}
+{"ts":"1768988887","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988898","cmd":"chmod +x /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988903","cmd":"chmod +x /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988951","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/da"}
+{"ts":"1768988979","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988979","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1768988979","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988979","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988980","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768988980","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988980","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768988984","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988986","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*.py" -"}
+{"ts":"1768988987","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768988989","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768988989","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -p"}
+{"ts":"1768988993","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768988994","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -n"}
+{"ts":"1768989004","cmd":"ls /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/ 2>/dev/null"}
+{"ts":"1768989012","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989052","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768989057","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/data"}
+{"ts":"1768989062","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/data"}
+{"ts":"1768989141","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768989179","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989181","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768989226","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/docs"}
+{"ts":"1768989248","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989253","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768989259","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989294","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989299","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989330","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768989372","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989396","cmd":"cat > /tmp/fsd_completion_summary.txt << 'EOF'
+================================="}
+{"ts":"1768989400","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989422","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/do"}
+{"ts":"1768989473","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989493","cmd":"which pandoc || which textutil"}
+{"ts":"1768989497","cmd":"pandoc "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requiremen"}
+{"ts":"1768989637","cmd":"ls -la "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/" 2>/dev/n"}
+{"ts":"1768989637","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/ 2>/dev/nul"}
+{"ts":"1768989637","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/ 2>/dev/nul"}
+{"ts":"1768989637","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/ 2>/dev/nul"}
+{"ts":"1768989637","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requireme"}
+{"ts":"1768989637","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/ 2>&1 | hea"}
+{"ts":"1768989640","cmd":"sleep 30 && for f in /private/tmp/claude/-Users-evgenygantman-Documents-gantmanb"}
+{"ts":"1768989679","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989696","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768989696","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768989696","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989705","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768989705","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989705","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989717","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768989717","cmd":"find tests -name "*.py" ! -name "__init__.py" -exec wc -l {} + | tail -1"}
+{"ts":"1768989717","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requireme"}
+{"ts":"1768989732","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/ 2>&1 || ec"}
+{"ts":"1768989733","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/ 2>/dev/null || "}
+{"ts":"1768989736","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requireme"}
+{"ts":"1768989739","cmd":"pwd && ls /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/"}
+{"ts":"1768989750","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirements"}
+{"ts":"1768989754","cmd":"pwd && ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requ"}
+{"ts":"1768989766","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768989813","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requireme"}
+{"ts":"1768989814","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768989817","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirements"}
+{"ts":"1768989823","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768989827","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768989840","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirements"}
+{"ts":"1768989844","cmd":"pwd && ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requ"}
+{"ts":"1768989894","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirements"}
+{"ts":"1768989914","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768989917","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirements"}
+{"ts":"1768990122","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768990192","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768990296","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768990392","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768990413","cmd":"cat > "/Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768990439","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/realt/docs/requirement"}
+{"ts":"1768990551","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768990862","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768990873","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768990881","cmd":"npm run build 2>&1"}
+{"ts":"1768990891","cmd":"npm install tailwindcss-animate 2>&1"}
+{"ts":"1768990896","cmd":"npm run build 2>&1"}
+{"ts":"1768990973","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768990976","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768990977","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768990988","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768990988","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768990988","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768990988","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768990996","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768990996","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768990996","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991110","cmd":"echo "=== IaC Core Framework ===" && ls -la /Users/evgenygantman/Documents/gantm"}
+{"ts":"1768991110","cmd":"echo "=== IaC Modules ===" && ls -laR /Users/evgenygantman/Documents/gantmanbiz/"}
+{"ts":"1768991110","cmd":"echo "=== Security Framework ===" && ls -laR /Users/evgenygantman/Documents/gant"}
+{"ts":"1768991110","cmd":"echo "=== SAO Integration ===" && ls -laR /Users/evgenygantman/Documents/gantman"}
+{"ts":"1768991393","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991393","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768991394","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768991394","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768991394","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO -type f -n"}
+{"ts":"1768991394","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/"}
+{"ts":"1768991394","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768991395","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991395","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768991395","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768991395","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss "}
+{"ts":"1768991397","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && l"}
+{"ts":"1768991398","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991398","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768991398","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768991398","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991399","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_tre"}
+{"ts":"1768991399","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extractors"}
+{"ts":"1768991401","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768991402","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768991402","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768991402","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991403","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991403","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991403","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991403","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991404","cmd":"tree -L 3 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-d"}
+{"ts":"1768991404","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768991407","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991407","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991407","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991407","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991407","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991408","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991408","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991408","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991413","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991414","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/extracto"}
+{"ts":"1768991414","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO/attack_t"}
+{"ts":"1768991416","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/do"}
+{"ts":"1768991419","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991419","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991419","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991419","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991420","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991420","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991420","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991420","cmd":"grep -n "class\|def " /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecO"}
+{"ts":"1768991420","cmd":"grep -n "S3\|DynamoDB\|KMS\|decrypt" /Users/evgenygantman/Documents/gantmanbiz/p"}
+{"ts":"1768991424","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && g"}
+{"ts":"1768991424","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && g"}
+{"ts":"1768991424","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && t"}
+{"ts":"1768991424","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768991424","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991425","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991425","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991425","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768991425","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991425","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/t"}
+{"ts":"1768991429","cmd":"grep -n "^async def\|^def" /Users/evgenygantman/Documents/gantmanbiz/projects/De"}
+{"ts":"1768991429","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991429","cmd":"for dir in kms iam vpc rds s3; do
+  echo "=== foundation/$dir ==="
+  ls -1 /User"}
+{"ts":"1768991431","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && w"}
+{"ts":"1768991431","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768991432","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991432","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991436","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && f"}
+{"ts":"1768991437","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/t"}
+{"ts":"1768991437","cmd":"grep -h "def test_" /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps"}
+{"ts":"1768991438","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991438","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991438","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991439","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && w"}
+{"ts":"1768991443","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991443","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/te"}
+{"ts":"1768991443","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/d"}
+{"ts":"1768991444","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && g"}
+{"ts":"1768991444","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && g"}
+{"ts":"1768991444","cmd":"grep -c "def " /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-"}
+{"ts":"1768991444","cmd":"grep -c "def " /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-"}
+{"ts":"1768991444","cmd":"grep -c "def " /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-"}
+{"ts":"1768991444","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss && g"}
+{"ts":"1768991444","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/s"}
+{"ts":"1768991446","cmd":"ls -lah /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss"}
+{"ts":"1768991451","cmd":"grep -n "RLS\|rls\|row_security\|tenant_id" /Users/evgenygantman/Documents/gantm"}
+{"ts":"1768991451","cmd":"grep -A 5 -B 5 "enable row level\|CREATE POLICY\|RLS" /Users/evgenygantman/Docum"}
+{"ts":"1768991459","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/da"}
+{"ts":"1768991459","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768991517","cmd":"for dir in waf cloudtrail securityhub guardduty; do
+  echo "=== security/$dir =="}
+{"ts":"1768994180","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994182","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768994186","cmd":"tree -L 3 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-d"}
+{"ts":"1768994283","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994289","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994294","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994785","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994785","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994787","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768994790","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768994792","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768994797","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768994957","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/f"}
+{"ts":"1768994963","cmd":"grep -n "export default\|// Mock data\|// Promotion path\|getStatusColor\|getCom"}
+{"ts":"1768995009","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768995078","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768995089","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768995103","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768995113","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768995117","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/f"}
+{"ts":"1768995251","cmd":"mkdir -p ml/claude-code/plugins/ui-design/{agents,skills/ui-design/{references,e"}
+{"ts":"1768995509","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768995509","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768995571","cmd":"npm run build 2>&1 | tail -50"}
+{"ts":"1768995651","cmd":"npm run build 2>&1"}
+{"ts":"1768995665","cmd":"ls -la .claude/ 2>/dev/null | head -20"}
+{"ts":"1768995670","cmd":"ls -la .claude/agents/ | head -20 && echo "---" && ls -la .claude/skills/ | head"}
+{"ts":"1768995684","cmd":"ls -la .claude/skills/cybersec-skills/ && cat .claude/skills/cybersec-skills/SKI"}
+{"ts":"1768995807","cmd":"mkdir -p .claude/skills/ui-design-skills/references"}
+{"ts":"1768996156","cmd":"mkdir -p .claude/skills/frontend-developer-skills/references"}
+{"ts":"1768996201","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/do"}
+{"ts":"1768996201","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/docs -type f -"}
+{"ts":"1768996203","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768996209","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/platform_docs "}
+{"ts":"1768996209","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/platform_doc"}
+{"ts":"1768996216","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fr"}
+{"ts":"1768996223","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*api*" "}
+{"ts":"1768996228","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1768996336","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768996338","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768996379","cmd":"rm -rf ml/claude-code/plugins/ui-design"}
+{"ts":"1768996390","cmd":"echo "=== UI Designer Agent ===" && ls -la .claude/agents/ui-designer.md && echo"}
+{"ts":"1768996540","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996592","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996596","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/fron"}
+{"ts":"1768996601","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996607","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-ds"}
+{"ts":"1768996640","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768996655","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768996670","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996679","cmd":"ls -lh /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768996683","cmd":"wc -l /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996692","cmd":"tree -L 3 /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-d"}
+{"ts":"1768996711","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996750","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996768","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768996774","cmd":"cat > /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/b"}
+{"ts":"1768996984","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss -t"}
+{"ts":"1768996987","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768996989","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768996991","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768997008","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768997008","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768997008","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768997012","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768997012","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1768997020","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768997020","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/"}
+{"ts":"1768997024","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/ba"}
+{"ts":"1768997024","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/aws-pci-dss/sr"}
+{"ts":"1769065087","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769065094","cmd":"python ollama_prompt.py -v "Design a secrets management strategy for a Kubernete"}
+{"ts":"1769065125","cmd":"python ollama_prompt.py -m qwen -v "Write a Kubernetes ExternalSecret manifest t"}
+{"ts":"1769065455","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769065461","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769065475","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1769065500","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*falco*"}
+{"ts":"1769065509","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769065517","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/terragrunt/_"}
+{"ts":"1769065523","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -name "*cosign"}
+{"ts":"1769065531","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps -type f -name "}
+{"ts":"1769065547","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/SAO -type f -n"}
+{"ts":"1769065863","cmd":"python .claude/skills/ollama-skills/ollama_prompt.py -m deepseek "Design a Kuber"}
+{"ts":"1769065865","cmd":"python .claude/skills/ollama-skills/ollama_prompt.py -m qwen "Create a productio"}
+{"ts":"1769065901","cmd":"mkdir -p /Users/evgenygantman/Documents/gantmanbiz/projects/DevSecOps/k8s-admiss"}
+{"ts":"1769068048","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068051","cmd":"ls -la /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-"}
+{"ts":"1769068054","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068061","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068061","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068061","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068061","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068066","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068066","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068066","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068066","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769068081","cmd":"find /Users/evgenygantman/Documents/gantmanbiz/projects/ml/system-prompts-and-mo"}
+{"ts":"1769069004","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769069019","cmd":"cat > /tmp/devsecops_test.txt << 'EOF'
+You are a DevSecOps expert. Analyze this "}
+{"ts":"1769069035","cmd":"echo "=== DEEPSEEK R1 32B ===" && time python ollama_prompt.py -m deepseek -f /t"}
+{"ts":"1769069035","cmd":"echo "=== QWEN3-CODER-30B ===" && time python ollama_prompt.py -m qwen -f /tmp/d"}
+{"ts":"1769069054","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069054","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069054","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069064","cmd":"sleep 30 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pr"}
+{"ts":"1769069064","cmd":"sleep 30 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pr"}
+{"ts":"1769069098","cmd":"sleep 45 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-pr"}
+{"ts":"1769069334","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769069402","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769069554","cmd":"cat > /tmp/ec2_review_prompt.txt << 'ENDPROMPT'
+You are a senior DevSecOps engin"}
+{"ts":"1769069585","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769069590","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769069630","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069630","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069630","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069637","cmd":"sleep 60 && echo "=== DeepSeek ===" && cat /private/tmp/claude/-Users-evgenygant"}
+{"ts":"1769069703","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769069714","cmd":"sleep 90 && echo "=== QWEN ===" && cat /private/tmp/claude/-Users-evgenygantman-"}
+{"ts":"1769069809","cmd":"sleep 120 && cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-p"}
+{"ts":"1769069939","cmd":"cat /private/tmp/claude/-Users-evgenygantman-Documents-gantmanbiz-projects/tasks"}
+{"ts":"1769070484","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769070493","cmd":"# Create small test (first 200 lines)
+head -200 /Users/evgenygantman/Documents/g"}
+{"ts":"1769070520","cmd":"echo "=== QWEN TEST 1: SMALL (200 lines) ===" && echo "Started: $(date)" && time"}
+{"ts":"1769070527","cmd":"echo "=== QWEN TEST 2: MEDIUM (400 lines) ===" && echo "Started: $(date)" && tim"}
+{"ts":"1769070530","cmd":"echo "=== QWEN TEST 3: CODE GENERATION ===" && echo "Started: $(date)" && time p"}
+{"ts":"1769070534","cmd":"echo "=== QWEN TEST 4: FULL FILE (834 lines) ===" && echo "Started: $(date)" && "}
+{"ts":"1769070544","cmd":"sleep 90 && echo "=== Checking all Qwen test results ===" && for f in be31ada be"}
+{"ts":"1769070643","cmd":"cd /Users/evgenygantman/Documents/gantmanbiz/projects/.claude/skills/ollama-skil"}
+{"ts":"1769070652","cmd":"sleep 120 && echo "=== TEST 1: SMALL (200 lines) ===" && cat /private/tmp/claude"}
+{"ts":"1769070783","cmd":"echo "=== TEST 2: MEDIUM (400 lines) ===" && cat /private/tmp/claude/-Users-evge"}
+{"ts":"1769070783","cmd":"echo "=== TEST 4: FULL FILE (834 lines) ===" && cat /private/tmp/claude/-Users-e"}
+{"ts":"1769070783","cmd":"echo "=== TEST 3: CODE GENERATION ===" && cat /private/tmp/claude/-Users-evgenyg"}
+{"ts":"1769070790","cmd":"sleep 180 && echo "=== CHECKING ALL REMAINING TESTS ===" && for f in be74827 b2d"}
+{"ts":"1769070982","cmd":"sleep 300 && echo "=== TEST 4: FULL FILE (834 lines) - FINAL CHECK ===" && cat /"}
+{"ts":"1769075722","cmd":"mkdir -p /Users/evgenygantman/Documents/github/gantmane/Portfolio/docs/complianc"}
+{"ts":"1769075939","cmd":"source .venv/bin/activate && mkdocs build 2>&1"}
+{"ts":"1769075961","cmd":"source .venv/bin/activate && mkdocs build 2>&1"}

@@ -230,9 +230,8 @@ All KMS CloudTrail events forwarded to Wazuh for:
 ## Related Directories
 
 - [../multi-account-setup/](../multi-account-setup/) - Cross-account key sharing setup
-- [../../data-protection/encryption-at-rest/](../../data-protection/encryption-at-rest/) - Encryption implementations
-- [../../data-protection/encryption-in-transit/](../../data-protection/encryption-in-transit/) - TLS/mTLS configurations
-- [../../compliance/pci-dss-4.0/requirement-03-data-protection/](../../compliance/pci-dss-4.0/requirement-03-data-protection/) - PCI DSS Req 3 implementation
+- [../../../data-protection/](../../../data-protection/) - Encryption implementations
+- [../../../compliance/pci-dss-4.0/](../../../compliance/pci-dss-4.0/) - PCI DSS Req 3 implementation
 
 ## References
 

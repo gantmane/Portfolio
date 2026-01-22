@@ -334,8 +334,8 @@ Per CISA Zero Trust Maturity Model v2.0:
 
 ## Related Directories
 
-- [../conditional-access/](../conditional-access/) - Detailed Conditional Access policies
-- [../device-compliance/](../device-compliance/) - Intune device compliance configurations
+- [../privileged-access/](../privileged-access/) - Privileged access management
+- [../iam-automation/](../iam-automation/) - IAM automation
 - [../../kubernetes-security/network-policies/](../../kubernetes-security/network-policies/) - Kubernetes network policies
 - [../../kubernetes-security/service-mesh-istio/](../../kubernetes-security/service-mesh-istio/) - Istio service mesh configuration
 - [../../siem-soc/wazuh-deployment/](../../siem-soc/wazuh-deployment/) - SIEM for zero trust audit logs

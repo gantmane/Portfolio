@@ -233,9 +233,9 @@ GuardDuty costs are optimized by:
 ## Related Directories
 
 - [../security-hub-configs/](../security-hub-configs/) - Security Hub integration
-- [../../siem-soc/wazuh-deployment/](../../siem-soc/wazuh-deployment/) - Wazuh SIEM configuration
-- [../../threat-detection/detection-rules/](../../threat-detection/detection-rules/) - Custom detection rules
-- [../../devsecops/ci-cd-pipelines/](../../devsecops/ci-cd-pipelines/) - Automated deployment pipelines
+- [../../../siem-soc/wazuh-deployment/](../../../siem-soc/wazuh-deployment/) - Wazuh SIEM configuration
+- [../../../threat-detection/detection-rules/](../../../threat-detection/detection-rules/) - Custom detection rules
+- [../../../devsecops/ci-cd-pipelines/](../../../devsecops/ci-cd-pipelines/) - Automated deployment pipelines
 
 ## Security Considerations
 

@@ -24,7 +24,7 @@ Successfully enhanced your DevSecOps & Cloud Security portfolio with **productio
 
 ### 1. **SIEM Detection Rules** (CRITICAL ACHIEVEMENT)
 
-**Location**: [github/siem-soc/custom-detection-rules/](github/siem-soc/custom-detection-rules/)
+**Location**: [siem-soc/custom-detection-rules/](siem-soc/custom-detection-rules/)
 
 **Files Created**: 8 production files
 1. `README.md` - Comprehensive documentation (350 lines)
@@ -53,7 +53,7 @@ Successfully enhanced your DevSecOps & Cloud Security portfolio with **productio
 
 ### 2. **Incident Response Playbooks** (CRITICAL ACHIEVEMENT)
 
-**Location**: [github/siem-soc/incident-response/](github/siem-soc/incident-response/)
+**Location**: [siem-soc/incident-response/](siem-soc/incident-response/)
 
 **Files Created**: 3 comprehensive playbooks
 1. `README.md` - IR framework overview (450 lines)
@@ -76,7 +76,7 @@ Successfully enhanced your DevSecOps & Cloud Security portfolio with **productio
 
 ### 3. **MITRE ATT&CK Mapping** (NEW ADDITION)
 
-**Location**: [github/threat-detection/mitre-attack-mapping/](github/threat-detection/mitre-attack-mapping/)
+**Location**: [threat-detection/mitre-attack-mapping/](threat-detection/mitre-attack-mapping/)
 
 **File Created**: `README.md` (500 lines)
 
@@ -255,7 +255,7 @@ Your resume highlights these achievements - now they're **proven with code**:
 
 ### README Enhancement Recommendations
 
-Update your main [github/README.md](github/README.md) with:
+Update your main [README.md](README.md) with:
 
 ```markdown
 ## 🔥 Featured Projects

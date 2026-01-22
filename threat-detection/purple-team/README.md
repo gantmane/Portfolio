@@ -84,8 +84,7 @@ Purple Team program for continuous detection validation through collaborative of
 
 **Scenario Overview**: Exploit misconfigured pod → escape to host → lateral movement to other nodes
 
-### 3. Ransomware Attack Simulation
-**File**: [scenario-03-ransomware-simulation.md](scenario-03-ransomware-simulation.md)
+### 3. Ransomware Attack Simulation *(Coming Soon)*
 **MITRE Techniques**: T1486, T1490, T1489, T1047
 **Complexity**: High
 **Duration**: 4-5 hours
@@ -93,8 +92,7 @@ Purple Team program for continuous detection validation through collaborative of
 
 **Scenario Overview**: Initial access via phishing → lateral movement → backup deletion → file encryption
 
-### 4. Payment Card Data Exfiltration
-**File**: [scenario-04-payment-data-exfiltration.md](scenario-04-payment-data-exfiltration.md)
+### 4. Payment Card Data Exfiltration *(Coming Soon)*
 **MITRE Techniques**: T1005, T1020, T1041, T1567
 **Complexity**: Medium
 **Duration**: 2-3 hours
@@ -102,8 +100,7 @@ Purple Team program for continuous detection validation through collaborative of
 
 **Scenario Overview**: Database compromise → PAN extraction → data staging → exfiltration via HTTPS
 
-### 5. Supply Chain Attack (Compromised Container Image)
-**File**: [scenario-05-supply-chain-attack.md](scenario-05-supply-chain-attack.md)
+### 5. Supply Chain Attack (Compromised Container Image) *(Coming Soon)*
 **MITRE Techniques**: T1195.002, T1204.003
 **Complexity**: Medium
 **Duration**: 2-3 hours
@@ -111,8 +108,7 @@ Purple Team program for continuous detection validation through collaborative of
 
 **Scenario Overview**: Malicious container image with backdoor → deployment to Kubernetes → C2 communication
 
-### 6. Credential Stuffing and Account Takeover
-**File**: [scenario-06-credential-stuffing.md](scenario-06-credential-stuffing.md)
+### 6. Credential Stuffing and Account Takeover *(Coming Soon)*
 **MITRE Techniques**: T1110.004, T1078.004
 **Complexity**: Low
 **Duration**: 1-2 hours

@@ -132,8 +132,7 @@ aws iam simulate-custom-policy \
 
 - [../multi-account-setup/](../multi-account-setup/) - AWS Organizations structure
 - [../security-hub-configs/](../security-hub-configs/) - Centralized security monitoring
-- [../../compliance/pci-dss-4.0/requirement-07-access-control/](../../compliance/pci-dss-4.0/requirement-07-access-control/) - PCI DSS Req 7 implementation
-- [../../compliance/pci-dss-4.0/requirement-08-authentication/](../../compliance/pci-dss-4.0/requirement-08-authentication/) - PCI DSS Req 8 implementation
+- [../../../compliance/pci-dss-4.0/](../../../compliance/pci-dss-4.0/) - PCI DSS Req 7 & 8 implementation
 
 ## References
 

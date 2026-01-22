@@ -142,20 +142,20 @@ python3 analyze-flow-logs.py --vpc-id vpc-0123456789abcdef0 --days 7
 
 | Sub-Requirement | Implementation | File |
 |-----------------|----------------|------|
-| 1.2.1 - Configuration standards | Network segmentation policy | [network-segmentation.yaml](network-segmentation.yaml:1) |
-| 1.2.2 - Restrict connections between untrusted and CDE | Transit Gateway routing, CDE isolation | [transit-gateway.tf](transit-gateway.tf:1) |
-| 1.2.3 - Inbound traffic to CDE restricted | Security groups, NACLs deny by default | [security-groups.tf](security-groups.tf:1) |
-| 1.2.5 - Outbound traffic from CDE restricted | CDE VPC has no internet gateway | [vpc-architecture.tf](vpc-architecture.tf:1) |
-| 1.2.7 - Review firewall rules every 6 months | Automated auditing script | [security-group-audit.py](security-group-audit.py:1) |
-| 1.3.1 - DMZ implementation | Public subnet tier with ALB | [vpc-architecture.tf](vpc-architecture.tf:1) |
+| 1.2.1 - Configuration standards | Network segmentation policy | network-segmentation.yaml |
+| 1.2.2 - Restrict connections between untrusted and CDE | Transit Gateway routing, CDE isolation | transit-gateway.tf |
+| 1.2.3 - Inbound traffic to CDE restricted | Security groups, NACLs deny by default | security-groups.tf |
+| 1.2.5 - Outbound traffic from CDE restricted | CDE VPC has no internet gateway | vpc-architecture.tf |
+| 1.2.7 - Review firewall rules every 6 months | Automated auditing script | security-group-audit.py |
+| 1.3.1 - DMZ implementation | Public subnet tier with ALB | vpc-architecture.tf |
 
 ### Requirement 10: Log and Monitor All Access
 
 | Sub-Requirement | Implementation | File |
 |-----------------|----------------|------|
-| 10.2.2 - Automated audit trails | VPC Flow Logs capture all network traffic | [vpc-flow-logs.tf](vpc-flow-logs.tf:1) |
-| 10.3.2 - Type of event logged | Flow logs include source, dest, port, protocol | [vpc-flow-logs.tf](vpc-flow-logs.tf:1) |
-| 10.7.2 - Logs retained for 10 years | S3 lifecycle policy for 10-year retention | [vpc-flow-logs.tf](vpc-flow-logs.tf:1) |
+| 10.2.2 - Automated audit trails | VPC Flow Logs capture all network traffic | vpc-flow-logs.tf |
+| 10.3.2 - Type of event logged | Flow logs include source, dest, port, protocol | vpc-flow-logs.tf |
+| 10.7.2 - Logs retained for 10 years | S3 lifecycle policy for 10-year retention | vpc-flow-logs.tf |
 
 ## Security Controls
 
@@ -181,8 +181,8 @@ python3 analyze-flow-logs.py --vpc-id vpc-0123456789abcdef0 --days 7
 - [../multi-account-setup/](../multi-account-setup/) - AWS Organizations account structure
 - [../iam-policies/](../iam-policies/) - IAM policies for network resource access
 - [../waf-shield/](../waf-shield/) - Web Application Firewall configurations
-- [../../network-security/firewall-configs/](../../network-security/firewall-configs/) - Host-based firewall rules
-- [../../siem-soc/wazuh-deployment/](../../siem-soc/wazuh-deployment/) - SIEM integration for flow logs
+- [../../../network-security/firewall-configs/](../../../network-security/firewall-configs/) - Host-based firewall rules
+- [../../../siem-soc/wazuh-deployment/](../../../siem-soc/wazuh-deployment/) - SIEM integration for flow logs
 
 ## Maintenance
 

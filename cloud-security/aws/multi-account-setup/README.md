@@ -128,7 +128,7 @@ Implemented cross-account roles:
 
 - [../iam-policies/](../iam-policies/) - IAM policies for cross-account access
 - [../security-hub-configs/](../security-hub-configs/) - Centralized security monitoring
-- [../../infrastructure-as-code/terraform-modules/](../../infrastructure-as-code/terraform-modules/) - Reusable Terraform modules
+- [../../../infrastructure-as-code/terraform-modules/](../../../infrastructure-as-code/terraform-modules/) - Reusable Terraform modules
 
 ## References
 

@@ -254,9 +254,9 @@ Correlation Rules:
 
 - [../multi-account-setup/](../multi-account-setup/) - Organizations structure
 - [../guardduty-automation/](../guardduty-automation/) - GuardDuty findings source
-- [../../siem-soc/wazuh-deployment/](../../siem-soc/wazuh-deployment/) - SIEM integration
-- [../../compliance/pci-dss-4.0/](../../compliance/pci-dss-4.0/) - PCI DSS implementation
-- [../../devsecops/ci-cd-pipelines/](../../devsecops/ci-cd-pipelines/) - Security checks in CI/CD
+- [../../../siem-soc/wazuh-deployment/](../../../siem-soc/wazuh-deployment/) - SIEM integration
+- [../../../compliance/pci-dss-4.0/](../../../compliance/pci-dss-4.0/) - PCI DSS implementation
+- [../../../devsecops/ci-cd-pipelines/](../../../devsecops/ci-cd-pipelines/) - Security checks in CI/CD
 
 ## Maintenance
 

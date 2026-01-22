@@ -317,8 +317,8 @@ WAF Logs → Kinesis Firehose → S3 → Wazuh Integration
 
 - [../security-hub-configs/](../security-hub-configs/) - WAF findings in Security Hub
 - [../guardduty-automation/](../guardduty-automation/) - Network-level threat detection
-- [../../siem-soc/wazuh-deployment/](../../siem-soc/wazuh-deployment/) - WAF log analysis
-- [../../devsecops/ci-cd-pipelines/](../../devsecops/ci-cd-pipelines/) - Automated WAF deployment
+- [../../../siem-soc/wazuh-deployment/](../../../siem-soc/wazuh-deployment/) - WAF log analysis
+- [../../../devsecops/ci-cd-pipelines/](../../../devsecops/ci-cd-pipelines/) - Automated WAF deployment
 
 ## Security Considerations
 

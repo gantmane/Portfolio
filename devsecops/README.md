@@ -12,7 +12,7 @@ This directory contains DevSecOps practices, CI/CD security pipelines, and shift
 
 ## Contents
 
-### [CI/CD Security Pipelines](https://github.com/gantmane/Portfolio/tree/main/devsecops/ci-cd-pipelines)
+### [CI/CD Security Pipelines](devsecops/ci-cd-pipelines/)
 
 **GitLab CI/CD Implementation**
 - Multi-stage pipeline architecture
@@ -51,7 +51,7 @@ stages:
   - verify        # Smoke tests, monitoring
 ```
 
-### [Container Security](https://github.com/gantmane/Portfolio/tree/main/devsecops/container-security)
+### [Container Security](devsecops/container-security/)
 
 **Image Security**
 - Minimal base images (Distroless, Alpine, scratch)
@@ -88,7 +88,7 @@ stages:
 - Security context constraints
 - Immutable containers
 
-### [SAST/DAST Integration](https://github.com/gantmane/Portfolio/tree/main/devsecops/sast-dast-integration)
+### [SAST/DAST Integration](devsecops/sast-dast-integration/)
 
 **Static Application Security Testing (SAST)**
 - **SonarQube:** Code quality and security
@@ -126,7 +126,7 @@ stages:
 - Risk scoring and prioritization
 - Integration with Jira
 
-### [Secrets Management](https://github.com/gantmane/Portfolio/tree/main/devsecops/secrets-management)
+### [Secrets Management](devsecops/secrets-management/)
 
 **HashiCorp Vault**
 - High-availability deployment on EKS
@@ -164,7 +164,7 @@ stages:
 - Audit secret access
 - Principle of least-privilege
 
-### [Policy as Code](https://github.com/gantmane/Portfolio/tree/main/devsecops/policy-as-code)
+### [Policy as Code](devsecops/policy-as-code/)
 
 **Open Policy Agent (OPA)**
 - Rego policy language
@@ -207,7 +207,7 @@ stages:
   - Data residency requirements
   - Audit logging requirements
 
-### [Supply Chain Security](https://github.com/gantmane/Portfolio/tree/main/devsecops/supply-chain-security)
+### [Supply Chain Security](devsecops/supply-chain-security/)
 
 **SLSA Framework**
 - Supply-chain Levels for Software Artifacts
@@ -402,7 +402,7 @@ stages:
 - Tool configuration guides
 
 ## Related Directories
-- [Kubernetes Security](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security) - K8s security implementation
-- [Infrastructure as Code](https://github.com/gantmane/Portfolio/tree/main/infrastructure-as-code) - IaC security
-- [SIEM & SOC](https://github.com/gantmane/Portfolio/tree/main/siem-soc) - Security monitoring
-- [Compliance](https://github.com/gantmane/Portfolio/tree/main/compliance) - Compliance automation
+- [Kubernetes Security](kubernetes-security/) - K8s security implementation
+- [Infrastructure as Code](infrastructure-as-code/) - IaC security
+- [SIEM & SOC](siem-soc/) - Security monitoring
+- [Compliance](compliance/) - Compliance automation

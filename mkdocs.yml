@@ -1,12 +1,26 @@
 site_name: "Evgeniy Gantman — DevSecOps & Cloud Security Portfolio"
 site_description: "DevSecOps, Cloud Security, Kubernetes Security, SIEM/SOC, and compliance reference implementations."
-site_url: ""
+site_url: "https://gantmane.github.io/Portfolio/"
 
 repo_name: "gantmane/Portfolio"
 repo_url: "https://github.com/gantmane/Portfolio"
 
 docs_dir: "docs"
 site_dir: "site"
+
+# Explicit navigation
+nav:
+  - Home: index.md
+  - Quick Start: quick-start.md
+  - Directory Structure: directory-structure.md
+  - Areas:
+    - Overview: areas/index.md
+    - Cloud Security: cloud-security/README.md
+    - DevSecOps: devsecops/README.md
+    - Kubernetes Security: kubernetes-security/README.md
+    - SIEM & SOC: siem-soc/README.md
+    - PCI DSS 4.0: compliance/pci-dss-4.0/README.md
+  - About: about.md
 
 theme:
   name: material
@@ -25,8 +39,6 @@ theme:
 
 plugins:
   - search
-  - awesome-pages
-  - include-markdown
 
 markdown_extensions:
   - admonition
@@ -37,5 +49,3 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.inlinehilite
-
-

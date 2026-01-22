@@ -37,7 +37,7 @@ This directory contains configurations and implementations for a dual-SIEM archi
 
 ## Contents
 
-### [Wazuh Deployment](https://github.com/gantmane/Portfolio/tree/main/siem-soc/wazuh-deployment)
+### [Wazuh Deployment](siem-soc/wazuh-deployment/)
 
 #### Infrastructure
 - High-availability cluster architecture
@@ -87,7 +87,7 @@ This directory contains configurations and implementations for a dual-SIEM archi
 - Real-time compliance scoring
 - Automated evidence collection
 
-### [Security Onion](https://github.com/gantmane/Portfolio/tree/main/siem-soc/security-onion)
+### [Security Onion](siem-soc/security-onion/)
 
 #### Deployment
 - Standalone and distributed architecture
@@ -118,7 +118,7 @@ This directory contains configurations and implementations for a dual-SIEM archi
 - Elasticsearch storage
 - Kibana dashboards
 
-### [Custom Detection Rules](https://github.com/gantmane/Portfolio/tree/main/siem-soc/custom-detection-rules)
+### [Custom Detection Rules](siem-soc/custom-detection-rules/)
 
 #### Categories (500+ Rules)
 
@@ -188,7 +188,7 @@ This directory contains configurations and implementations for a dual-SIEM archi
 - Performance optimization
 - Version control (Git)
 
-### [Incident Response](https://github.com/gantmane/Portfolio/tree/main/siem-soc/incident-response)
+### [Incident Response](siem-soc/incident-response/)
 
 #### Automated Response
 - IP address blocking (AWS Network Firewall)
@@ -222,7 +222,7 @@ This directory contains configurations and implementations for a dual-SIEM archi
 - Executive notification
 - Post-incident review
 
-### [Threat Intelligence](https://github.com/gantmane/Portfolio/tree/main/siem-soc/threat-intelligence)
+### [Threat Intelligence](siem-soc/threat-intelligence/)
 
 #### Feeds Integration
 - STIX/TAXII feeds
@@ -411,8 +411,8 @@ Detection rule coverage mapped to MITRE ATT&CK framework:
 - Real-time compliance scoring
 
 ## Related Directories
-- [Threat Detection](https://github.com/gantmane/Portfolio/tree/main/threat-detection) - Advanced detection techniques
-- [Compliance](https://github.com/gantmane/Portfolio/tree/main/compliance) - Compliance frameworks
-- [Cloud Security](https://github.com/gantmane/Portfolio/tree/main/cloud-security) - AWS security monitoring
-- [Kubernetes Security](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security) - Container security monitoring
-- [Incident Response](https://github.com/gantmane/Portfolio/tree/main/incident-response) - IR playbooks
+- [Threat Detection](threat-detection/) - Advanced detection techniques
+- [Compliance](compliance/) - Compliance frameworks
+- [Cloud Security](cloud-security/) - AWS security monitoring
+- [Kubernetes Security](kubernetes-security/) - Container security monitoring
+- [Incident Response](incident-response/) - IR playbooks

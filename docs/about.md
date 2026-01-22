@@ -1,5 +1,1 @@
-## About (Repo README)
-
-{% include-markdown "../README.md" %}
-
-
+../README.md

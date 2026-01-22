@@ -463,7 +463,7 @@ docs/architecture/
 - [Cloud Security Alliance - PCI DSS](https://cloudsecurityalliance.org/)
 
 ## Related Directories
-- [Cloud Security](https://github.com/gantmane/Portfolio/tree/main/cloud-security) - AWS security implementations
-- [SIEM & SOC](https://github.com/gantmane/Portfolio/tree/main/siem-soc) - Wazuh SIEM for compliance monitoring
-- [Kubernetes Security](https://github.com/gantmane/Portfolio/tree/main/kubernetes-security) - EKS security for CDE
-- [Documentation](https://github.com/gantmane/Portfolio/tree/main/docs) - Architecture diagrams and runbooks
+- [Cloud Security](cloud-security/) - AWS security implementations
+- [SIEM & SOC](siem-soc/) - Wazuh SIEM for compliance monitoring
+- [Kubernetes Security](kubernetes-security/) - EKS security for CDE
+- [Documentation](docs/) - Architecture diagrams and runbooks

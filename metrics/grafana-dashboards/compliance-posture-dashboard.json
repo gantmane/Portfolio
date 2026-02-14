@@ -1,0 +1,674 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": "Prometheus",
+        "enable": true,
+        "expr": "ALERTS{alertstate=\"firing\",domain=\"compliance\"}",
+        "iconColor": "orange",
+        "name": "Compliance Alerts",
+        "step": "60s",
+        "tagKeys": "severity",
+        "textFormat": "{{alertname}}",
+        "titleFormat": "Compliance Alert"
+      }
+    ]
+  },
+  "description": "PCI DSS Compliance Posture - Control status, evidence gaps, audit log completeness, access reviews, vulnerability SLAs",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "100 * sum(compliance_control_status{framework=\"pci-dss\",status=\"pass\",environment=~\"$environment\"}) / sum(compliance_control_status{framework=\"pci-dss\",environment=~\"$environment\"})",
+          "legendFormat": "PCI DSS Compliance %",
+          "refId": "A"
+        }
+      ],
+      "title": "Overall PCI DSS Compliance",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(compliance_control_status{framework=\"pci-dss\",status=\"fail\",environment=~\"$environment\"})",
+          "legendFormat": "Failed Controls",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Controls",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 6, "y": 3 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(compliance_evidence_gap_count{framework=\"pci-dss\",environment=~\"$environment\"})",
+          "legendFormat": "Evidence Gaps",
+          "refId": "A"
+        }
+      ],
+      "title": "Evidence Collection Gaps",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 90 },
+              { "color": "green", "value": 99 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 12, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "100 * sum(audit_log_events_received{environment=~\"$environment\"}) / sum(audit_log_events_expected{environment=~\"$environment\"})",
+          "legendFormat": "Log Completeness",
+          "refId": "A"
+        }
+      ],
+      "title": "Audit Log Completeness",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 12, "y": 3 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(access_review_overdue_count{environment=~\"$environment\"})",
+          "legendFormat": "Overdue Reviews",
+          "refId": "A"
+        }
+      ],
+      "title": "Overdue Access Reviews",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 18, "y": 0 },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(vulnerability_sla_breach_count{severity=\"critical\",environment=~\"$environment\"})",
+          "legendFormat": "Critical SLA Breaches",
+          "refId": "A"
+        }
+      ],
+      "title": "Critical Vuln SLA Breaches",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 18, "y": 3 },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["last"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(vulnerability_sla_breach_count{severity=\"high\",environment=~\"$environment\"})",
+          "legendFormat": "High SLA Breaches",
+          "refId": "A"
+        }
+      ],
+      "title": "High Vuln SLA Breaches",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "align": "auto",
+            "displayMode": "color-background",
+            "inspect": false
+          },
+          "mappings": [
+            { "options": { "pass": { "color": "green", "index": 0, "text": "PASS" }, "fail": { "color": "red", "index": 1, "text": "FAIL" }, "warn": { "color": "yellow", "index": 2, "text": "WARN" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [{ "id": "custom.displayMode", "value": "color-background" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 6 },
+      "id": 8,
+      "options": {
+        "footer": { "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": false, "displayName": "Requirement" }]
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "compliance_control_status{framework=\"pci-dss\",environment=~\"$environment\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "PCI DSS Control Status by Requirement",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "environment": false, "framework": true },
+            "renameByName": { "requirement": "Requirement", "control_id": "Control ID", "description": "Description", "status": "Status", "Value": "Score" }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false }
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "FAIL" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "PASS" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 6 },
+      "id": 9,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] },
+        "pieType": "donut",
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(compliance_control_status{framework=\"pci-dss\",status=\"pass\",environment=~\"$environment\"})",
+          "legendFormat": "PASS",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(compliance_control_status{framework=\"pci-dss\",status=\"fail\",environment=~\"$environment\"})",
+          "legendFormat": "FAIL",
+          "refId": "B"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(compliance_control_status{framework=\"pci-dss\",status=\"warn\",environment=~\"$environment\"})",
+          "legendFormat": "WARN",
+          "refId": "C"
+        }
+      ],
+      "title": "Control Status Distribution",
+      "type": "piechart"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Log Events",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(audit_log_events_received{environment=~\"$environment\",log_type=\"authentication\"}[5m])) * 300",
+          "legendFormat": "Authentication Logs",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(audit_log_events_received{environment=~\"$environment\",log_type=\"payment\"}[5m])) * 300",
+          "legendFormat": "Payment Logs",
+          "refId": "B"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(audit_log_events_received{environment=~\"$environment\",log_type=\"admin\"}[5m])) * 300",
+          "legendFormat": "Admin Logs",
+          "refId": "C"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(audit_log_events_received{environment=~\"$environment\",log_type=\"system\"}[5m])) * 300",
+          "legendFormat": "System Logs",
+          "refId": "D"
+        }
+      ],
+      "title": "Audit Log Ingestion Rate by Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Days to SLA",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "d"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "critical" }, "properties": [{ "id": "color", "value": { "fixedColor": "dark-red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "high" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "medium" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": ["mean"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "avg(vulnerability_age_days{severity=\"critical\",environment=~\"$environment\"}) by (severity)",
+          "legendFormat": "critical",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "avg(vulnerability_age_days{severity=\"high\",environment=~\"$environment\"}) by (severity)",
+          "legendFormat": "high",
+          "refId": "B"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "avg(vulnerability_age_days{severity=\"medium\",environment=~\"$environment\"}) by (severity)",
+          "legendFormat": "medium",
+          "refId": "C"
+        }
+      ],
+      "title": "Vulnerability Age vs Remediation SLA",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "Reviews",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Completed" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Overdue" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Pending" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 12,
+      "options": {
+        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(access_review_status{environment=~\"$environment\",status=\"completed\"}) by (review_type)",
+          "legendFormat": "Completed - {{review_type}}",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(access_review_status{environment=~\"$environment\",status=\"overdue\"}) by (review_type)",
+          "legendFormat": "Overdue - {{review_type}}",
+          "refId": "B"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(access_review_status{environment=~\"$environment\",status=\"pending\"}) by (review_type)",
+          "legendFormat": "Pending - {{review_type}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Access Review Status by Type",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["compliance", "pci-dss", "audit", "governance"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "production", "value": "production" },
+        "datasource": "Prometheus",
+        "definition": "label_values(compliance_control_status, environment)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "options": [],
+        "query": "label_values(compliance_control_status, environment)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "pci-dss", "value": "pci-dss" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Framework",
+        "multi": false,
+        "name": "framework",
+        "options": [
+          { "selected": true, "text": "pci-dss", "value": "pci-dss" },
+          { "selected": false, "text": "iso-27001", "value": "iso-27001" },
+          { "selected": false, "text": "soc2", "value": "soc2" },
+          { "selected": false, "text": "nist-csf", "value": "nist-csf" }
+        ],
+        "query": "pci-dss,iso-27001,soc2,nist-csf",
+        "type": "custom"
+      },
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": "Prometheus",
+        "definition": "label_values(compliance_control_status{framework=~\"$framework\",environment=~\"$environment\"}, requirement)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "PCI Requirement",
+        "multi": true,
+        "name": "requirement",
+        "options": [],
+        "query": "label_values(compliance_control_status{framework=~\"$framework\",environment=~\"$environment\"}, requirement)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+    "time_options": ["6h", "12h", "24h", "2d", "7d", "30d", "90d"]
+  },
+  "timezone": "browser",
+  "title": "Compliance Posture (PCI DSS)",
+  "uid": "compliance-posture-001",
+  "version": 1
+}

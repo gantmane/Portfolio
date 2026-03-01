@@ -1,0 +1,28 @@
+# PCI DSS Requirement to Implementation Mapping
+requirements:
+  - id: "1.2.1"
+    description: "Configuration standards for firewalls"
+    implementation:
+      - terraform: "aws-security-groups.tf"
+      - ansible: "firewall-configuration.yml"
+    evidence:
+      - "Security group configurations"
+      - "Firewall rule documentation"
+    
+  - id: "3.4"
+    description: "Encryption at rest"
+    implementation:
+      - terraform: "rds-encrypted.yaml"
+      - kms: "kms-key-rotation.tf"
+    evidence:
+      - "KMS key rotation logs"
+      - "RDS encryption status"
+    
+  - id: "10.2"
+    description: "Audit trail for all access"
+    implementation:
+      - ansible: "log-aggregation.yml"
+      - cloudwatch: "vpc-flow-logs"
+    evidence:
+      - "CloudWatch log retention (365 days)"
+      - "Wazuh SIEM logs (7 years)"

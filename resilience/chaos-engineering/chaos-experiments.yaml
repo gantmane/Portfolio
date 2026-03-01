@@ -1,0 +1,270 @@
+---
+# Litmus Chaos Experiments for ExamplePay Production
+# Author: Evgeniy Gantman
+
+# Experiment 1: Pod Delete Chaos
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: pod-delete-monthly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'tier=backend'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  monitoring: true
+  jobCleanUpPolicy: delete
+  experiments:
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: CHAOS_INTERVAL
+              value: '10'
+            - name: FORCE
+              value: 'false'
+            - name: PODS_AFFECTED_PERC
+              value: '10'
+        probe:
+          - name: check-frontend-availability
+            type: httpProbe
+            mode: Continuous
+            httpProbe/inputs:
+              url: https://example.com/health
+              method:
+                get:
+                  criteria: ==
+                  responseCode: '200'
+            runProperties:
+              probeTimeout: 5
+              interval: 2
+              retry: 1
+
+---
+# Experiment 2: Network Latency Injection
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: network-latency-weekly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'app=api-gateway'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-network-latency
+      spec:
+        components:
+          env:
+            - name: NETWORK_LATENCY
+              value: '1000'
+            - name: TOTAL_CHAOS_DURATION
+              value: '120'
+            - name: PODS_AFFECTED_PERC
+              value: '30'
+            - name: TARGET_CONTAINER
+              value: 'api-gateway'
+        probe:
+          - name: check-p95-latency
+            type: promProbe
+            mode: Edge
+            promProbe/inputs:
+              endpoint: http://prometheus:9090
+              query: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+              comparator:
+                criteria: <=
+                value: '2'
+
+---
+# Experiment 3: CPU Stress Test
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: cpu-stress-biweekly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'app=payment-processor'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-cpu-hog
+      spec:
+        components:
+          env:
+            - name: CPU_CORES
+              value: '2'
+            - name: TOTAL_CHAOS_DURATION
+              value: '180'
+            - name: PODS_AFFECTED_PERC
+              value: '50'
+        probe:
+          - name: check-hpa-scaling
+            type: k8sProbe
+            mode: Continuous
+            k8sProbe/inputs:
+              group: apps
+              version: v1
+              resource: deployments
+              namespace: production
+              fieldSelector: metadata.name=payment-processor
+              operation: present
+            runProperties:
+              probeTimeout: 5
+              interval: 5
+
+---
+# Experiment 4: Memory Hog
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: memory-stress-monthly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'app=data-processor'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-memory-hog
+      spec:
+        components:
+          env:
+            - name: MEMORY_CONSUMPTION
+              value: '500'
+            - name: TOTAL_CHAOS_DURATION
+              value: '120'
+            - name: PODS_AFFECTED_PERC
+              value: '20'
+
+---
+# Experiment 5: AZ Failure Simulation
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: az-failure-quarterly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'tier=critical'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: node-taint
+      spec:
+        components:
+          env:
+            - name: TARGET_NODE
+              value: 'us-east-1a'
+            - name: NODE_LABEL
+              value: 'failure-domain.beta.kubernetes.io/zone=us-east-1a'
+            - name: TAINTS
+              value: 'chaos=true:NoSchedule,chaos=true:NoExecute'
+            - name: TOTAL_CHAOS_DURATION
+              value: '300'
+        probe:
+          - name: check-service-availability
+            type: httpProbe
+            mode: Continuous
+            httpProbe/inputs:
+              url: https://api.example.com/health
+              insecureSkipVerify: false
+              method:
+                get:
+                  criteria: ==
+                  responseCode: '200'
+            runProperties:
+              probeTimeout: 10
+              interval: 5
+              retry: 2
+
+---
+# Experiment 6: DNS Chaos
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: dns-failure-quarterly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'app=external-api-client'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-dns-error
+      spec:
+        components:
+          env:
+            - name: TARGET_HOSTNAMES
+              value: 'api.partner.com,db.example.com'
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+
+---
+# Experiment 7: DB Connection Pool Exhaustion
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: db-connection-chaos-monthly
+  namespace: litmus
+spec:
+  appinfo:
+    appns: production
+    applabel: 'app=backend-api'
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: litmus-admin
+  experiments:
+    - name: pod-network-duplication
+      spec:
+        components:
+          env:
+            - name: NETWORK_PACKET_DUPLICATION_PERCENTAGE
+              value: '100'
+            - name: DESTINATION_IPS
+              value: 'rds-endpoint.us-east-1.rds.amazonaws.com'
+            - name: TOTAL_CHAOS_DURATION
+              value: '90'
+
+---
+# Chaos Schedule: Automated Monthly Pod Chaos
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosSchedule
+metadata:
+  name: monthly-pod-chaos
+  namespace: litmus
+spec:
+  schedule:
+    type: now
+  engineTemplateSpec:
+    appinfo:
+      appns: production
+      applabel: 'chaos=enabled'
+      appkind: deployment
+    engineState: active
+    chaosServiceAccount: litmus-admin
+    experiments:
+      - name: pod-delete
+        spec:
+          components:
+            env:
+              - name: TOTAL_CHAOS_DURATION
+                value: '60'
+              - name: FORCE
+                value: 'false'

@@ -1,0 +1,9 @@
+site/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+gantman_2026.md
+__pycache__/
+*.pyc

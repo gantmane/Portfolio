@@ -1,0 +1,26 @@
+---
+# yamllint configuration for Portfolio
+# Relaxed rules appropriate for CI/CD templates and Ansible playbooks
+# which contain long inline shell commands and Ansible inline dicts.
+extends: default
+
+rules:
+  # CI/CD templates and playbooks contain long shell commands — 160 chars
+  line-length:
+    max: 160
+    level: warning
+
+  # Ansible inline dict style: { key: value } with spaces is idiomatic
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    level: warning
+
+  # GitLab CI hidden job templates do not use --- document start
+  document-start:
+    level: warning
+
+  # Ansible uses yes/no as truthy values in some contexts
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    level: warning

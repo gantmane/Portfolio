@@ -1,0 +1,101 @@
+site_name: Evgeniy Gantman - DevSecOps Code Catalog
+site_url: https://gantmane.github.io/Portfolio/
+site_description: Production security configs — 275 files, 66K+ lines — Wazuh, Kyverno, Falco, Vault, ArgoCD, Terraform
+site_author: Evgeniy Gantman
+
+repo_name: gantmane/Portfolio
+repo_url: https://github.com/gantmane/Portfolio
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/evgeniy-gantman/
+    - icon: fontawesome/brands/github
+      link: https://github.com/gantmane
+    - icon: fontawesome/solid/envelope
+      link: mailto:egDevOps@gmail.com
+
+copyright: Copyright &copy; 2025 Evgeniy Gantman
+
+nav:
+  - Home: index.md
+  - Detection & Response:
+    - Wazuh SIEM: wazuh/index.md
+    - Security Onion: security-onion/index.md
+    - Sigma Rules: sigma/index.md
+    - Falco Runtime: falco/index.md
+    - CrowdSec IPS: crowdsec/index.md
+  - Policy & Admission:
+    - Kyverno: kyverno/index.md
+    - OPA Gatekeeper: opa-gatekeeper/index.md
+    - Calico NetworkPolicy: calico/index.md
+    - Istio Service Mesh: istio/index.md
+  - Secrets & Identity:
+    - HashiCorp Vault: vault/index.md
+    - Teleport PAM: teleport/index.md
+    - Keycloak OIDC: keycloak/index.md
+    - External Secrets: external-secrets/index.md
+  - GitOps & Delivery:
+    - ArgoCD: argocd/index.md
+    - GitLab CI: gitlab-ci/index.md
+    - Velero Backup: velero/index.md
+  - Infrastructure:
+    - Terraform Modules: terraform/index.md
+    - Cloud Security: cloud-security/index.md
+    - Ansible Playbooks: ansible/index.md
+    - Patroni PostgreSQL: patroni/index.md
+  - Observability:
+    - Loki Logging: loki/index.md
+    - Grafana Dashboards: metrics/index.md
+    - Prometheus Alerts: monitoring/index.md
+    - Vector Pipeline: vector/index.md
+  - Automation:
+    - n8n SOAR: n8n/index.md
+    - Python Scripts: python/index.md
